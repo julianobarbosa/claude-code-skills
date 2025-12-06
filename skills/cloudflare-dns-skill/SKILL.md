@@ -10,6 +10,7 @@ Complete Cloudflare DNS operations via REST API with focus on Azure integration.
 ## Overview
 
 This skill covers Cloudflare DNS management for Azure-hosted workloads, including:
+
 - API token configuration and security
 - DNS record management (A, AAAA, CNAME, TXT, MX)
 - Proxy settings (orange/gray cloud)
@@ -23,12 +24,14 @@ This skill covers Cloudflare DNS management for Azure-hosted workloads, includin
 Create scoped API tokens instead of using Global API Key:
 
 **Required Permissions:**
+
 | Permission | Access | Purpose |
 |------------|--------|---------|
 | Zone > Zone | Read | List zones |
 | Zone > DNS | Edit | Manage DNS records |
 
 **Create Token:**
+
 1. Cloudflare Dashboard > My Profile > API Tokens
 2. Create Token > Custom token
 3. Add permissions above
@@ -417,6 +420,7 @@ kubectl logs -n external-dns deployment/external-dns | head -20
 ## Rate Limits
 
 **Cloudflare API Limits:**
+
 - 1,200 requests per 5 minutes (per account)
 - 100 requests per 5 minutes (per zone, for some endpoints)
 

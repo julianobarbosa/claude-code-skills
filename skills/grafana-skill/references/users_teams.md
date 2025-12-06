@@ -3,6 +3,7 @@
 Complete reference for Grafana User, Team, and Service Account HTTP API endpoints.
 
 ## Table of Contents
+
 - [Current User](#current-user)
 - [Users (Admin)](#users-admin)
 - [Teams](#teams)
@@ -17,11 +18,13 @@ Complete reference for Grafana User, Team, and Service Account HTTP API endpoint
 ## Current User
 
 ### Get Current User
+
 ```http
 GET /api/user
 ```
 
 **Example Response:**
+
 ```json
 {
   "id": 1,
@@ -41,6 +44,7 @@ GET /api/user
 ```
 
 ### Update Current User
+
 ```http
 PUT /api/user
 ```
@@ -55,22 +59,26 @@ PUT /api/user
 ```
 
 ### Get Current User Organizations
+
 ```http
 GET /api/user/orgs
 ```
 
 ### Get Current User Teams
+
 ```http
 GET /api/user/teams
 ```
 
 ### Star/Unstar Dashboard
+
 ```http
 POST /api/user/stars/dashboard/uid/:dashboardUID
 DELETE /api/user/stars/dashboard/uid/:dashboardUID
 ```
 
 ### Change Active Organization
+
 ```http
 POST /api/user/using/:orgId
 ```
@@ -82,11 +90,13 @@ POST /api/user/using/:orgId
 Requires Grafana Admin permission.
 
 ### Search Users
+
 ```http
 GET /api/users/search
 ```
 
 **Query Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | perpage | integer | Results per page (default: 1000) |
@@ -95,6 +105,7 @@ GET /api/users/search
 | sort | string | Sort order (e.g., `login-asc`, `email-desc`) |
 
 **Example Response:**
+
 ```json
 {
   "totalCount": 2,
@@ -117,11 +128,13 @@ GET /api/users/search
 ```
 
 ### Get User by ID
+
 ```http
 GET /api/users/:id
 ```
 
 ### Create User
+
 ```http
 POST /api/admin/users
 ```
@@ -137,6 +150,7 @@ POST /api/admin/users
 ```
 
 ### Update User
+
 ```http
 PUT /api/users/:id
 ```
@@ -151,11 +165,13 @@ PUT /api/users/:id
 ```
 
 ### Delete User
+
 ```http
 DELETE /api/admin/users/:id
 ```
 
 ### Update User Permissions
+
 ```http
 PUT /api/admin/users/:id/permissions
 ```
@@ -167,6 +183,7 @@ PUT /api/admin/users/:id/permissions
 ```
 
 ### Disable/Enable User
+
 ```http
 POST /api/admin/users/:id/disable
 POST /api/admin/users/:id/enable
@@ -177,11 +194,13 @@ POST /api/admin/users/:id/enable
 ## Teams
 
 ### Search Teams
+
 ```http
 GET /api/teams/search
 ```
 
 **Query Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | perpage | integer | Results per page (default: 1000) |
@@ -190,6 +209,7 @@ GET /api/teams/search
 | query | string | Search query |
 
 **Example Response:**
+
 ```json
 {
   "totalCount": 1,
@@ -210,11 +230,13 @@ GET /api/teams/search
 ```
 
 ### Get Team by ID
+
 ```http
 GET /api/teams/:teamId
 ```
 
 ### Create Team
+
 ```http
 POST /api/teams
 ```
@@ -227,6 +249,7 @@ POST /api/teams
 ```
 
 ### Update Team
+
 ```http
 PUT /api/teams/:teamId
 ```
@@ -239,6 +262,7 @@ PUT /api/teams/:teamId
 ```
 
 ### Delete Team
+
 ```http
 DELETE /api/teams/:teamId
 ```
@@ -248,11 +272,13 @@ DELETE /api/teams/:teamId
 ## Team Members
 
 ### Get Team Members
+
 ```http
 GET /api/teams/:teamId/members
 ```
 
 **Example Response:**
+
 ```json
 [
   {
@@ -270,6 +296,7 @@ GET /api/teams/:teamId/members
 ```
 
 ### Add Team Member
+
 ```http
 POST /api/teams/:teamId/members
 ```
@@ -281,11 +308,13 @@ POST /api/teams/:teamId/members
 ```
 
 ### Remove Team Member
+
 ```http
 DELETE /api/teams/:teamId/members/:userId
 ```
 
 ### Update Team Member Permission
+
 ```http
 PUT /api/teams/:teamId/members/:userId
 ```
@@ -297,6 +326,7 @@ PUT /api/teams/:teamId/members/:userId
 ```
 
 **Permission Values:**
+
 - `0`: Member
 - `4`: Admin
 
@@ -305,11 +335,13 @@ PUT /api/teams/:teamId/members/:userId
 ## Service Accounts
 
 ### Search Service Accounts
+
 ```http
 GET /api/serviceaccounts/search
 ```
 
 **Query Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | perpage | integer | Results per page |
@@ -318,6 +350,7 @@ GET /api/serviceaccounts/search
 | disabled | boolean | Filter by disabled status |
 
 **Example Response:**
+
 ```json
 {
   "totalCount": 1,
@@ -339,11 +372,13 @@ GET /api/serviceaccounts/search
 ```
 
 ### Get Service Account by ID
+
 ```http
 GET /api/serviceaccounts/:id
 ```
 
 ### Create Service Account
+
 ```http
 POST /api/serviceaccounts
 ```
@@ -359,6 +394,7 @@ POST /api/serviceaccounts
 **Roles:** `Viewer`, `Editor`, `Admin`
 
 ### Update Service Account
+
 ```http
 PATCH /api/serviceaccounts/:id
 ```
@@ -372,6 +408,7 @@ PATCH /api/serviceaccounts/:id
 ```
 
 ### Delete Service Account
+
 ```http
 DELETE /api/serviceaccounts/:id
 ```
@@ -381,11 +418,13 @@ DELETE /api/serviceaccounts/:id
 ## Service Account Tokens
 
 ### List Tokens
+
 ```http
 GET /api/serviceaccounts/:id/tokens
 ```
 
 **Example Response:**
+
 ```json
 [
   {
@@ -401,6 +440,7 @@ GET /api/serviceaccounts/:id/tokens
 ```
 
 ### Create Token
+
 ```http
 POST /api/serviceaccounts/:id/tokens
 ```
@@ -415,6 +455,7 @@ POST /api/serviceaccounts/:id/tokens
 Use `secondsToLive: 0` for non-expiring tokens.
 
 **Response:**
+
 ```json
 {
   "id": 2,
@@ -426,6 +467,7 @@ Use `secondsToLive: 0` for non-expiring tokens.
 **Important:** The `key` is only shown once. Store it securely.
 
 ### Delete Token
+
 ```http
 DELETE /api/serviceaccounts/:id/tokens/:tokenId
 ```
@@ -435,11 +477,13 @@ DELETE /api/serviceaccounts/:id/tokens/:tokenId
 ## Organizations
 
 ### Get Current Organization
+
 ```http
 GET /api/org
 ```
 
 ### Update Current Organization
+
 ```http
 PUT /api/org
 ```
@@ -451,11 +495,13 @@ PUT /api/org
 ```
 
 ### List Organizations (Admin)
+
 ```http
 GET /api/orgs
 ```
 
 ### Create Organization (Admin)
+
 ```http
 POST /api/orgs
 ```
@@ -467,16 +513,19 @@ POST /api/orgs
 ```
 
 ### Get Organization by ID (Admin)
+
 ```http
 GET /api/orgs/:orgId
 ```
 
 ### Update Organization (Admin)
+
 ```http
 PUT /api/orgs/:orgId
 ```
 
 ### Delete Organization (Admin)
+
 ```http
 DELETE /api/orgs/:orgId
 ```
@@ -486,11 +535,13 @@ DELETE /api/orgs/:orgId
 ## Organization Users
 
 ### Get Current Org Users
+
 ```http
 GET /api/org/users
 ```
 
 **Example Response:**
+
 ```json
 [
   {
@@ -508,6 +559,7 @@ GET /api/org/users
 ```
 
 ### Add User to Current Org
+
 ```http
 POST /api/org/users
 ```
@@ -520,6 +572,7 @@ POST /api/org/users
 ```
 
 ### Update User Role in Current Org
+
 ```http
 PATCH /api/org/users/:userId
 ```
@@ -531,16 +584,19 @@ PATCH /api/org/users/:userId
 ```
 
 ### Remove User from Current Org
+
 ```http
 DELETE /api/org/users/:userId
 ```
 
 ### Get Org Users (Admin)
+
 ```http
 GET /api/orgs/:orgId/users
 ```
 
 ### Add User to Org (Admin)
+
 ```http
 POST /api/orgs/:orgId/users
 ```
@@ -553,11 +609,13 @@ POST /api/orgs/:orgId/users
 ```
 
 ### Update User Role in Org (Admin)
+
 ```http
 PATCH /api/orgs/:orgId/users/:userId
 ```
 
 ### Remove User from Org (Admin)
+
 ```http
 DELETE /api/orgs/:orgId/users/:userId
 ```

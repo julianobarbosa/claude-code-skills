@@ -157,6 +157,7 @@ extraArgs:
 ```
 
 **Benefits**:
+
 - Fewer API calls for zones with many records
 - Reduced risk of rate limiting
 - Faster sync cycles
@@ -184,6 +185,7 @@ extraArgs:
 ```
 
 Get zone IDs:
+
 ```bash
 curl -X GET "https://api.cloudflare.com/client/v4/zones" \
   -H "Authorization: Bearer $CF_API_TOKEN" \
@@ -329,6 +331,7 @@ curl -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?typ
 **Symptoms**: `401 Unauthorized` or `403 Forbidden` in logs
 
 **Solutions**:
+
 1. Verify API token is correct in secret
 2. Check token has Zone:Read and DNS:Edit permissions
 3. Verify zone is accessible to the token (Zone Resources setting)
@@ -345,16 +348,22 @@ curl "https://api.cloudflare.com/client/v4/user/tokens/verify" \
 **Symptoms**: `429 Too Many Requests` in logs
 
 **Solutions**:
+
 1. Increase sync interval:
+
    ```yaml
    interval: "10m"  # Increase from default
    ```
+
 2. Increase records per page:
+
    ```yaml
    extraArgs:
      cloudflare-dns-records-per-page: 5000
    ```
+
 3. Use zone ID filter to reduce API calls:
+
    ```yaml
    extraArgs:
      zone-id-filter: "<specific-zone-id>"
@@ -365,6 +374,7 @@ curl "https://api.cloudflare.com/client/v4/user/tokens/verify" \
 **Symptoms**: Records created but not proxied
 
 **Solutions**:
+
 1. Verify `cloudflare-proxied: true` in extraArgs
 2. Check per-record annotations aren't overriding
 3. Note: Some record types cannot be proxied (MX, TXT, etc.)
@@ -374,6 +384,7 @@ curl "https://api.cloudflare.com/client/v4/user/tokens/verify" \
 **Symptoms**: `TXT record ownership conflict` in logs
 
 **Solutions**:
+
 1. Ensure unique `txtOwnerId` per cluster
 2. Delete orphaned TXT records manually
 3. Use different `txtPrefix` if migrating
@@ -389,6 +400,7 @@ curl -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?typ
 **Symptoms**: Ingress/Service deployed but no DNS record
 
 **Solutions**:
+
 1. Check `domainFilters` includes your domain
 2. Verify source type (service/ingress) is in `sources`
 3. Check dry-run is not enabled

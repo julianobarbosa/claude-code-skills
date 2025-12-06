@@ -3,6 +3,7 @@
 Error handling, pagination, and reusable patterns for the Grafana HTTP API.
 
 ## Table of Contents
+
 - [Error Handling](#error-handling)
 - [Pagination](#pagination)
 - [Rate Limiting](#rate-limiting)
@@ -81,22 +82,22 @@ Some endpoints return pagination metadata:
 def get_all_pages(grafana, endpoint, key='results', page_size=100):
     all_results = []
     page = 1
-    
+
     while True:
         response = grafana.get(f"{endpoint}?perpage={page_size}&page={page}")
         results = response.get(key, response)
-        
+
         if not results:
             break
-            
+
         all_results.extend(results)
-        
+
         total = response.get('totalCount', len(results))
         if len(all_results) >= total:
             break
-            
+
         page += 1
-    
+
     return all_results
 ```
 
@@ -129,6 +130,7 @@ def bulk_create_with_rate_limit(items, create_func, delay=0.1):
 ### Dashboard Version Conflict (412)
 
 **Error:**
+
 ```json
 {
   "message": "The dashboard has been changed by someone else",
@@ -137,14 +139,15 @@ def bulk_create_with_rate_limit(items, create_func, delay=0.1):
 ```
 
 **Solution:** Fetch latest version and retry:
+
 ```python
 def update_dashboard_safely(grafana, uid, updates):
     dashboard_data = grafana.get_dashboard_by_uid(uid)
     dashboard = dashboard_data['dashboard']
-    
+
     # Apply updates
     dashboard.update(updates)
-    
+
     # Include version for optimistic locking
     return grafana.create_or_update_dashboard({
         'dashboard': dashboard,
@@ -156,6 +159,7 @@ def update_dashboard_safely(grafana, uid, updates):
 ### Permission Denied (403)
 
 **Error:**
+
 ```json
 {
   "message": "Access denied"
@@ -163,6 +167,7 @@ def update_dashboard_safely(grafana, uid, updates):
 ```
 
 **Common causes:**
+
 - Token lacks required permissions
 - User not in correct organization
 - RBAC restrictions (Enterprise)
@@ -172,6 +177,7 @@ def update_dashboard_safely(grafana, uid, updates):
 ### Resource Not Found (404)
 
 **Error:**
+
 ```json
 {
   "message": "Dashboard not found",
@@ -180,6 +186,7 @@ def update_dashboard_safely(grafana, uid, updates):
 ```
 
 **Common causes:**
+
 - Wrong UID or ID
 - Resource in different organization
 - Resource was deleted
@@ -213,37 +220,37 @@ class GrafanaClient:
         })
         if org_id:
             self.session.headers['X-Grafana-Org-Id'] = str(org_id)
-    
+
     def _request(self, method: str, endpoint: str, **kwargs) -> Dict:
         url = urljoin(self.base_url, endpoint)
         response = self.session.request(method, url, **kwargs)
-        
+
         try:
             data = response.json()
         except:
             data = {'message': response.text}
-        
+
         if not response.ok:
             raise GrafanaAPIError(
                 data.get('message', 'Unknown error'),
                 response.status_code,
                 data
             )
-        
+
         return data
-    
+
     def get(self, endpoint: str, params: Dict = None) -> Dict:
         return self._request('GET', endpoint, params=params)
-    
+
     def post(self, endpoint: str, json: Dict = None) -> Dict:
         return self._request('POST', endpoint, json=json)
-    
+
     def put(self, endpoint: str, json: Dict = None) -> Dict:
         return self._request('PUT', endpoint, json=json)
-    
+
     def patch(self, endpoint: str, json: Dict = None) -> Dict:
         return self._request('PATCH', endpoint, json=json)
-    
+
     def delete(self, endpoint: str) -> Dict:
         return self._request('DELETE', endpoint)
 ```
@@ -267,10 +274,10 @@ class DashboardMixin:
         if folder_uid:
             params['folderUIDs'] = folder_uid
         return self.get('/api/search', params=params)
-    
+
     def get_dashboard_by_uid(self, uid: str) -> Dict:
         return self.get(f'/api/dashboards/uid/{uid}')
-    
+
     def create_or_update_dashboard(
         self,
         dashboard: Dict,
@@ -287,7 +294,7 @@ class DashboardMixin:
         if message:
             payload['message'] = message
         return self.post('/api/dashboards/db', json=payload)
-    
+
     def delete_dashboard(self, uid: str) -> Dict:
         return self.delete(f'/api/dashboards/uid/{uid}')
 ```
@@ -298,22 +305,22 @@ class DashboardMixin:
 class DataSourceMixin:
     def list_datasources(self) -> List[Dict]:
         return self.get('/api/datasources')
-    
+
     def get_datasource_by_uid(self, uid: str) -> Dict:
         return self.get(f'/api/datasources/uid/{uid}')
-    
+
     def create_datasource(self, datasource: Dict) -> Dict:
         return self.post('/api/datasources', json=datasource)
-    
+
     def update_datasource(self, uid: str, datasource: Dict) -> Dict:
         return self.put(f'/api/datasources/uid/{uid}', json=datasource)
-    
+
     def delete_datasource(self, uid: str) -> Dict:
         return self.delete(f'/api/datasources/uid/{uid}')
-    
+
     def health_check_datasource(self, uid: str) -> Dict:
         return self.get(f'/api/datasources/uid/{uid}/health')
-    
+
     def query_datasource(self, queries: List[Dict], from_time: str, to_time: str) -> Dict:
         return self.post('/api/ds/query', json={
             'queries': queries,
@@ -365,10 +372,10 @@ check_health() {
     response=$(curl -s -w "\n%{http_code}" \
         -H "Authorization: Bearer $GRAFANA_TOKEN" \
         "$GRAFANA_URL/api/health")
-    
+
     http_code=$(echo "$response" | tail -n1)
     body=$(echo "$response" | head -n-1)
-    
+
     if [ "$http_code" = "200" ]; then
         echo "✓ Grafana is healthy"
         return 0

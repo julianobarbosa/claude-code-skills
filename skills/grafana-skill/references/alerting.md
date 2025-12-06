@@ -3,6 +3,7 @@
 Complete reference for Grafana Alerting HTTP API endpoints (Grafana 9.0+).
 
 ## Table of Contents
+
 - [Alert Rules](#alert-rules)
 - [Rule Groups](#rule-groups)
 - [Contact Points](#contact-points)
@@ -17,11 +18,13 @@ Complete reference for Grafana Alerting HTTP API endpoints (Grafana 9.0+).
 ## Alert Rules
 
 ### List All Alert Rules
+
 ```http
 GET /api/v1/provisioning/alert-rules
 ```
 
 **Example Response:**
+
 ```json
 [
   {
@@ -45,16 +48,19 @@ GET /api/v1/provisioning/alert-rules
 ```
 
 ### Get Alert Rule by UID
+
 ```http
 GET /api/v1/provisioning/alert-rules/:uid
 ```
 
 ### Create Alert Rule
+
 ```http
 POST /api/v1/provisioning/alert-rules
 ```
 
 **Complete Example:**
+
 ```json
 {
   "title": "High Memory Usage",
@@ -124,11 +130,13 @@ POST /api/v1/provisioning/alert-rules
 ```
 
 ### Update Alert Rule
+
 ```http
 PUT /api/v1/provisioning/alert-rules/:uid
 ```
 
 ### Delete Alert Rule
+
 ```http
 DELETE /api/v1/provisioning/alert-rules/:uid
 ```
@@ -138,16 +146,19 @@ DELETE /api/v1/provisioning/alert-rules/:uid
 ## Rule Groups
 
 ### Get Rule Group
+
 ```http
 GET /api/v1/provisioning/folder/:folderUid/rule-groups/:group
 ```
 
 ### Update Rule Group
+
 ```http
 PUT /api/v1/provisioning/folder/:folderUid/rule-groups/:group
 ```
 
 **Request Body:**
+
 ```json
 {
   "name": "CPU Alerts",
@@ -161,16 +172,19 @@ PUT /api/v1/provisioning/folder/:folderUid/rule-groups/:group
 ## Contact Points
 
 ### List Contact Points
+
 ```http
 GET /api/v1/provisioning/contact-points
 ```
 
 **Query Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | name | string | Filter by name |
 
 **Example Response:**
+
 ```json
 [
   {
@@ -187,11 +201,13 @@ GET /api/v1/provisioning/contact-points
 ```
 
 ### Create Contact Point
+
 ```http
 POST /api/v1/provisioning/contact-points
 ```
 
 **Email Example:**
+
 ```json
 {
   "name": "ops-team-email",
@@ -205,6 +221,7 @@ POST /api/v1/provisioning/contact-points
 ```
 
 **Slack Example:**
+
 ```json
 {
   "name": "slack-alerts",
@@ -222,6 +239,7 @@ POST /api/v1/provisioning/contact-points
 ```
 
 **PagerDuty Example:**
+
 ```json
 {
   "name": "pagerduty",
@@ -237,6 +255,7 @@ POST /api/v1/provisioning/contact-points
 ```
 
 **Webhook Example:**
+
 ```json
 {
   "name": "custom-webhook",
@@ -252,11 +271,13 @@ POST /api/v1/provisioning/contact-points
 ```
 
 ### Update Contact Point
+
 ```http
 PUT /api/v1/provisioning/contact-points/:uid
 ```
 
 ### Delete Contact Point
+
 ```http
 DELETE /api/v1/provisioning/contact-points/:uid
 ```
@@ -266,11 +287,13 @@ DELETE /api/v1/provisioning/contact-points/:uid
 ## Notification Policies
 
 ### Get Notification Policy Tree
+
 ```http
 GET /api/v1/provisioning/policies
 ```
 
 **Example Response:**
+
 ```json
 {
   "receiver": "email-receiver",
@@ -292,11 +315,13 @@ GET /api/v1/provisioning/policies
 ```
 
 ### Update Notification Policy Tree
+
 ```http
 PUT /api/v1/provisioning/policies
 ```
 
 **Request Body:**
+
 ```json
 {
   "receiver": "email-receiver",
@@ -331,16 +356,19 @@ PUT /api/v1/provisioning/policies
 ## Mute Timings
 
 ### List Mute Timings
+
 ```http
 GET /api/v1/provisioning/mute-timings
 ```
 
 ### Create Mute Timing
+
 ```http
 POST /api/v1/provisioning/mute-timings
 ```
 
 **Weekend Mute Example:**
+
 ```json
 {
   "name": "weekends",
@@ -353,6 +381,7 @@ POST /api/v1/provisioning/mute-timings
 ```
 
 **Business Hours Only Example:**
+
 ```json
 {
   "name": "outside-business-hours",
@@ -372,11 +401,13 @@ POST /api/v1/provisioning/mute-timings
 ```
 
 ### Update Mute Timing
+
 ```http
 PUT /api/v1/provisioning/mute-timings/:name
 ```
 
 ### Delete Mute Timing
+
 ```http
 DELETE /api/v1/provisioning/mute-timings/:name
 ```
@@ -386,16 +417,19 @@ DELETE /api/v1/provisioning/mute-timings/:name
 ## Silences
 
 ### List Silences
+
 ```http
 GET /api/alertmanager/grafana/api/v2/silences
 ```
 
 ### Create Silence
+
 ```http
 POST /api/alertmanager/grafana/api/v2/silences
 ```
 
 **Request Body:**
+
 ```json
 {
   "matchers": [
@@ -410,6 +444,7 @@ POST /api/alertmanager/grafana/api/v2/silences
 ```
 
 ### Delete Silence
+
 ```http
 DELETE /api/alertmanager/grafana/api/v2/silence/:silenceId
 ```
@@ -419,11 +454,13 @@ DELETE /api/alertmanager/grafana/api/v2/silence/:silenceId
 ## Active Alerts
 
 ### Get All Active Alerts
+
 ```http
 GET /api/alertmanager/grafana/api/v2/alerts
 ```
 
 **Query Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | active | boolean | Show active alerts |
@@ -433,6 +470,7 @@ GET /api/alertmanager/grafana/api/v2/alerts
 | receiver | string | Filter by receiver |
 
 ### Get Alert Groups
+
 ```http
 GET /api/alertmanager/grafana/api/v2/alerts/groups
 ```
@@ -442,16 +480,19 @@ GET /api/alertmanager/grafana/api/v2/alerts/groups
 ## Templates
 
 ### List Templates
+
 ```http
 GET /api/v1/provisioning/templates
 ```
 
 ### Create/Update Template
+
 ```http
 PUT /api/v1/provisioning/templates/:name
 ```
 
 **Request Body:**
+
 ```json
 {
   "template": "{{ define \"custom_email.subject\" }}\n[{{ .Status | toUpper }}{{ if eq .Status \"firing\" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.alertname }}\n{{ end }}"
@@ -459,6 +500,7 @@ PUT /api/v1/provisioning/templates/:name
 ```
 
 ### Delete Template
+
 ```http
 DELETE /api/v1/provisioning/templates/:name
 ```
@@ -478,6 +520,7 @@ For alert rule data queries, use `datasourceUid: "-100"` for expression types:
 | `resample` | Resample time series data |
 
 **Reduce Example:**
+
 ```json
 {
   "refId": "B",
@@ -492,6 +535,7 @@ For alert rule data queries, use `datasourceUid: "-100"` for expression types:
 ```
 
 **Threshold Example:**
+
 ```json
 {
   "refId": "C",

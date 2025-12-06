@@ -3,6 +3,7 @@
 Complete reference for Grafana Folder HTTP API endpoints.
 
 ## Table of Contents
+
 - [List Folders](#list-folders)
 - [Get Folder](#get-folder)
 - [Create Folder](#create-folder)
@@ -20,12 +21,14 @@ GET /api/folders
 ```
 
 **Query Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | limit | integer | Max folders to return (default: 1000) |
 | page | integer | Page number for pagination |
 
 **Example Response:**
+
 ```json
 [
   {
@@ -52,16 +55,19 @@ GET /api/folders
 ## Get Folder
 
 ### By UID
+
 ```http
 GET /api/folders/:uid
 ```
 
 ### By ID (Deprecated)
+
 ```http
 GET /api/folders/id/:id
 ```
 
 **Example Response:**
+
 ```json
 {
   "id": 1,
@@ -91,6 +97,7 @@ POST /api/folders
 ```
 
 **Request Body:**
+
 ```json
 {
   "uid": "my-folder-uid",
@@ -100,6 +107,7 @@ POST /api/folders
 ```
 
 **Fields:**
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | title | string | Yes | Folder title |
@@ -107,6 +115,7 @@ POST /api/folders
 | parentUid | string | No | Parent folder UID (for nested folders) |
 
 **Example Response:**
+
 ```json
 {
   "id": 5,
@@ -136,6 +145,7 @@ PUT /api/folders/:uid
 ```
 
 **Request Body:**
+
 ```json
 {
   "title": "Updated Folder Title",
@@ -145,6 +155,7 @@ PUT /api/folders/:uid
 ```
 
 **Fields:**
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | title | string | Yes | New folder title |
@@ -152,6 +163,7 @@ PUT /api/folders/:uid
 | overwrite | boolean | No | Force update regardless of version |
 
 **Error Response (Version Mismatch):**
+
 ```json
 {
   "message": "The folder has been changed by someone else",
@@ -168,6 +180,7 @@ DELETE /api/folders/:uid
 ```
 
 **Query Parameters:**
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | forceDeleteRules | boolean | false | Delete alert rules in folder |
@@ -175,12 +188,14 @@ DELETE /api/folders/:uid
 **Warning:** Deleting a folder also deletes all dashboards inside it. This operation cannot be undone.
 
 **Example Request:**
+
 ```bash
 curl -X DELETE -H "Authorization: Bearer <TOKEN>" \
   "https://grafana.example.com/api/folders/nErXDvCkzz?forceDeleteRules=true"
 ```
 
 **Example Response:**
+
 ```json
 {
   "title": "Operations",
@@ -200,6 +215,7 @@ POST /api/folders/:uid/move
 **Note:** Only available when nested folders are enabled.
 
 **Request Body:**
+
 ```json
 {
   "parentUid": "new-parent-folder-uid"
@@ -213,11 +229,13 @@ Use empty string or omit `parentUid` to move to root level.
 ## Folder Permissions
 
 ### Get Folder Permissions
+
 ```http
 GET /api/folders/:uid/permissions
 ```
 
 **Example Response:**
+
 ```json
 [
   {
@@ -244,11 +262,13 @@ GET /api/folders/:uid/permissions
 ```
 
 ### Update Folder Permissions
+
 ```http
 POST /api/folders/:uid/permissions
 ```
 
 **Request Body:**
+
 ```json
 {
   "items": [
@@ -261,6 +281,7 @@ POST /api/folders/:uid/permissions
 ```
 
 **Permission Levels:**
+
 | Value | Name | Description |
 |-------|------|-------------|
 | 1 | View | Can view dashboards in folder |
@@ -276,6 +297,7 @@ GET /api/search
 ```
 
 **Query Parameters for Folder Search:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | type | string | `dash-folder` for folders only |
@@ -283,6 +305,7 @@ GET /api/search
 | folderIds | array | Filter by parent folder IDs |
 
 **Example:**
+
 ```bash
 curl -H "Authorization: Bearer <TOKEN>" \
   "https://grafana.example.com/api/search?type=dash-folder&query=prod"
@@ -295,21 +318,25 @@ curl -H "Authorization: Bearer <TOKEN>" \
 Grafana is transitioning to a new Kubernetes-style API structure.
 
 ### List Folders (New API)
+
 ```http
 GET /apis/folder.grafana.app/v1beta1/namespaces/default/folders
 ```
 
 ### Get Folder (New API)
+
 ```http
 GET /apis/folder.grafana.app/v1beta1/namespaces/default/folders/:uid
 ```
 
 ### Create Folder (New API)
+
 ```http
 POST /apis/folder.grafana.app/v1beta1/namespaces/default/folders
 ```
 
 **Request Body:**
+
 ```json
 {
   "metadata": {
@@ -325,6 +352,7 @@ POST /apis/folder.grafana.app/v1beta1/namespaces/default/folders
 ```
 
 **Response:**
+
 ```json
 {
   "kind": "Folder",

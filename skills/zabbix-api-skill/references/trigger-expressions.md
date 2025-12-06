@@ -184,6 +184,7 @@ last(/host/key)>100 and time()<020000
 ## Recovery Expressions
 
 Set separate recovery condition:
+
 ```python
 api.trigger.create(
     description="High CPU",
@@ -196,6 +197,7 @@ api.trigger.create(
 ## Trigger Dependencies
 
 Prevent alert storms with dependencies:
+
 ```python
 # Child trigger won't fire if parent is in problem state
 api.trigger.adddependencies(

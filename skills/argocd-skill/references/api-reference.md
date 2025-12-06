@@ -14,18 +14,21 @@ Headers:
 ## Applications API
 
 ### List Applications
+
 ```
 GET /api/v1/applications
 Query params: ?projects=default&selector=app%3Dmyapp&appNamespace=argocd
 ```
 
 ### Get Application
+
 ```
 GET /api/v1/applications/{name}
 Query params: ?appNamespace=argocd&project=default
 ```
 
 ### Create Application
+
 ```
 POST /api/v1/applications
 Query params: ?upsert=true&validate=true
@@ -112,6 +115,7 @@ Body:
 ```
 
 ### Update Application
+
 ```
 PUT /api/v1/applications/{name}
 Query params: ?validate=true&project=default
@@ -120,6 +124,7 @@ Body: Same as create
 ```
 
 ### Patch Application
+
 ```
 PATCH /api/v1/applications/{name}
 Query params: ?project=default
@@ -131,12 +136,14 @@ Body (JSON Patch):
 ```
 
 ### Delete Application
+
 ```
 DELETE /api/v1/applications/{name}
 Query params: ?cascade=true&propagationPolicy=foreground&appNamespace=argocd
 ```
 
 ### Sync Application
+
 ```
 POST /api/v1/applications/{name}/sync
 
@@ -169,6 +176,7 @@ Body:
 ```
 
 ### Rollback Application
+
 ```
 POST /api/v1/applications/{name}/rollback
 
@@ -181,39 +189,46 @@ Body:
 ```
 
 ### Terminate Operation
+
 ```
 DELETE /api/v1/applications/{name}/operation
 ```
 
 ### Get Resource Tree
+
 ```
 GET /api/v1/applications/{name}/resource-tree
 Query params: ?appNamespace=argocd
 ```
 
 ### Get Managed Resources
+
 ```
 GET /api/v1/applications/{name}/managed-resources
 Query params: ?namespace=default&name=nginx&kind=Deployment&group=apps
 ```
 
 ### Get Application Logs
+
 ```
 GET /api/v1/applications/{name}/logs
 Query params: ?namespace=default&podName=nginx-xxx&container=nginx&sinceSeconds=3600&tailLines=100&follow=false
 ```
 
 ### Get Application Events
+
 ```
 GET /api/v1/applications/{name}/events
 ```
 
 ### Get Application History
+
 ```
 GET /api/v1/applications/{name}/revisions/{revision}/metadata
 ```
 
 ### Resource Actions
+
 ```
 POST /api/v1/applications/{name}/resource/actions
 Query params: ?namespace=default&resourceName=nginx&kind=Deployment&group=apps&version=v1
@@ -222,12 +237,14 @@ Body: "restart"  // Action name as JSON string
 ```
 
 ### Get Resource Actions
+
 ```
 GET /api/v1/applications/{name}/resource/actions
 Query params: ?namespace=default&resourceName=nginx&kind=Deployment&group=apps&version=v1
 ```
 
 ### Delete Resource
+
 ```
 DELETE /api/v1/applications/{name}/resource
 Query params: ?namespace=default&resourceName=nginx&kind=Deployment&group=apps&version=v1&force=false&orphan=false
@@ -236,18 +253,21 @@ Query params: ?namespace=default&resourceName=nginx&kind=Deployment&group=apps&v
 ## ApplicationSets API
 
 ### List ApplicationSets
+
 ```
 GET /api/v1/applicationsets
 Query params: ?projects=default&selector=app%3Dmyapp&appsetNamespace=argocd
 ```
 
 ### Get ApplicationSet
+
 ```
 GET /api/v1/applicationsets/{name}
 Query params: ?appsetNamespace=argocd
 ```
 
 ### Create ApplicationSet
+
 ```
 POST /api/v1/applicationsets
 Query params: ?upsert=true
@@ -355,6 +375,7 @@ Body:
 ```
 
 ### Delete ApplicationSet
+
 ```
 DELETE /api/v1/applicationsets/{name}
 Query params: ?appsetNamespace=argocd
@@ -363,16 +384,19 @@ Query params: ?appsetNamespace=argocd
 ## Projects API
 
 ### List Projects
+
 ```
 GET /api/v1/projects
 ```
 
 ### Get Project
+
 ```
 GET /api/v1/projects/{name}
 ```
 
 ### Create Project
+
 ```
 POST /api/v1/projects
 
@@ -436,6 +460,7 @@ Body:
 ```
 
 ### Update Project
+
 ```
 PUT /api/v1/projects/{name}
 
@@ -443,11 +468,13 @@ Body: Same as create
 ```
 
 ### Delete Project
+
 ```
 DELETE /api/v1/projects/{name}
 ```
 
 ### Create Project Role Token
+
 ```
 POST /api/v1/projects/{project}/roles/{role}/token
 
@@ -460,6 +487,7 @@ Body:
 ```
 
 ### Delete Project Role Token
+
 ```
 DELETE /api/v1/projects/{project}/roles/{role}/token/{iat}
 ```
@@ -467,18 +495,21 @@ DELETE /api/v1/projects/{project}/roles/{role}/token/{iat}
 ## Repositories API
 
 ### List Repositories
+
 ```
 GET /api/v1/repositories
 Query params: ?repo=https://github.com/org/repo&forceRefresh=true
 ```
 
 ### Get Repository
+
 ```
 GET /api/v1/repositories/{repo}
 Query params: ?forceRefresh=true
 ```
 
 ### Create Repository
+
 ```
 POST /api/v1/repositories
 Query params: ?upsert=true
@@ -507,6 +538,7 @@ Body:
 ```
 
 ### Update Repository
+
 ```
 PUT /api/v1/repositories/{repo}
 
@@ -514,17 +546,20 @@ Body: Same as create
 ```
 
 ### Delete Repository
+
 ```
 DELETE /api/v1/repositories/{repo}
 Query params: ?forceRefresh=false
 ```
 
 ### Validate Repository
+
 ```
 POST /api/v1/repositories/{repo}/validate
 ```
 
 ### Get Repository Apps
+
 ```
 GET /api/v1/repositories/{repo}/apps
 Query params: ?revision=HEAD&appName=myapp&appProject=default
@@ -533,12 +568,14 @@ Query params: ?revision=HEAD&appName=myapp&appProject=default
 ## Repository Credentials API
 
 ### List Repository Credentials
+
 ```
 GET /api/v1/repocreds
 Query params: ?url=https://github.com/org/
 ```
 
 ### Create Repository Credentials
+
 ```
 POST /api/v1/repocreds
 Query params: ?upsert=true
@@ -563,6 +600,7 @@ Body:
 ```
 
 ### Update Repository Credentials
+
 ```
 PUT /api/v1/repocreds/{creds.url}
 
@@ -570,6 +608,7 @@ Body: Same as create
 ```
 
 ### Delete Repository Credentials
+
 ```
 DELETE /api/v1/repocreds/{creds.url}
 ```
@@ -577,18 +616,21 @@ DELETE /api/v1/repocreds/{creds.url}
 ## Clusters API
 
 ### List Clusters
+
 ```
 GET /api/v1/clusters
 Query params: ?server=https://kubernetes.default.svc&name=in-cluster&id.type=string&id.value=string
 ```
 
 ### Get Cluster
+
 ```
 GET /api/v1/clusters/{idValue}
 Query params: ?id.type=name  // or "url"
 ```
 
 ### Create Cluster
+
 ```
 POST /api/v1/clusters
 Query params: ?upsert=true
@@ -629,6 +671,7 @@ Body:
 ```
 
 ### Update Cluster
+
 ```
 PUT /api/v1/clusters/{idValue}
 Query params: ?id.type=name&updatedFields=config,namespaces
@@ -637,18 +680,21 @@ Body: Same as create
 ```
 
 ### Delete Cluster
+
 ```
 DELETE /api/v1/clusters/{server}
 Query params: ?name=string&id.type=url
 ```
 
 ### Rotate Cluster Auth
+
 ```
 POST /api/v1/clusters/{idValue}/rotate-auth
 Query params: ?id.type=name
 ```
 
 ### Invalidate Cluster Cache
+
 ```
 POST /api/v1/clusters/{idValue}/invalidate-cache
 Query params: ?id.type=name
@@ -657,16 +703,19 @@ Query params: ?id.type=name
 ## Account API
 
 ### List Accounts
+
 ```
 GET /api/v1/account
 ```
 
 ### Get Account Info
+
 ```
 GET /api/v1/account/{name}
 ```
 
 ### Update Password
+
 ```
 PUT /api/v1/account/password
 
@@ -679,6 +728,7 @@ Body:
 ```
 
 ### Generate Token
+
 ```
 POST /api/v1/account/{name}/token
 
@@ -690,6 +740,7 @@ Body:
 ```
 
 ### Check Permissions
+
 ```
 GET /api/v1/account/can-i/{resource}/{action}/{subresource}
 
@@ -699,6 +750,7 @@ Example: GET /api/v1/account/can-i/applications/sync/*
 ## Session API
 
 ### Create Session (Login)
+
 ```
 POST /api/v1/session
 
@@ -715,11 +767,13 @@ Response:
 ```
 
 ### Delete Session (Logout)
+
 ```
 DELETE /api/v1/session
 ```
 
 ### Get User Info
+
 ```
 GET /api/v1/session/userinfo
 
@@ -735,6 +789,7 @@ Response:
 ## Settings API
 
 ### Get Settings
+
 ```
 GET /api/v1/settings
 
@@ -742,6 +797,7 @@ Response: Contains URL, dexConfig, oidcConfig, appLabelKey, resourceOverrides, s
 ```
 
 ### Get Plugins
+
 ```
 GET /api/v1/settings/plugins
 ```
@@ -749,12 +805,14 @@ GET /api/v1/settings/plugins
 ## Certificates API
 
 ### List Certificates
+
 ```
 GET /api/v1/certificates
 Query params: ?hostNamePattern=*.example.com&certType=https&certSubType=string
 ```
 
 ### Create Certificates
+
 ```
 POST /api/v1/certificates
 
@@ -778,6 +836,7 @@ Body:
 ```
 
 ### Delete Certificate
+
 ```
 DELETE /api/v1/certificates
 Query params: ?hostNamePattern=github.com&certType=https&certSubType=string
@@ -786,12 +845,14 @@ Query params: ?hostNamePattern=github.com&certType=https&certSubType=string
 ## GPG Keys API
 
 ### List GPG Keys
+
 ```
 GET /api/v1/gpgkeys
 Query params: ?keyID=string
 ```
 
 ### Create GPG Key
+
 ```
 POST /api/v1/gpgkeys
 
@@ -802,11 +863,13 @@ Body:
 ```
 
 ### Get GPG Key
+
 ```
 GET /api/v1/gpgkeys/{keyID}
 ```
 
 ### Delete GPG Key
+
 ```
 DELETE /api/v1/gpgkeys/{keyID}
 ```
@@ -814,16 +877,19 @@ DELETE /api/v1/gpgkeys/{keyID}
 ## Notification API
 
 ### List Notification Services
+
 ```
 GET /api/v1/notifications/services
 ```
 
 ### List Notification Templates
+
 ```
 GET /api/v1/notifications/templates
 ```
 
 ### List Notification Triggers
+
 ```
 GET /api/v1/notifications/triggers
 ```
@@ -831,6 +897,7 @@ GET /api/v1/notifications/triggers
 ## Version API
 
 ### Get Version
+
 ```
 GET /api/version
 
@@ -861,6 +928,7 @@ Response:
 ```
 
 Error codes:
+
 - `5` - Not Found
 - `7` - Permission Denied
 - `16` - Unauthenticated

@@ -105,6 +105,7 @@ New paragraph (blank line between)
 ```
 
 **Anchor ID rules:**
+
 - Spaces → hyphens
 - Uppercase → lowercase
 - Special characters removed

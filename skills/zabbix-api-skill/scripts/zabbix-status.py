@@ -22,11 +22,11 @@ from zabbix_utils import ZabbixAPI
 def get_api():
     url = os.environ.get("ZABBIX_URL", "http://localhost/zabbix")
     api = ZabbixAPI(url=url)
-    
+
     if "ZABBIX_TOKEN" in os.environ:
         api.login(token=os.environ["ZABBIX_TOKEN"])
     elif "ZABBIX_USER" in os.environ:
-        api.login(user=os.environ["ZABBIX_USER"], 
+        api.login(user=os.environ["ZABBIX_USER"],
                   password=os.environ.get("ZABBIX_PASSWORD", ""))
     else:
         print("Error: Set ZABBIX_TOKEN or ZABBIX_USER/ZABBIX_PASSWORD")
@@ -62,15 +62,15 @@ def show_problems(api, limit=50):
         sortorder=["DESC", "DESC"],
         limit=limit
     )
-    
+
     if not problems:
         print("✓ No active problems")
         return
-    
+
     print(f"\n{'='*60}")
     print(f"ACTIVE PROBLEMS ({len(problems)})")
     print(f"{'='*60}")
-    
+
     # Group by severity
     by_severity = {}
     for p in problems:
@@ -78,12 +78,12 @@ def show_problems(api, limit=50):
         if sev not in by_severity:
             by_severity[sev] = []
         by_severity[sev].append(p)
-    
+
     for sev in sorted(by_severity.keys(), reverse=True):
         color = SEVERITY_COLORS.get(sev, "")
         sev_name = SEVERITY_NAMES.get(sev, "Unknown")
         print(f"\n{color}[{sev_name}]{RESET}")
-        
+
         for p in by_severity[sev]:
             host = p["hosts"][0]["host"] if p.get("hosts") else "Unknown"
             time_str = datetime.fromtimestamp(int(p["clock"])).strftime("%Y-%m-%d %H:%M")
@@ -96,15 +96,15 @@ def show_hosts_status(api):
         output=["hostid", "host", "name", "status", "available"],
         selectInterfaces=["ip", "available"]
     )
-    
+
     total = len(hosts)
     enabled = sum(1 for h in hosts if h["status"] == "0")
     disabled = total - enabled
-    
+
     available = sum(1 for h in hosts if h.get("available") == "1")
     unavailable = sum(1 for h in hosts if h.get("available") == "2")
     unknown = total - available - unavailable
-    
+
     print(f"\n{'='*40}")
     print("HOST STATUS")
     print(f"{'='*40}")
@@ -115,7 +115,7 @@ def show_hosts_status(api):
     print(f"  Available:      {available}")
     print(f"  Unavailable:    {unavailable}")
     print(f"  Unknown:        {unknown}")
-    
+
     # Show unavailable hosts
     unavailable_hosts = [h for h in hosts if h.get("available") == "2"]
     if unavailable_hosts:
@@ -132,15 +132,15 @@ def show_queue(api):
     try:
         # This requires specific permissions
         queue = api.queue.get(output="extend")
-        
+
         if not queue:
             print("✓ Queue is empty")
             return
-        
+
         print(f"\n{'='*40}")
         print("QUEUE STATUS")
         print(f"{'='*40}")
-        
+
         # Group by delay
         delays = {}
         for item in queue:
@@ -148,10 +148,10 @@ def show_queue(api):
             if delay not in delays:
                 delays[delay] = 0
             delays[delay] += 1
-        
+
         for delay in sorted(delays.keys()):
             print(f"  {delay}s+ delay: {delays[delay]} items")
-            
+
     except Exception as e:
         print(f"Queue status unavailable: {e}")
 
@@ -160,28 +160,28 @@ def show_full_status(api):
     print(f"\n{'='*60}")
     print("ZABBIX ENVIRONMENT STATUS")
     print(f"{'='*60}")
-    
+
     # API info
     version = api.api_version()
     print(f"API Version: {version}")
     print(f"URL: {os.environ.get('ZABBIX_URL', 'http://localhost/zabbix')}")
-    
+
     # Counts
     hosts = api.host.get(countOutput=True)
     templates = api.template.get(countOutput=True)
     items = api.item.get(countOutput=True, monitored=True)
     triggers = api.trigger.get(countOutput=True, monitored=True)
-    
+
     print(f"\nObject counts:")
     print(f"  Hosts:     {hosts}")
     print(f"  Templates: {templates}")
     print(f"  Items:     {items}")
     print(f"  Triggers:  {triggers}")
-    
+
     # Problems summary
     problems = api.problem.get(countOutput=True, recent=True)
     print(f"\nActive problems: {problems}")
-    
+
     # Show details
     show_hosts_status(api)
     show_problems(api, limit=20)
@@ -193,10 +193,10 @@ def main():
                        help="Status type (default: full)")
     parser.add_argument("--limit", type=int, default=50,
                        help="Limit results (for problems)")
-    
+
     args = parser.parse_args()
     api = get_api()
-    
+
     if args.command == "full":
         show_full_status(api)
     elif args.command == "problems":

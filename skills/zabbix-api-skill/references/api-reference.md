@@ -7,11 +7,13 @@ All API calls go to: `https://<zabbix-server>/api_jsonrpc.php`
 ## Authentication Methods
 
 ### API Token (Zabbix 5.4+, Recommended)
+
 ```python
 api.login(token="your_api_token")
 ```
 
 ### Username/Password
+
 ```python
 api.login(user="Admin", password="zabbix")
 api.logout()  # Required when using user/password
@@ -32,6 +34,7 @@ api.logout()  # Required when using user/password
 | `host.massupdate` | Update multiple hosts |
 
 **Key host.get parameters:**
+
 - `output` - Fields to return
 - `hostids` - Filter by host IDs
 - `groupids` - Filter by group IDs
@@ -78,6 +81,7 @@ api.logout()  # Required when using user/password
 | `item.delete` | Delete item |
 
 **Item types:**
+
 | Type | Value | Description |
 |------|-------|-------------|
 | Zabbix agent | 0 | Passive agent checks |
@@ -101,6 +105,7 @@ api.logout()  # Required when using user/password
 | Script | 21 | Custom scripts |
 
 **Value types:**
+
 | Type | Value | Description |
 |------|-------|-------------|
 | Float | 0 | Numeric (float) |
@@ -121,6 +126,7 @@ api.logout()  # Required when using user/password
 | `trigger.deletedependencies` | Remove dependencies |
 
 **Trigger severities:**
+
 | Severity | Value |
 |----------|-------|
 | Not classified | 0 |
@@ -139,6 +145,7 @@ api.logout()  # Required when using user/password
 | `problem.get` | Get current problems |
 
 **Event sources:**
+
 - 0: Trigger
 - 1: Discovery rule
 - 2: Autoregistration
@@ -162,6 +169,7 @@ api.logout()  # Required when using user/password
 | `maintenance.delete` | Delete maintenance |
 
 **Timeperiod types:**
+
 - 0: One-time
 - 2: Daily
 - 3: Weekly
@@ -255,6 +263,7 @@ api.host.get(countOutput=True)
 ## Rate Limiting
 
 Zabbix API does not have built-in rate limiting, but consider:
+
 - Use batch operations (arrays) when possible
 - Limit `output` to needed fields
 - Use `countOutput` when only count is needed

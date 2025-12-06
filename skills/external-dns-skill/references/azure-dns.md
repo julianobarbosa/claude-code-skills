@@ -379,6 +379,7 @@ dig myapp.example.com @168.63.129.16  # Azure DNS resolver
 **Symptoms**: `authorization failed` or `client credentials` errors in logs
 
 **Solutions**:
+
 1. Verify AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID are correct
 2. Check Workload Identity labels are set on both ServiceAccount and Pod
 3. Verify federated credential subject matches: `system:serviceaccount:<namespace>:<sa-name>`
@@ -389,6 +390,7 @@ dig myapp.example.com @168.63.129.16  # Azure DNS resolver
 **Symptoms**: External-DNS runs but no records appear in Azure
 
 **Solutions**:
+
 1. Verify `domainFilters` includes your domain
 2. Check `AZURE_RESOURCE_GROUP` points to the zone's resource group
 3. Verify source type is correct (service/ingress)
@@ -399,6 +401,7 @@ dig myapp.example.com @168.63.129.16  # Azure DNS resolver
 **Symptoms**: `429 Too Many Requests` errors
 
 **Solutions**:
+
 1. Increase `interval` (e.g., from `1m` to `5m`)
 2. Reduce number of watched namespaces
 3. Use `--azure-batch-change-size` to batch updates
@@ -408,6 +411,7 @@ dig myapp.example.com @168.63.129.16  # Azure DNS resolver
 **Symptoms**: `TXT record is already in use` errors
 
 **Solutions**:
+
 1. Verify `txtOwnerId` is unique per cluster
 2. Manually delete orphaned TXT records
 3. Use different `txtPrefix` if needed

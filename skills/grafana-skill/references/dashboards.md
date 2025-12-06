@@ -3,6 +3,7 @@
 Complete reference for Grafana Dashboard HTTP API endpoints.
 
 ## Table of Contents
+
 - [Search Dashboards](#search-dashboards)
 - [Get Dashboard by UID](#get-dashboard-by-uid)
 - [Create/Update Dashboard](#createupdate-dashboard)
@@ -21,6 +22,7 @@ GET /api/search
 ```
 
 **Query Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | query | string | Search query to filter by title |
@@ -36,12 +38,14 @@ GET /api/search
 | sort | string | `alpha-asc`, `alpha-desc` |
 
 **Example Request:**
+
 ```bash
 curl -H "Authorization: Bearer <TOKEN>" \
   "https://grafana.example.com/api/search?type=dash-db&query=production&tag=monitoring&limit=50"
 ```
 
 **Example Response:**
+
 ```json
 [
   {
@@ -72,12 +76,14 @@ GET /api/dashboards/uid/:uid
 ```
 
 **Example Request:**
+
 ```bash
 curl -H "Authorization: Bearer <TOKEN>" \
   "https://grafana.example.com/api/dashboards/uid/cIBgcSjkk"
 ```
 
 **Example Response:**
+
 ```json
 {
   "meta": {
@@ -127,6 +133,7 @@ POST /api/dashboards/db
 ```
 
 **Request Body:**
+
 ```json
 {
   "dashboard": {
@@ -160,6 +167,7 @@ POST /api/dashboards/db
 ```
 
 **Fields:**
+
 | Field | Type | Description |
 |-------|------|-------------|
 | dashboard.id | integer | Set to `null` for new dashboards |
@@ -172,6 +180,7 @@ POST /api/dashboards/db
 | overwrite | boolean | Force overwrite existing dashboard |
 
 **Example Response (Success):**
+
 ```json
 {
   "id": 163,
@@ -192,12 +201,14 @@ DELETE /api/dashboards/uid/:uid
 ```
 
 **Example Request:**
+
 ```bash
 curl -X DELETE -H "Authorization: Bearer <TOKEN>" \
   "https://grafana.example.com/api/dashboards/uid/cIBgcSjkk"
 ```
 
 **Example Response:**
+
 ```json
 {
   "title": "Production Overview",
@@ -215,12 +226,14 @@ GET /api/dashboards/uid/:uid/versions
 ```
 
 **Query Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | limit | integer | Max versions to return (default: 0 = all) |
 | start | integer | Start index for pagination |
 
 **Example Response:**
+
 ```json
 [
   {
@@ -245,6 +258,7 @@ POST /api/dashboards/uid/:uid/restore
 ```
 
 **Request Body:**
+
 ```json
 {
   "version": 10
@@ -252,6 +266,7 @@ POST /api/dashboards/uid/:uid/restore
 ```
 
 **Example Response:**
+
 ```json
 {
   "id": 163,
@@ -268,16 +283,19 @@ POST /api/dashboards/uid/:uid/restore
 ## Dashboard Permissions
 
 ### Get Permissions
+
 ```http
 GET /api/dashboards/uid/:uid/permissions
 ```
 
 ### Update Permissions
+
 ```http
 POST /api/dashboards/uid/:uid/permissions
 ```
 
 **Request Body:**
+
 ```json
 {
   "items": [
@@ -290,6 +308,7 @@ POST /api/dashboards/uid/:uid/permissions
 ```
 
 **Permission Levels:**
+
 - `1`: View
 - `2`: Edit
 - `4`: Admin
@@ -299,11 +318,13 @@ POST /api/dashboards/uid/:uid/permissions
 ## Public/Shared Dashboards
 
 ### Create Public Dashboard
+
 ```http
 POST /api/dashboards/uid/:uid/public-dashboards/
 ```
 
 **Request Body:**
+
 ```json
 {
   "uid": "cd56d9fd-f3d4-486d-afba-a21760e2acbe",
@@ -316,16 +337,19 @@ POST /api/dashboards/uid/:uid/public-dashboards/
 ```
 
 ### Get Public Dashboard
+
 ```http
 GET /api/dashboards/uid/:uid/public-dashboards/
 ```
 
 ### Update Public Dashboard
+
 ```http
 PATCH /api/dashboards/uid/:uid/public-dashboards/:publicDashboardUid
 ```
 
 ### Delete Public Dashboard
+
 ```http
 DELETE /api/dashboards/uid/:uid/public-dashboards/:publicDashboardUid
 ```
