@@ -42,13 +42,13 @@ argocd_api() {
     local method="$1"
     local endpoint="$2"
     local data="${3:-}"
-    
+
     _check_env
-    
+
     local url="https://$ARGOCD_SERVER/api/v1$endpoint"
     local opts
     read -ra opts <<< "$(_curl_opts)"
-    
+
     if [[ -n "$data" ]]; then
         curl "${opts[@]}" -X "$method" "$url" -d "$data"
     else
@@ -100,7 +100,7 @@ argocd_app_create() {
     local dest_server="$4"
     local dest_namespace="$5"
     local project="${6:-default}"
-    
+
     local payload
     payload=$(cat <<EOF
 {
@@ -132,7 +132,7 @@ argocd_app_create_autosync() {
     local dest_server="$4"
     local dest_namespace="$5"
     local project="${6:-default}"
-    
+
     local payload
     payload=$(cat <<EOF
 {
@@ -166,7 +166,7 @@ argocd_app_sync() {
     local revision="${2:-HEAD}"
     local prune="${3:-true}"
     local dry_run="${4:-false}"
-    
+
     local payload
     payload=$(cat <<EOF
 {
@@ -186,38 +186,38 @@ argocd_app_sync_wait() {
     local name="$1"
     local timeout="${2:-300}"
     local start_time end_time
-    
+
     echo "Syncing application: $name"
     argocd_app_sync "$name" >/dev/null
-    
+
     echo "Waiting for health (timeout: ${timeout}s)..."
     start_time=$(date +%s)
     end_time=$((start_time + timeout))
-    
+
     while true; do
         local status
         status=$(argocd_app_status "$name")
         local health sync
         health=$(echo "$status" | jq -r '.health')
         sync=$(echo "$status" | jq -r '.sync')
-        
+
         echo "  Health: $health, Sync: $sync"
-        
+
         if [[ "$health" == "Healthy" && "$sync" == "Synced" ]]; then
             echo "Application is healthy and synced!"
             return 0
         fi
-        
+
         if [[ "$health" == "Degraded" ]]; then
             echo "Application is degraded!" >&2
             return 1
         fi
-        
+
         if [[ $(date +%s) -gt $end_time ]]; then
             echo "Timeout waiting for application health" >&2
             return 1
         fi
-        
+
         sleep 5
     done
 }
@@ -227,7 +227,7 @@ argocd_app_sync_wait() {
 argocd_app_rollback() {
     local name="$1"
     local history_id="$2"
-    
+
     local payload='{"id": '"$history_id"', "prune": true}'
     argocd_api POST "/applications/$name/rollback" "$payload"
 }
@@ -270,7 +270,7 @@ argocd_repo_add() {
     local username="$2"
     local password="$3"
     local type="${4:-git}"
-    
+
     local payload
     payload=$(cat <<EOF
 {
@@ -376,24 +376,24 @@ argocd_health() {
 argocd_login() {
     local username="$1"
     local password="$2"
-    
+
     if [[ -z "$ARGOCD_SERVER" ]]; then
         echo "Error: ARGOCD_SERVER not set" >&2
         return 1
     fi
-    
+
     local opts=(-s -H "Content-Type: application/json")
     if [[ "$ARGOCD_INSECURE" == "true" ]]; then
         opts+=(-k)
     fi
-    
+
     local payload='{"username": "'"$username"'", "password": "'"$password"'"}'
     local response
     response=$(curl "${opts[@]}" -X POST "https://$ARGOCD_SERVER/api/v1/session" -d "$payload")
-    
+
     local token
     token=$(echo "$response" | jq -r '.token // empty')
-    
+
     if [[ -n "$token" ]]; then
         echo "$token"
     else
@@ -432,24 +432,24 @@ Commands:
   app-delete <name> [cascade]                  Delete application
   app-terminate <name>                         Terminate operation
   app-resources <name>                         List application resources
-  
+
   # Repository commands
   repo-list                                    List repositories
   repo-add <url> <username> <password> [type]  Add repository
   repo-delete <url>                            Delete repository
-  
+
   # Cluster commands
   cluster-list                                 List clusters
   cluster-get <name_or_server>                 Get cluster
-  
+
   # Project commands
   proj-list                                    List projects
   proj-get <name>                              Get project
-  
+
   # Account commands
   whoami                                       Get current user info
   can-i <action> <resource> [subresource]      Check permission
-  
+
   # Utility commands
   version                                      Get API version
   health                                       Check API health
@@ -464,10 +464,10 @@ Examples:
 EOF
         exit 0
     fi
-    
+
     command="$1"
     shift
-    
+
     case "$command" in
         app-list)        argocd_app_list "$@" ;;
         app-get)         argocd_app_get "$@" ;;

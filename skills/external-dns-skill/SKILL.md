@@ -426,5 +426,5 @@ spec:
 - `references/azure-dns.md` - Complete Azure DNS configuration guide
 - `references/cloudflare.md` - Complete Cloudflare configuration guide
 - `references/troubleshooting.md` - Common issues and solutions
-- Official docs: https://kubernetes-sigs.github.io/external-dns/
-- Helm chart: https://artifacthub.io/packages/helm/external-dns/external-dns
+- Official docs: <https://kubernetes-sigs.github.io/external-dns/>
+- Helm chart: <https://artifacthub.io/packages/helm/external-dns/external-dns>

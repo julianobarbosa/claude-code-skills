@@ -29,11 +29,11 @@ from zabbix_utils import ZabbixAPI
 def get_api():
     url = os.environ.get("ZABBIX_URL", "http://localhost/zabbix")
     api = ZabbixAPI(url=url)
-    
+
     if "ZABBIX_TOKEN" in os.environ:
         api.login(token=os.environ["ZABBIX_TOKEN"])
     elif "ZABBIX_USER" in os.environ:
-        api.login(user=os.environ["ZABBIX_USER"], 
+        api.login(user=os.environ["ZABBIX_USER"],
                   password=os.environ.get("ZABBIX_PASSWORD", ""))
     else:
         print("Error: Set ZABBIX_TOKEN or ZABBIX_USER/ZABBIX_PASSWORD")
@@ -75,21 +75,21 @@ def create_hosts(api, csv_file):
         for row in reader:
             hostname = row.get("hostname", "").strip()
             ip = row.get("ip", "").strip()
-            
+
             if not hostname or not ip:
                 print(f"Skipping row: missing hostname or ip")
                 continue
-            
+
             # Check if host exists
             existing = api.host.get(filter={"host": hostname}, output=["hostid"])
             if existing:
                 print(f"Skip: {hostname} already exists")
                 continue
-            
+
             try:
                 groups = resolve_groups(api, row.get("groups", "Discovered hosts"))
                 templates = resolve_templates(api, row.get("templates", ""))
-                
+
                 params = {
                     "host": hostname,
                     "groups": groups,
@@ -102,15 +102,15 @@ def create_hosts(api, csv_file):
                         "port": "10050"
                     }]
                 }
-                
+
                 if templates:
                     params["templates"] = templates
                 if row.get("description"):
                     params["description"] = row["description"]
-                
+
                 result = api.host.create(**params)
                 print(f"Created: {hostname} (hostid={result['hostids'][0]})")
-                
+
             except Exception as e:
                 print(f"Error creating {hostname}: {e}")
 
@@ -122,27 +122,27 @@ def update_hosts(api, csv_file):
             hostname = row.get("hostname", "").strip()
             if not hostname:
                 continue
-            
+
             existing = api.host.get(filter={"host": hostname}, output=["hostid"])
             if not existing:
                 print(f"Skip: {hostname} not found")
                 continue
-            
+
             hostid = existing[0]["hostid"]
-            
+
             try:
                 params = {"hostid": hostid}
-                
+
                 if row.get("groups"):
                     params["groups"] = resolve_groups(api, row["groups"])
                 if row.get("templates"):
                     params["templates"] = resolve_templates(api, row["templates"])
                 if row.get("description"):
                     params["description"] = row["description"]
-                
+
                 api.host.update(**params)
                 print(f"Updated: {hostname}")
-                
+
             except Exception as e:
                 print(f"Error updating {hostname}: {e}")
 
@@ -154,12 +154,12 @@ def delete_hosts(api, csv_file):
             hostname = row.get("hostname", "").strip()
             if not hostname:
                 continue
-            
+
             existing = api.host.get(filter={"host": hostname}, output=["hostid"])
             if not existing:
                 print(f"Skip: {hostname} not found")
                 continue
-            
+
             try:
                 api.host.delete(existing[0]["hostid"])
                 print(f"Deleted: {hostname}")
@@ -174,18 +174,18 @@ def export_hosts(api, csv_file, group_name=None):
         "selectGroups": ["name"],
         "selectParentTemplates": ["host"]
     }
-    
+
     if group_name:
         groups = api.hostgroup.get(filter={"name": group_name}, output=["groupid"])
         if groups:
             params["groupids"] = [groups[0]["groupid"]]
-    
+
     hosts = api.host.get(**params)
-    
+
     with open(csv_file, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(["hostname", "ip", "groups", "templates", "description"])
-        
+
         for host in hosts:
             ip = host["interfaces"][0]["ip"] if host.get("interfaces") else ""
             groups = ",".join(g["name"] for g in host.get("groups", []))
@@ -197,7 +197,7 @@ def export_hosts(api, csv_file, group_name=None):
                 templates,
                 host.get("description", "")
             ])
-    
+
     print(f"Exported {len(hosts)} hosts to {csv_file}")
 
 def main():
@@ -206,9 +206,9 @@ def main():
     parser.add_argument("csv_file", help="CSV file path")
     parser.add_argument("--group", help="Filter by group name (for export)")
     args = parser.parse_args()
-    
+
     api = get_api()
-    
+
     if args.action == "create":
         create_hosts(api, args.csv_file)
     elif args.action == "update":

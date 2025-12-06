@@ -35,11 +35,13 @@ Aggregate across series dimensions.
 | `quantile` | Calculate quantile |
 
 **Syntax:**
+
 ```promql
 <aggr_op>([parameter,] <vector>) [without|by (<label_list>)]
 ```
 
 **Examples:**
+
 ```promql
 # Sum by job
 sum by (job) (http_requests_total)
@@ -73,6 +75,7 @@ Calculate rates for counters (monotonically increasing values).
 | `deriv(v[d])` | Per-second derivative (gauges) |
 
 **Examples:**
+
 ```promql
 # Requests per second
 rate(http_requests_total[5m])
@@ -109,6 +112,7 @@ Aggregate single series across time.
 | `present_over_time(v[d])` | 1 if any value exists |
 
 **Examples:**
+
 ```promql
 # Average CPU over 1h
 avg_over_time(node_cpu_seconds_total[1h])
@@ -144,6 +148,7 @@ count_over_time(up[1h])
 | `sgn(v)` | Sign (-1, 0, 1) |
 
 **Examples:**
+
 ```promql
 # Round to nearest GB
 round(container_memory_usage_bytes / 1024 / 1024 / 1024, 0.1)
@@ -173,6 +178,7 @@ abs(predicted_value - actual_value)
 | `year()` | Year |
 
 **Examples:**
+
 ```promql
 # Seconds since last scrape
 time() - timestamp(up)
@@ -199,6 +205,7 @@ up and on() day_of_week() >= 1 <= 5
 | `histogram_stdvar(v)` | Variance from histogram |
 
 **Examples:**
+
 ```promql
 # 99th percentile latency
 histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))
@@ -222,6 +229,7 @@ histogram_avg(http_request_size_bytes)
 | `label_replace(v, dst, repl, src, regex)` | Regex replace |
 
 **Examples:**
+
 ```promql
 # Create full address label
 label_join(up, "address", ":", "instance", "port")
@@ -238,13 +246,15 @@ label_replace(metric, "new_name", "$1", "old_name", "(.*)")
 ## Common Patterns
 
 ### Error Rate
+
 ```promql
 # Error percentage
-sum(rate(http_requests_total{status=~"5.."}[5m])) 
+sum(rate(http_requests_total{status=~"5.."}[5m]))
 / sum(rate(http_requests_total[5m])) * 100
 ```
 
 ### Availability (SLI)
+
 ```promql
 # Percentage of successful requests
 sum(rate(http_requests_total{status=~"2.."}[5m]))
@@ -252,6 +262,7 @@ sum(rate(http_requests_total{status=~"2.."}[5m]))
 ```
 
 ### Saturation
+
 ```promql
 # CPU saturation
 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
@@ -261,6 +272,7 @@ sum(rate(http_requests_total{status=~"2.."}[5m]))
 ```
 
 ### Latency (Apdex Score)
+
 ```promql
 # Apdex with 0.5s target
 (
@@ -270,12 +282,14 @@ sum(rate(http_requests_total{status=~"2.."}[5m]))
 ```
 
 ### Prediction
+
 ```promql
 # Disk will fill in 4 hours?
 predict_linear(node_filesystem_avail_bytes[1h], 4*3600) < 0
 ```
 
 ### Changes Detection
+
 ```promql
 # Config reloads in last hour
 changes(prometheus_config_last_reload_successful[1h])
@@ -285,6 +299,7 @@ resets(process_start_time_seconds[1d])
 ```
 
 ### Absent Alerting
+
 ```promql
 # Alert if metric missing
 absent(up{job="myservice"})
@@ -294,6 +309,7 @@ absent_over_time(up{job="myservice"}[5m])
 ```
 
 ### Vector Matching
+
 ```promql
 # Divide by matching labels
 http_requests_total / on(instance, job) group_left http_requests_limit
@@ -307,14 +323,17 @@ node_memory_MemFree_bytes / ignoring(device) node_memory_MemTotal_bytes
 ## Operators
 
 ### Arithmetic
+
 `+`, `-`, `*`, `/`, `%` (modulo), `^` (power)
 
 ### Comparison
+
 `==`, `!=`, `>`, `<`, `>=`, `<=`
 
 Add `bool` for 0/1 result: `http_requests_total > bool 100`
 
 ### Logical/Set
+
 `and`, `or`, `unless`
 
 ```promql

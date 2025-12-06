@@ -10,6 +10,7 @@ Programmatically manage Grafana resources including dashboards, data sources, al
 ## Authentication
 
 ### Service Account Token (Recommended)
+
 ```bash
 curl -H "Authorization: Bearer <SERVICE_ACCOUNT_TOKEN>" \
      -H "Content-Type: application/json" \
@@ -17,12 +18,15 @@ curl -H "Authorization: Bearer <SERVICE_ACCOUNT_TOKEN>" \
 ```
 
 ### Basic Auth
+
 ```bash
 curl -u admin:admin https://your-grafana.com/api/org
 ```
 
 ### Multi-Organization Header
+
 Use `X-Grafana-Org-Id` header to specify target organization:
+
 ```bash
 curl -H "Authorization: Bearer <TOKEN>" \
      -H "X-Grafana-Org-Id: 2" \
@@ -34,16 +38,19 @@ curl -H "Authorization: Bearer <TOKEN>" \
 ### Dashboards
 
 **Search dashboards:**
+
 ```bash
 GET /api/search?type=dash-db&query=<search_term>&tag=<tag>&folderIds=<folder_id>
 ```
 
 **Get dashboard by UID:**
+
 ```bash
 GET /api/dashboards/uid/<dashboard_uid>
 ```
 
 **Create/Update dashboard:**
+
 ```bash
 POST /api/dashboards/db
 {
@@ -63,6 +70,7 @@ POST /api/dashboards/db
 ```
 
 **Delete dashboard:**
+
 ```bash
 DELETE /api/dashboards/uid/<dashboard_uid>
 ```
@@ -70,16 +78,19 @@ DELETE /api/dashboards/uid/<dashboard_uid>
 ### Data Sources
 
 **List all data sources:**
+
 ```bash
 GET /api/datasources
 ```
 
 **Get data source by UID:**
+
 ```bash
 GET /api/datasources/uid/<datasource_uid>
 ```
 
 **Create data source:**
+
 ```bash
 POST /api/datasources
 {
@@ -93,6 +104,7 @@ POST /api/datasources
 ```
 
 **Query data source:**
+
 ```bash
 POST /api/ds/query
 {
@@ -111,6 +123,7 @@ POST /api/ds/query
 ```
 
 **Health check:**
+
 ```bash
 GET /api/datasources/uid/<datasource_uid>/health
 ```
@@ -118,11 +131,13 @@ GET /api/datasources/uid/<datasource_uid>/health
 ### Folders
 
 **List folders:**
+
 ```bash
 GET /api/folders
 ```
 
 **Create folder:**
+
 ```bash
 POST /api/folders
 {
@@ -132,11 +147,13 @@ POST /api/folders
 ```
 
 **Get folder:**
+
 ```bash
 GET /api/folders/<folder_uid>
 ```
 
 **Update folder:**
+
 ```bash
 PUT /api/folders/<folder_uid>
 {
@@ -146,6 +163,7 @@ PUT /api/folders/<folder_uid>
 ```
 
 **Delete folder:**
+
 ```bash
 DELETE /api/folders/<folder_uid>?forceDeleteRules=true
 ```
@@ -153,16 +171,19 @@ DELETE /api/folders/<folder_uid>?forceDeleteRules=true
 ### Alerting
 
 **List all alert rules:**
+
 ```bash
 GET /api/v1/provisioning/alert-rules
 ```
 
 **Get alert rule:**
+
 ```bash
 GET /api/v1/provisioning/alert-rules/<rule_uid>
 ```
 
 **Create alert rule:**
+
 ```bash
 POST /api/v1/provisioning/alert-rules
 {
@@ -205,16 +226,19 @@ POST /api/v1/provisioning/alert-rules
 ```
 
 **List contact points:**
+
 ```bash
 GET /api/v1/provisioning/contact-points
 ```
 
 **List notification policies:**
+
 ```bash
 GET /api/v1/provisioning/policies
 ```
 
 **Get active alerts:**
+
 ```bash
 GET /api/alertmanager/grafana/api/v2/alerts
 ```
@@ -222,11 +246,13 @@ GET /api/alertmanager/grafana/api/v2/alerts
 ### Annotations
 
 **Query annotations:**
+
 ```bash
 GET /api/annotations?from=<epoch_ms>&to=<epoch_ms>&tags=tag1&tags=tag2&limit=100
 ```
 
 **Create annotation:**
+
 ```bash
 POST /api/annotations
 {
@@ -240,6 +266,7 @@ POST /api/annotations
 ```
 
 **Update annotation:**
+
 ```bash
 PUT /api/annotations/<annotation_id>
 {
@@ -251,6 +278,7 @@ PUT /api/annotations/<annotation_id>
 ```
 
 **Delete annotation:**
+
 ```bash
 DELETE /api/annotations/<annotation_id>
 ```
@@ -258,21 +286,25 @@ DELETE /api/annotations/<annotation_id>
 ### Users & Teams
 
 **Search users (admin):**
+
 ```bash
 GET /api/users/search?perpage=10&page=1&query=<search_term>
 ```
 
 **Get current user:**
+
 ```bash
 GET /api/user
 ```
 
 **List teams:**
+
 ```bash
 GET /api/teams/search?perpage=50&page=1&name=<team_name>
 ```
 
 **Create team:**
+
 ```bash
 POST /api/teams
 {
@@ -282,6 +314,7 @@ POST /api/teams
 ```
 
 **Add user to team:**
+
 ```bash
 POST /api/teams/<team_id>/members
 {
@@ -292,16 +325,19 @@ POST /api/teams/<team_id>/members
 ### Organizations
 
 **Get current organization:**
+
 ```bash
 GET /api/org
 ```
 
 **List all organizations (admin):**
+
 ```bash
 GET /api/orgs
 ```
 
 **Create organization (admin):**
+
 ```bash
 POST /api/orgs
 {
@@ -312,11 +348,13 @@ POST /api/orgs
 ### Service Accounts
 
 **List service accounts:**
+
 ```bash
 GET /api/serviceaccounts/search?perpage=10&page=1
 ```
 
 **Create service account:**
+
 ```bash
 POST /api/serviceaccounts
 {
@@ -326,6 +364,7 @@ POST /api/serviceaccounts
 ```
 
 **Create service account token:**
+
 ```bash
 POST /api/serviceaccounts/<service_account_id>/tokens
 {
@@ -384,12 +423,14 @@ result = grafana.query_datasource(
 ## Common Operations
 
 ### Export Dashboard as JSON
+
 ```bash
 curl -H "Authorization: Bearer <TOKEN>" \
      https://your-grafana.com/api/dashboards/uid/<uid> | jq '.dashboard'
 ```
 
 ### Import Dashboard
+
 ```bash
 curl -X POST -H "Authorization: Bearer <TOKEN>" \
      -H "Content-Type: application/json" \
@@ -398,6 +439,7 @@ curl -X POST -H "Authorization: Bearer <TOKEN>" \
 ```
 
 ### Bulk Delete Dashboards by Tag
+
 ```python
 dashboards = grafana.search_dashboards(tag="deprecated")
 for dash in dashboards:
@@ -405,6 +447,7 @@ for dash in dashboards:
 ```
 
 ### Clone Dashboard to Another Folder
+
 ```python
 source = grafana.get_dashboard_by_uid("source-uid")
 source['dashboard']['id'] = None
@@ -417,6 +460,7 @@ grafana.create_or_update_dashboard(source)
 ## Error Handling
 
 Common HTTP status codes:
+
 - `200`: Success
 - `400`: Bad request (invalid JSON, missing required fields)
 - `401`: Unauthorized (invalid/missing token)

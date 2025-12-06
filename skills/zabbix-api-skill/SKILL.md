@@ -53,7 +53,7 @@ All APIs follow pattern: `api.<object>.<method>()` with methods: `get`, `create`
 
 ```python
 # Get hosts
-hosts = api.host.get(output=["hostid", "host", "name"], 
+hosts = api.host.get(output=["hostid", "host", "name"],
                      selectInterfaces=["ip"])
 
 # Create host
@@ -86,7 +86,7 @@ templates = api.template.get(output=["templateid", "host", "name"],
                              selectHosts=["hostid", "name"])
 
 # Link template to host
-api.host.update(hostid="10084", 
+api.host.update(hostid="10084",
                 templates=[{"templateid": "10001"}])
 
 # Import template from XML
@@ -106,7 +106,7 @@ with open("template.xml") as f:
 
 ```python
 # Get items
-items = api.item.get(hostids="10084", 
+items = api.item.get(hostids="10084",
                      output=["itemid", "name", "key_"],
                      search={"key_": "system.cpu"})
 
@@ -264,8 +264,8 @@ all_hosts = api.host.get(output=["hostid", "host"],
 
 # Filter hosts without specific template
 template_id = "10001"
-hosts_without = [h for h in all_hosts 
-                 if not any(t["templateid"] == template_id 
+hosts_without = [h for h in all_hosts
+                 if not any(t["templateid"] == template_id
                            for t in h.get("parentTemplates", []))]
 ```
 
@@ -338,6 +338,7 @@ logging.basicConfig(level=logging.DEBUG)
 ## Scripts Reference
 
 See `scripts/` directory for ready-to-use automation:
+
 - `zabbix-bulk-hosts.py` - Bulk host management from CSV
 - `zabbix-maintenance.py` - Create/manage maintenance windows
 - `zabbix-export.py` - Export hosts/templates to JSON/XML

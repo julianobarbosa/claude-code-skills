@@ -10,11 +10,13 @@ Query Prometheus monitoring systems via HTTP API at `/api/v1`.
 ## Quick Reference
 
 ### Instant Query
+
 ```bash
 curl 'http://<prometheus>:9090/api/v1/query?query=<promql>&time=<timestamp>'
 ```
 
-### Range Query  
+### Range Query
+
 ```bash
 curl 'http://<prometheus>:9090/api/v1/query_range?query=<promql>&start=<ts>&end=<ts>&step=<duration>'
 ```
@@ -22,6 +24,7 @@ curl 'http://<prometheus>:9090/api/v1/query_range?query=<promql>&start=<ts>&end=
 ## Response Format
 
 All responses return JSON:
+
 ```json
 {
   "status": "success" | "error",
@@ -80,7 +83,7 @@ rate(http_requests_total[5m])
 # Sum by label
 sum by (job) (rate(http_requests_total[5m]))
 
-# Percentile from histogram  
+# Percentile from histogram
 histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
 
 # Filter by label
@@ -96,18 +99,19 @@ avg_over_time(process_cpu_seconds_total[5m])
 ## Result Types
 
 - **vector**: `[{"metric": {...}, "value": [timestamp, "value"]}]`
-- **matrix**: `[{"metric": {...}, "values": [[ts, "val"], ...]}]`  
+- **matrix**: `[{"metric": {...}, "values": [[ts, "val"], ...]}]`
 - **scalar**: `[timestamp, "value"]`
 - **string**: `[timestamp, "string"]`
 
 ## Scripts
 
 Query script: `scripts/prom_query.py`
+
 ```bash
 # Instant query
 python scripts/prom_query.py http://localhost:9090 'up'
 
-# Range query  
+# Range query
 python scripts/prom_query.py http://localhost:9090 'rate(http_requests_total[5m])' \
   --start '2024-01-01T00:00:00Z' --end '2024-01-01T01:00:00Z' --step '1m'
 
@@ -116,6 +120,7 @@ python scripts/prom_query.py http://localhost:9090 'up' --format table
 ```
 
 Health check: `scripts/prom_health.py`
+
 ```bash
 python scripts/prom_health.py http://localhost:9090
 ```

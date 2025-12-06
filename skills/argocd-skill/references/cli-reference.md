@@ -30,6 +30,7 @@ Complete command reference for the `argocd` CLI.
 ## Authentication Commands
 
 ### argocd login
+
 ```bash
 argocd login SERVER [flags]
 
@@ -58,11 +59,13 @@ Flags:
 ```
 
 ### argocd logout
+
 ```bash
 argocd logout SERVER [flags]
 ```
 
 ### argocd relogin
+
 ```bash
 argocd relogin [flags]
 
@@ -71,6 +74,7 @@ argocd relogin --sso
 ```
 
 ### argocd context
+
 ```bash
 # List contexts
 argocd context
@@ -85,6 +89,7 @@ argocd context myserver --delete
 ## Application Commands
 
 ### argocd app create
+
 ```bash
 argocd app create NAME [flags]
 
@@ -186,6 +191,7 @@ Flags:
 ```
 
 ### argocd app get
+
 ```bash
 argocd app get APPNAME [flags]
 
@@ -216,6 +222,7 @@ Flags:
 ```
 
 ### argocd app list
+
 ```bash
 argocd app list [flags]
 
@@ -244,6 +251,7 @@ Flags:
 ```
 
 ### argocd app sync
+
 ```bash
 argocd app sync APPNAME [flags]
 
@@ -300,6 +308,7 @@ Flags:
 ```
 
 ### argocd app wait
+
 ```bash
 argocd app wait APPNAME [flags]
 
@@ -332,6 +341,7 @@ Flags:
 ```
 
 ### argocd app delete
+
 ```bash
 argocd app delete APPNAME [flags]
 
@@ -354,6 +364,7 @@ Flags:
 ```
 
 ### argocd app history
+
 ```bash
 argocd app history APPNAME [flags]
 
@@ -368,6 +379,7 @@ Flags:
 ```
 
 ### argocd app rollback
+
 ```bash
 argocd app rollback APPNAME ID [flags]
 
@@ -387,6 +399,7 @@ Flags:
 ```
 
 ### argocd app diff
+
 ```bash
 argocd app diff APPNAME [flags]
 
@@ -413,6 +426,7 @@ Flags:
 ```
 
 ### argocd app logs
+
 ```bash
 argocd app logs APPNAME [flags]
 
@@ -453,6 +467,7 @@ Flags:
 ```
 
 ### argocd app set
+
 ```bash
 argocd app set APPNAME [flags]
 
@@ -473,6 +488,7 @@ Flags:
 ```
 
 ### argocd app unset
+
 ```bash
 argocd app unset APPNAME [flags]
 
@@ -498,6 +514,7 @@ Flags:
 ```
 
 ### argocd app resources
+
 ```bash
 argocd app resources APPNAME [flags]
 
@@ -510,6 +527,7 @@ Flags:
 ```
 
 ### argocd app manifests
+
 ```bash
 argocd app manifests APPNAME [flags]
 
@@ -530,6 +548,7 @@ Flags:
 ```
 
 ### argocd app patch
+
 ```bash
 argocd app patch APPNAME [flags]
 
@@ -546,6 +565,7 @@ Flags:
 ```
 
 ### argocd app terminate-op
+
 ```bash
 argocd app terminate-op APPNAME [flags]
 
@@ -554,6 +574,7 @@ argocd app terminate-op myapp
 ```
 
 ### argocd app actions
+
 ```bash
 # List available actions
 argocd app actions list myapp --kind Deployment
@@ -568,6 +589,7 @@ argocd app actions run myapp disable --kind Rollout --resource-name canary
 ## ApplicationSet Commands
 
 ### argocd appset create
+
 ```bash
 argocd appset create FILE [flags]
 
@@ -582,6 +604,7 @@ Flags:
 ```
 
 ### argocd appset get
+
 ```bash
 argocd appset get NAME [flags]
 
@@ -596,6 +619,7 @@ Flags:
 ```
 
 ### argocd appset list
+
 ```bash
 argocd appset list [flags]
 
@@ -612,6 +636,7 @@ Flags:
 ```
 
 ### argocd appset delete
+
 ```bash
 argocd appset delete NAME [flags]
 
@@ -628,6 +653,7 @@ Flags:
 ## Project Commands
 
 ### argocd proj create
+
 ```bash
 argocd proj create NAME [flags]
 
@@ -651,6 +677,7 @@ Flags:
 ```
 
 ### argocd proj list
+
 ```bash
 argocd proj list [flags]
 
@@ -665,6 +692,7 @@ Flags:
 ```
 
 ### argocd proj get
+
 ```bash
 argocd proj get NAME [flags]
 
@@ -676,12 +704,14 @@ Flags:
 ```
 
 ### argocd proj edit
+
 ```bash
 # Open in editor
 argocd proj edit myproject
 ```
 
 ### argocd proj delete
+
 ```bash
 argocd proj delete NAME [flags]
 
@@ -690,6 +720,7 @@ argocd proj delete myproject
 ```
 
 ### argocd proj add-destination
+
 ```bash
 argocd proj add-destination PROJECT SERVER NAMESPACE [flags]
 
@@ -701,11 +732,13 @@ argocd proj add-destination myproject production default --name
 ```
 
 ### argocd proj remove-destination
+
 ```bash
 argocd proj remove-destination PROJECT SERVER NAMESPACE
 ```
 
 ### argocd proj add-source
+
 ```bash
 argocd proj add-source PROJECT URL
 
@@ -714,11 +747,13 @@ argocd proj add-source myproject 'https://github.com/org/*'
 ```
 
 ### argocd proj remove-source
+
 ```bash
 argocd proj remove-source PROJECT URL
 ```
 
 ### argocd proj role create
+
 ```bash
 argocd proj role create PROJECT ROLE
 
@@ -727,11 +762,13 @@ argocd proj role create myproject developer
 ```
 
 ### argocd proj role delete
+
 ```bash
 argocd proj role delete PROJECT ROLE
 ```
 
 ### argocd proj role add-policy
+
 ```bash
 argocd proj role add-policy PROJECT ROLE [flags]
 
@@ -750,11 +787,13 @@ Flags:
 ```
 
 ### argocd proj role remove-policy
+
 ```bash
 argocd proj role remove-policy PROJECT ROLE [flags]
 ```
 
 ### argocd proj role add-group
+
 ```bash
 argocd proj role add-group PROJECT ROLE GROUP
 
@@ -763,11 +802,13 @@ argocd proj role add-group myproject developer team-developers
 ```
 
 ### argocd proj role remove-group
+
 ```bash
 argocd proj role remove-group PROJECT ROLE GROUP
 ```
 
 ### argocd proj role create-token
+
 ```bash
 argocd proj role create-token PROJECT ROLE [flags]
 
@@ -780,11 +821,13 @@ Flags:
 ```
 
 ### argocd proj role delete-token
+
 ```bash
 argocd proj role delete-token PROJECT ROLE IAT
 ```
 
 ### argocd proj windows add
+
 ```bash
 argocd proj windows add PROJECT [flags]
 
@@ -807,16 +850,19 @@ Flags:
 ```
 
 ### argocd proj windows delete
+
 ```bash
 argocd proj windows delete PROJECT ID
 ```
 
 ### argocd proj windows list
+
 ```bash
 argocd proj windows list PROJECT
 ```
 
 ### argocd proj windows update
+
 ```bash
 argocd proj windows update PROJECT ID [flags]
 ```
@@ -824,6 +870,7 @@ argocd proj windows update PROJECT ID [flags]
 ## Repository Commands
 
 ### argocd repo add
+
 ```bash
 argocd repo add REPOURL [flags]
 
@@ -867,6 +914,7 @@ Flags:
 ```
 
 ### argocd repo list
+
 ```bash
 argocd repo list [flags]
 
@@ -876,16 +924,19 @@ Flags:
 ```
 
 ### argocd repo get
+
 ```bash
 argocd repo get REPOURL [flags]
 ```
 
 ### argocd repo rm
+
 ```bash
 argocd repo rm REPOURL [flags]
 ```
 
 ### argocd repocreds add
+
 ```bash
 argocd repocreds add URLPREFIX [flags]
 
@@ -897,11 +948,13 @@ argocd repocreds add git@github.com:myorg/ --ssh-private-key-path ~/.ssh/id_rsa
 ```
 
 ### argocd repocreds list
+
 ```bash
 argocd repocreds list
 ```
 
 ### argocd repocreds rm
+
 ```bash
 argocd repocreds rm URLPREFIX
 ```
@@ -909,6 +962,7 @@ argocd repocreds rm URLPREFIX
 ## Cluster Commands
 
 ### argocd cluster add
+
 ```bash
 argocd cluster add CONTEXT [flags]
 
@@ -944,6 +998,7 @@ Flags:
 ```
 
 ### argocd cluster list
+
 ```bash
 argocd cluster list [flags]
 
@@ -952,6 +1007,7 @@ Flags:
 ```
 
 ### argocd cluster get
+
 ```bash
 argocd cluster get SERVER [flags]
 
@@ -960,6 +1016,7 @@ Flags:
 ```
 
 ### argocd cluster rm
+
 ```bash
 argocd cluster rm SERVER [flags]
 
@@ -968,6 +1025,7 @@ Flags:
 ```
 
 ### argocd cluster rotate-auth
+
 ```bash
 argocd cluster rotate-auth SERVER [flags]
 
@@ -978,6 +1036,7 @@ argocd cluster rotate-auth https://production.example.com
 ## Account Commands
 
 ### argocd account list
+
 ```bash
 argocd account list [flags]
 
@@ -986,6 +1045,7 @@ Flags:
 ```
 
 ### argocd account get
+
 ```bash
 argocd account get [USERNAME] [flags]
 
@@ -1000,6 +1060,7 @@ Flags:
 ```
 
 ### argocd account generate-token
+
 ```bash
 argocd account generate-token [flags]
 
@@ -1022,6 +1083,7 @@ Flags:
 ```
 
 ### argocd account update-password
+
 ```bash
 argocd account update-password [flags]
 
@@ -1038,6 +1100,7 @@ Flags:
 ```
 
 ### argocd account can-i
+
 ```bash
 argocd account can-i ACTION RESOURCE SUBRESOURCE [flags]
 
@@ -1052,6 +1115,7 @@ argocd account can-i update clusters '*'
 ```
 
 ### argocd account get-user-info
+
 ```bash
 argocd account get-user-info [flags]
 
@@ -1060,6 +1124,7 @@ Flags:
 ```
 
 ### argocd account bcrypt
+
 ```bash
 argocd account bcrypt --password PASSWORD
 
@@ -1070,6 +1135,7 @@ argocd account bcrypt --password mysecret
 ## Certificate Commands
 
 ### argocd cert add-ssh
+
 ```bash
 # Add SSH known hosts
 ssh-keyscan github.com | argocd cert add-ssh --batch
@@ -1079,12 +1145,14 @@ argocd cert add-ssh --from /path/to/known_hosts
 ```
 
 ### argocd cert add-tls
+
 ```bash
 # Add TLS cert
 argocd cert add-tls cd.example.com --from /path/to/cert.pem
 ```
 
 ### argocd cert list
+
 ```bash
 argocd cert list [flags]
 
@@ -1095,6 +1163,7 @@ Flags:
 ```
 
 ### argocd cert rm
+
 ```bash
 argocd cert rm HOSTNAME [flags]
 
@@ -1106,11 +1175,13 @@ Flags:
 ## GPG Commands
 
 ### argocd gpg add
+
 ```bash
 argocd gpg add --from /path/to/key.asc
 ```
 
 ### argocd gpg list
+
 ```bash
 argocd gpg list [flags]
 
@@ -1119,6 +1190,7 @@ Flags:
 ```
 
 ### argocd gpg get
+
 ```bash
 argocd gpg get KEYID [flags]
 
@@ -1127,6 +1199,7 @@ Flags:
 ```
 
 ### argocd gpg rm
+
 ```bash
 argocd gpg rm KEYID
 ```
@@ -1134,12 +1207,14 @@ argocd gpg rm KEYID
 ## Admin Commands
 
 ### argocd admin initial-password
+
 ```bash
 # Get initial admin password
 argocd admin initial-password -n argocd
 ```
 
 ### argocd admin settings
+
 ```bash
 # Validate RBAC
 argocd admin settings rbac validate --policy-file policy.csv
@@ -1149,24 +1224,28 @@ argocd admin settings rbac can role:developer get applications '*/*'
 ```
 
 ### argocd admin cluster
+
 ```bash
 # Generate cluster config
 argocd admin cluster generate-spec CONTEXT
 ```
 
 ### argocd admin export
+
 ```bash
 # Export all resources
 argocd admin export > backup.yaml
 ```
 
 ### argocd admin import
+
 ```bash
 # Import resources
 argocd admin import < backup.yaml
 ```
 
 ### argocd admin notifications
+
 ```bash
 # Test notification template
 argocd admin notifications template get app-deployed

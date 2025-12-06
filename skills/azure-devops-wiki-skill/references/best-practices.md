@@ -7,12 +7,14 @@ Comprehensive guide for creating and maintaining effective Azure DevOps wikis.
 ### Choose the Right Wiki Type
 
 **Provisioned Wiki** - Best for:
+
 - Team-level documentation
 - Quick onboarding guides
 - Meeting notes and decisions
 - Internal processes
 
 **Published Code Wiki** - Best for:
+
 - API documentation
 - SDK references
 - Product documentation requiring versioning
@@ -60,6 +62,7 @@ Wiki Root
 ### Page Naming Conventions
 
 **Do:**
+
 ```
 getting-started.md
 api-authentication.md
@@ -68,6 +71,7 @@ deployment-guide-v2.md
 ```
 
 **Don't:**
+
 ```
 Getting Started.md          # Spaces cause URL issues
 API_Authentication.md       # Underscores less readable
@@ -150,16 +154,19 @@ More content...
 ### Writing Guidelines
 
 **Be Concise:**
+
 - Use bullet points for lists
 - Keep paragraphs short (3-4 sentences)
 - Use tables for structured data
 
 **Be Complete:**
+
 - Include prerequisites
 - Provide examples
 - Add troubleshooting sections
 
 **Be Discoverable:**
+
 - Use descriptive headings
 - Add YAML metadata with tags
 - Cross-link related pages
@@ -185,12 +192,14 @@ auth:
 ```
 
 **Parameters:**
+
 | Parameter | Required | Description |
 |-----------|----------|-------------|
 | `provider` | Yes | Authentication provider type |
 | `client_id` | Yes | OAuth2 application ID |
 | `redirect_uri` | Yes | Callback URL after authentication |
 | `scopes` | No | Requested permissions (default: read) |
+
 ```
 
 ### Visual Content
@@ -216,6 +225,7 @@ sequenceDiagram
 ```
 
 **Use images for:**
+
 - Screenshots
 - UI mockups
 - Complex diagrams (export from tools like Excalidraw)
@@ -288,6 +298,7 @@ For deep pages, add manual breadcrumbs:
 ### Handling Outdated Content
 
 **Option 1: Archive Section**
+
 ```
 Wiki Root
 └── Archive/
@@ -296,6 +307,7 @@ Wiki Root
 ```
 
 **Option 2: Version Tags in YAML**
+
 ```yaml
 ---
 title: Feature X
@@ -306,6 +318,7 @@ replacement: /features/feature-y
 ```
 
 **Option 3: Inline Notices**
+
 ```markdown
 > [!WARNING]
 > This feature is deprecated as of v2.0. See [Feature Y](./feature-y) for the replacement.
@@ -316,6 +329,7 @@ replacement: /features/feature-y
 Make content findable:
 
 1. **Use YAML metadata:**
+
 ```yaml
 ---
 tags:
@@ -328,6 +342,7 @@ keywords: sign in, log in, access token, bearer token
 ```
 
 2. **Include common search terms:**
+
 ```markdown
 ## Authentication (Login/Sign In)
 
@@ -338,6 +353,7 @@ This guide covers user authentication, including:
 ```
 
 3. **Create FAQ pages:**
+
 ```markdown
 ## Frequently Asked Questions
 
@@ -415,6 +431,7 @@ steps:
 ```
 
 Reference in pages:
+
 ```markdown
 ![Architecture](/.attachments/diagrams/architecture-v2.png)
 ```
@@ -424,12 +441,14 @@ Reference in pages:
 ### Sensitive Information
 
 **Never include in wiki:**
+
 - API keys or secrets
 - Passwords
 - Connection strings
 - Personal data
 
 **Instead:**
+
 ```markdown
 ## Configuration
 

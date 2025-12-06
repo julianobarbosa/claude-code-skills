@@ -26,6 +26,7 @@ Pods
 ```
 
 **DNS Configuration:**
+
 - Type: A Record
 - Name: app.example.com
 - Content: Azure Load Balancer IP
@@ -45,6 +46,7 @@ Azure App Service
 ```
 
 **DNS Configuration:**
+
 - Type: CNAME
 - Name: app
 - Content: myapp.azurewebsites.net
@@ -63,6 +65,7 @@ Azure Static Web Apps CDN
 ```
 
 **DNS Configuration:**
+
 - Type: CNAME
 - Name: www
 - Content: nice-beach-123.azurestaticapps.net
@@ -73,6 +76,7 @@ Azure Static Web Apps CDN
 Avoid combining Cloudflare proxy with Azure Front Door - use one or the other.
 
 If required:
+
 - Type: CNAME
 - Proxy: Disabled (gray cloud)
 - Let Azure Front Door handle CDN/WAF
@@ -323,11 +327,13 @@ az network nsg rule create \
 ### Origin Certificates
 
 **Option 1: Let's Encrypt via cert-manager**
+
 - Works with Full (Strict) mode
 - Auto-renewal
 - Recommended for Kubernetes
 
 **Option 2: Cloudflare Origin CA**
+
 - 15-year validity
 - Only trusted by Cloudflare
 - Good for App Service

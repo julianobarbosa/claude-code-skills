@@ -25,6 +25,7 @@ export ARGOCD_AUTH_TOKEN="$ARGOCD_TOKEN"
 ```
 
 **Service account setup** (in argocd-cm ConfigMap):
+
 ```yaml
 data:
   accounts.cibot: apiKey,login
@@ -34,6 +35,7 @@ data:
 ## REST API Pattern
 
 All API calls use this pattern:
+
 ```bash
 curl -s -H "Authorization: Bearer $ARGOCD_AUTH_TOKEN" \
   -H "Content-Type: application/json" \
@@ -253,12 +255,12 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  
+
   source:
     repoURL: https://github.com/org/repo.git
     targetRevision: HEAD
     path: manifests
-    
+
     # Helm options
     helm:
       releaseName: my-release
@@ -266,16 +268,16 @@ spec:
       parameters:
         - name: image.tag
           value: v1.0.0
-    
+
     # Kustomize options
     kustomize:
       namePrefix: prod-
       images: [gcr.io/image:v1.0.0]
-  
+
   destination:
     server: https://kubernetes.default.svc
     namespace: default
-  
+
   syncPolicy:
     automated:
       prune: true
@@ -290,7 +292,7 @@ spec:
         duration: 5s
         factor: 2
         maxDuration: 3m
-  
+
   ignoreDifferences:
     - group: apps
       kind: Deployment
@@ -316,19 +318,19 @@ spec:
             url: https://dev.example.com
           - cluster: prod
             url: https://prod.example.com
-    
+
     # Cluster generator
     - clusters:
         selector:
           matchLabels:
             environment: production
-    
+
     # Git directory generator
     - git:
         repoURL: https://github.com/org/apps.git
         directories:
           - path: apps/*
-    
+
     # Matrix generator (combine two generators)
     - matrix:
         generators:
@@ -336,7 +338,7 @@ spec:
           - git:
               repoURL: https://github.com/org/apps.git
               directories: [{path: apps/*}]
-  
+
   template:
     metadata:
       name: '{{.cluster}}-{{.path.basename}}'
@@ -372,10 +374,10 @@ metadata:
   annotations:
     # Sync wave (lower = earlier)
     argocd.argoproj.io/sync-wave: "-1"
-    
+
     # Hook phase
     argocd.argoproj.io/hook: PreSync|Sync|PostSync|SyncFail|PostDelete
-    
+
     # Hook deletion policy
     argocd.argoproj.io/hook-delete-policy: HookSucceeded|HookFailed|BeforeHookCreation
 ```
@@ -428,18 +430,21 @@ argocd repo add https://repo --upsert ...
 ## Common Workflows
 
 ### Deploy and Wait Pattern
+
 ```bash
 argocd app sync myapp --prune --async
 argocd app wait myapp --health --sync --timeout 300
 ```
 
 ### Canary/Blue-Green with Argo Rollouts
+
 ```bash
 # Promote rollout
 argocd app actions run myapp promote --kind Rollout --resource-name my-rollout
 ```
 
 ### Multi-Cluster Deployment
+
 ```bash
 # Register clusters
 argocd cluster add dev-context --name dev

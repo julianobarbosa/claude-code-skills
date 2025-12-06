@@ -3,6 +3,7 @@
 Complete reference for Grafana Annotations HTTP API endpoints.
 
 ## Table of Contents
+
 - [Query Annotations](#query-annotations)
 - [Create Annotation](#create-annotation)
 - [Create Graphite Annotation](#create-graphite-annotation)
@@ -21,6 +22,7 @@ GET /api/annotations
 ```
 
 **Query Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | from | integer | Start time in epoch milliseconds |
@@ -36,12 +38,14 @@ GET /api/annotations
 | matchAny | boolean | Match any tag (default: false = match all) |
 
 **Example Request:**
+
 ```bash
 curl -H "Authorization: Bearer <TOKEN>" \
   "https://grafana.example.com/api/annotations?from=1506676478816&to=1507281278816&tags=deploy&tags=production&limit=100"
 ```
 
 **Example Response:**
+
 ```json
 [
   {
@@ -64,6 +68,7 @@ curl -H "Authorization: Bearer <TOKEN>" \
 ```
 
 **Annotation Types:**
+
 - **Dashboard annotation**: Associated with a specific dashboard/panel
 - **Organization annotation**: Global annotation visible across all dashboards
 - **Alert annotation**: Auto-created when alert state changes
@@ -77,6 +82,7 @@ POST /api/annotations
 ```
 
 ### Dashboard Annotation
+
 ```json
 {
   "dashboardUID": "cIBgcSjkk",
@@ -89,7 +95,9 @@ POST /api/annotations
 ```
 
 ### Organization Annotation (Global)
+
 Omit `dashboardUID` and `panelId` to create a global annotation:
+
 ```json
 {
   "time": 1507037197339,
@@ -99,6 +107,7 @@ Omit `dashboardUID` and `panelId` to create a global annotation:
 ```
 
 ### Point Annotation (Single Moment)
+
 ```json
 {
   "dashboardUID": "cIBgcSjkk",
@@ -109,7 +118,9 @@ Omit `dashboardUID` and `panelId` to create a global annotation:
 ```
 
 ### Region Annotation (Time Range)
+
 Include `timeEnd` to create a region:
+
 ```json
 {
   "dashboardUID": "cIBgcSjkk",
@@ -121,6 +132,7 @@ Include `timeEnd` to create a region:
 ```
 
 **Request Fields:**
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | text | string | Yes | Annotation text/description |
@@ -133,6 +145,7 @@ Include `timeEnd` to create a region:
 | data | object | No | Custom JSON data |
 
 **Example Response:**
+
 ```json
 {
   "message": "Annotation added",
@@ -160,6 +173,7 @@ Compatible with Graphite event format:
 ```
 
 **Fields:**
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | what | string | Yes | Event description |
@@ -203,6 +217,7 @@ Updates only specified properties:
 ```
 
 **Example - Update only tags:**
+
 ```json
 {
   "tags": ["new-tag", "updated"]
@@ -210,6 +225,7 @@ Updates only specified properties:
 ```
 
 **Example - Extend time range:**
+
 ```json
 {
   "timeEnd": 1507050797339
@@ -225,12 +241,14 @@ DELETE /api/annotations/:annotationId
 ```
 
 **Example Request:**
+
 ```bash
 curl -X DELETE -H "Authorization: Bearer <TOKEN>" \
   "https://grafana.example.com/api/annotations/1124"
 ```
 
 **Example Response:**
+
 ```json
 {
   "message": "Annotation deleted"
@@ -246,6 +264,7 @@ GET /api/annotations/:annotationId
 ```
 
 **Example Response:**
+
 ```json
 {
   "id": 1124,
@@ -270,6 +289,7 @@ GET /api/annotations/:annotationId
 ## Annotation Tags
 
 ### Get Annotation Tags
+
 ```http
 GET /api/annotations/tags
 ```
@@ -277,12 +297,14 @@ GET /api/annotations/tags
 Returns all unique tags used in annotations.
 
 **Query Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | limit | integer | Max tags to return (default: 100) |
 | tag | string | Filter tags containing this string |
 
 **Example Response:**
+
 ```json
 {
   "result": {
@@ -301,6 +323,7 @@ Returns all unique tags used in annotations.
 ## Common Patterns
 
 ### Deploy Marker
+
 ```python
 import time
 import requests
@@ -323,6 +346,7 @@ def create_deploy_annotation(grafana_url, token, dashboard_uid, version, env):
 ```
 
 ### Maintenance Window
+
 ```python
 def create_maintenance_window(grafana_url, token, start_ms, end_ms, description):
     response = requests.post(
@@ -342,6 +366,7 @@ def create_maintenance_window(grafana_url, token, start_ms, end_ms, description)
 ```
 
 ### Clean Up Old Annotations
+
 ```python
 def delete_old_annotations(grafana_url, token, older_than_ms, tags=None):
     params = {
@@ -351,19 +376,19 @@ def delete_old_annotations(grafana_url, token, older_than_ms, tags=None):
     }
     if tags:
         params["tags"] = tags
-    
+
     response = requests.get(
         f"{grafana_url}/api/annotations",
         headers={"Authorization": f"Bearer {token}"},
         params=params
     )
-    
+
     annotations = response.json()
     for ann in annotations:
         requests.delete(
             f"{grafana_url}/api/annotations/{ann['id']}",
             headers={"Authorization": f"Bearer {token}"}
         )
-    
+
     return len(annotations)
 ```

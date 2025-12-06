@@ -32,6 +32,7 @@ kubectl rollout restart deployment external-dns -n external-dns
 ## 1. DNS Records Not Created
 
 ### Symptoms
+
 - Ingress/Service deployed but no DNS record in provider
 - Logs show "no endpoints generated"
 
@@ -65,6 +66,7 @@ host: app.other-domain.com  # Won't be managed
 ```
 
 **Solution**: Add domain to filter or remove filter to manage all domains:
+
 ```yaml
 domainFilters:
   - example.com
@@ -85,6 +87,7 @@ kind: Ingress  # Won't be detected
 ```
 
 **Solution**: Add correct source type:
+
 ```yaml
 sources:
   - service
@@ -103,6 +106,7 @@ spec:
 ```
 
 **Solution**: Add hostname:
+
 ```yaml
 spec:
   rules:
@@ -121,6 +125,7 @@ spec:
 ```
 
 **Solution**: Use LoadBalancer or add annotation:
+
 ```yaml
 spec:
   type: LoadBalancer
@@ -134,6 +139,7 @@ metadata:
 ## 2. Authentication Failures
 
 ### Symptoms
+
 - `401 Unauthorized` or `403 Forbidden` in logs
 - `authorization failed` messages
 
@@ -156,6 +162,7 @@ az role assignment list --assignee <IDENTITY_OBJECT_ID> --scope <DNS_ZONE_ID> -o
 ```
 
 **Solutions**:
+
 1. Verify AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID, AZURE_RESOURCE_GROUP are correct
 2. Ensure Workload Identity labels are on both ServiceAccount AND Pod
 3. Check federated credential subject: `system:serviceaccount:external-dns:external-dns`
@@ -174,6 +181,7 @@ curl "https://api.cloudflare.com/client/v4/zones" \
 ```
 
 **Solutions**:
+
 1. Regenerate API token with correct permissions (Zone:Read, DNS:Edit)
 2. Verify Zone Resources includes your zones
 3. Update Kubernetes secret with new token
@@ -189,6 +197,7 @@ kubectl exec -n external-dns deployment/external-dns -- aws sts get-caller-ident
 ```
 
 **Solutions**:
+
 1. Verify IRSA role annotation on ServiceAccount
 2. Check IAM policy has route53 permissions
 3. Ensure OIDC provider is configured for cluster
@@ -196,6 +205,7 @@ kubectl exec -n external-dns deployment/external-dns -- aws sts get-caller-ident
 ## 3. TXT Record Conflicts
 
 ### Symptoms
+
 - `TXT record ownership conflict` in logs
 - Records not being updated
 - `another external-dns instance owns this record`
@@ -248,6 +258,7 @@ txtPrefix: "_externaldns2."  # Use different prefix temporarily
 ## 4. Rate Limiting
 
 ### Symptoms
+
 - `429 Too Many Requests` in logs
 - DNS updates delayed
 - Intermittent sync failures
@@ -291,6 +302,7 @@ extraArgs:
 ## 5. High Memory/CPU Usage
 
 ### Symptoms
+
 - Pods OOMKilled
 - Slow sync cycles
 - CPU throttling
@@ -330,6 +342,7 @@ interval: "15m"  # Reduce sync frequency
 ## 6. Records Not Deleted (Expected Behavior)
 
 ### Symptoms
+
 - Old DNS records remain after Ingress/Service deletion
 - Records accumulate over time
 
@@ -347,6 +360,7 @@ This is **expected** when using `policy: upsert-only` (recommended for productio
 For **production**: Manually delete records via DNS provider dashboard
 
 For **development**: Use sync policy:
+
 ```yaml
 policy: sync  # Only in dev environments
 ```
@@ -354,6 +368,7 @@ policy: sync  # Only in dev environments
 ## 7. SSL/TLS Issues
 
 ### Symptoms
+
 - Connection refused to provider API
 - Certificate verification errors
 
@@ -383,6 +398,7 @@ volumeMounts:
 ## 8. Pods Not Starting
 
 ### Symptoms
+
 - Pods in CrashLoopBackOff
 - Init container failures
 
@@ -452,6 +468,7 @@ extraArgs:
 ```
 
 Check logs to see what changes would be made:
+
 ```bash
 kubectl logs -n external-dns deployment/external-dns | grep "would have"
 ```
@@ -519,6 +536,7 @@ spec:
 ```
 
 Verify:
+
 ```bash
 # Wait for LoadBalancer IP
 kubectl get svc external-dns-test -w

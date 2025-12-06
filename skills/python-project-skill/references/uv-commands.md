@@ -128,6 +128,7 @@ uv run script.py
 ```
 
 Script format:
+
 ```python
 # /// script
 # requires-python = ">=3.11"

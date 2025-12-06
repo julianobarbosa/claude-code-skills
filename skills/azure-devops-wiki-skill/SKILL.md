@@ -53,6 +53,7 @@ ProjectName.wiki/
 ```
 
 **Key conventions:**
+
 - Wiki repo name: `<ProjectName>.wiki`
 - Root branch: `wikiMain`
 - Spaces in titles → hyphens in filenames: `Getting Started` → `Getting-Started.md`
@@ -70,6 +71,7 @@ Troubleshooting
 ```
 
 **Rules:**
+
 - One page name per line (without `.md` extension)
 - Pages not listed appear alphabetically at the end
 - Delete `.order` to restore alphabetical sorting
@@ -102,6 +104,7 @@ graph LR
 ```
 
 Supported diagram types:
+
 - Sequence diagrams
 - Flowcharts (`graph` not `flowchart`)
 - Gantt charts
@@ -138,6 +141,7 @@ const config = {
   timeout: 5000
 };
 ```
+
 ```
 
 Supported languages: `javascript`, `typescript`, `python`, `csharp`, `bash`, `yaml`, `json`, `sql`, and [more](https://github.com/highlightjs/highlight.js/tree/stable-11/src/languages).

@@ -11,20 +11,20 @@ from flask import Flask
 def create_app(config_name: str = "default") -> Flask:
     """Application factory."""
     app = Flask(__name__)
-    
+
     # Load config
     app.config.from_object(config[config_name])
-    
+
     # Initialize extensions
     db.init_app(app)
-    
+
     # Register blueprints
     from app.main import main as main_blueprint
     app.register_blueprint(main_blueprint)
-    
+
     from app.api import api as api_blueprint
     app.register_blueprint(api_blueprint, url_prefix="/api")
-    
+
     return app
 ```
 
@@ -70,11 +70,11 @@ def create_item():
     data = request.get_json()
     if not data:
         return jsonify({"error": "No data provided"}), 400
-    
+
     item = Item(**data)
     db.session.add(item)
     db.session.commit()
-    
+
     return jsonify(item.to_dict()), 201
 
 @app.route("/api/items/<int:item_id>", methods=["GET"])
@@ -118,7 +118,7 @@ def internal_error(error):
         <a href="{{ url_for('main.index') }}">Home</a>
         <a href="{{ url_for('main.about') }}">About</a>
     </nav>
-    
+
     <main>
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
@@ -127,10 +127,10 @@ def internal_error(error):
                 {% endfor %}
             {% endif %}
         {% endwith %}
-        
+
         {% block content %}{% endblock %}
     </main>
-    
+
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
@@ -196,7 +196,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     posts = db.relationship("Post", backref="author", lazy=True)
-    
+
     def to_dict(self) -> dict:
         return {
             "id": self.id,

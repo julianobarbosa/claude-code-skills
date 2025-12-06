@@ -19,6 +19,7 @@ Extended information with source file locations and configuration details.
 | **Config File** | `argo-cd-helm-values/kube-addons/argocd/hub/values.yaml` |
 
 **API Endpoints:**
+
 ```
 GET  https://argocd.cafehyna.com.br/api/v1/applications
 POST https://argocd.cafehyna.com.br/api/v1/applications/{name}/sync
@@ -134,6 +135,7 @@ GET  https://argocd.cafehyna.com.br/api/v1/clusters
 | **Config File** | `argo-cd-helm-values/kube-addons/mimir/cafehyna-hub/values.yaml` |
 
 **Internal Endpoints (cluster-local):**
+
 ```
 http://mimir-distributed-nginx.monitoring.svc.cluster.local/prometheus
 ```
@@ -151,6 +153,7 @@ http://mimir-distributed-nginx.monitoring.svc.cluster.local/prometheus
 | **Config File** | `infra-team/apps/painelclientes-dev-rabbitmq.yaml` |
 
 **Internal Endpoints:**
+
 ```
 AMQP:     http://painelclientes.rabbitmq.amqp.dev.adocyl.com.br:80
 Management: http://painelclientes.rabbitmq.mgmt.dev.adocyl.com.br:80
@@ -176,6 +179,7 @@ Metrics:  http://painelclientes.rabbitmq.metrics.dev.adocyl.com.br:80
 | **Config File** | `infra-team/argocd-clusters/cafehyna-hub-external.yaml` |
 
 **Services Hosted:**
+
 - ArgoCD (GitOps)
 - Prometheus/Grafana (Monitoring)
 - Loki (Logging)

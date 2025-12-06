@@ -68,9 +68,9 @@ uv add --dev pytest ruff mypy
 if [ "$INCLUDE_FLASK" = true ]; then
     echo "🌶️ Adding Flask..."
     uv add flask
-    
+
     mkdir -p static/css static/js templates
-    
+
     # Create Flask app
     cat > app.py << 'EOF'
 """Flask application."""

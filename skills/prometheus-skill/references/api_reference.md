@@ -25,6 +25,7 @@ GET/POST /api/v1/query
 ```
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | Yes | PromQL expression |
@@ -33,11 +34,13 @@ GET/POST /api/v1/query
 | `limit` | number | No | Max series returned (0=disabled) |
 
 **Example:**
+
 ```bash
 curl 'http://localhost:9090/api/v1/query?query=up&time=2024-01-01T00:00:00Z'
 ```
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -62,6 +65,7 @@ GET/POST /api/v1/query_range
 ```
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `query` | string | Yes | PromQL expression |
@@ -72,11 +76,13 @@ GET/POST /api/v1/query_range
 | `limit` | number | No | Max series returned |
 
 **Example:**
+
 ```bash
 curl 'http://localhost:9090/api/v1/query_range?query=up&start=2024-01-01T00:00:00Z&end=2024-01-01T01:00:00Z&step=15s'
 ```
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -105,6 +111,7 @@ GET/POST /api/v1/format_query
 ```
 
 **Example:**
+
 ```bash
 curl 'http://localhost:9090/api/v1/format_query?query=foo/bar'
 # Returns: "foo / bar"
@@ -123,6 +130,7 @@ GET/POST /api/v1/series
 ```
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `match[]` | series_selector | Yes | Repeated selector (at least one) |
@@ -131,6 +139,7 @@ GET/POST /api/v1/series
 | `limit` | number | No | Max series returned |
 
 **Example:**
+
 ```bash
 curl -g 'http://localhost:9090/api/v1/series?match[]=up&match[]=process_start_time_seconds{job="prometheus"}'
 ```
@@ -144,6 +153,7 @@ GET/POST /api/v1/labels
 ```
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `start` | rfc3339/unix | No | Start timestamp |
@@ -152,6 +162,7 @@ GET/POST /api/v1/labels
 | `limit` | number | No | Max labels returned |
 
 **Example:**
+
 ```bash
 curl 'http://localhost:9090/api/v1/labels'
 # Returns: ["__name__", "instance", "job", ...]
@@ -166,6 +177,7 @@ GET /api/v1/label/<label_name>/values
 ```
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `start` | rfc3339/unix | No | Start timestamp |
@@ -174,6 +186,7 @@ GET /api/v1/label/<label_name>/values
 | `limit` | number | No | Max values returned |
 
 **Example:**
+
 ```bash
 curl 'http://localhost:9090/api/v1/label/job/values'
 # Returns: ["prometheus", "node", "alertmanager"]
@@ -188,6 +201,7 @@ GET /api/v1/metadata
 ```
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `limit` | number | No | Max metrics returned |
@@ -195,11 +209,13 @@ GET /api/v1/metadata
 | `metric` | string | No | Filter by metric name |
 
 **Example:**
+
 ```bash
 curl 'http://localhost:9090/api/v1/metadata?metric=http_requests_total'
 ```
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -224,17 +240,20 @@ GET /api/v1/targets
 ```
 
 **Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `state` | string | Filter: `active`, `dropped`, `any` |
 | `scrapePool` | string | Filter by scrape pool name |
 
 **Example:**
+
 ```bash
 curl 'http://localhost:9090/api/v1/targets?state=active'
 ```
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -264,6 +283,7 @@ GET /api/v1/targets/metadata
 ```
 
 **Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `match_target` | label_selector | Filter targets |
@@ -271,6 +291,7 @@ GET /api/v1/targets/metadata
 | `limit` | number | Max targets to match |
 
 **Example:**
+
 ```bash
 curl -G 'http://localhost:9090/api/v1/targets/metadata' \
   --data-urlencode 'metric=go_goroutines' \
@@ -290,6 +311,7 @@ GET /api/v1/rules
 ```
 
 **Parameters:**
+
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `type` | string | `alert` or `record` |
@@ -300,11 +322,13 @@ GET /api/v1/rules
 | `match[]` | label_selector | Filter by configured labels |
 
 **Example:**
+
 ```bash
 curl 'http://localhost:9090/api/v1/rules?type=alert'
 ```
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -341,6 +365,7 @@ GET /api/v1/alerts
 ```
 
 **Example:**
+
 ```bash
 curl 'http://localhost:9090/api/v1/alerts'
 ```
@@ -354,6 +379,7 @@ GET /api/v1/alertmanagers
 ```
 
 **Response:**
+
 ```json
 {
   "status": "success",
@@ -369,34 +395,45 @@ GET /api/v1/alertmanagers
 ## Status Endpoints
 
 ### Config
+
 ```
 GET /api/v1/status/config
 ```
+
 Returns currently loaded configuration as YAML.
 
 ### Flags
+
 ```
 GET /api/v1/status/flags
 ```
+
 Returns CLI flag values.
 
 ### Runtime Info
+
 ```
 GET /api/v1/status/runtimeinfo
 ```
+
 Returns runtime properties (startTime, goroutineCount, storageRetention, etc).
 
 ### Build Info
+
 ```
 GET /api/v1/status/buildinfo
 ```
+
 Returns version, revision, branch, buildDate, goVersion.
 
 ### TSDB Stats
+
 ```
 GET /api/v1/status/tsdb?limit=<n>
 ```
+
 Returns cardinality statistics:
+
 - `headStats`: numSeries, chunkCount, minTime, maxTime
 - `seriesCountByMetricName`
 - `labelValueCountByLabelName`
@@ -404,9 +441,11 @@ Returns cardinality statistics:
 - `seriesCountByLabelValuePair`
 
 ### WAL Replay
+
 ```
 GET /api/v1/status/walreplay
 ```
+
 Returns WAL replay progress (available before server ready).
 
 ---
@@ -416,17 +455,21 @@ Returns WAL replay progress (available before server ready).
 **Note:** Require `--web.enable-admin-api` flag.
 
 ### Snapshot
+
 ```
 POST /api/v1/admin/tsdb/snapshot?skip_head=<bool>
 ```
+
 Create TSDB snapshot. Returns snapshot directory name.
 
 ### Delete Series
+
 ```
 POST /api/v1/admin/tsdb/delete_series
 ```
 
 **Parameters:**
+
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `match[]` | series_selector | Yes | Series to delete |
@@ -434,14 +477,17 @@ POST /api/v1/admin/tsdb/delete_series
 | `end` | rfc3339/unix | No | End time (default: max) |
 
 **Example:**
+
 ```bash
 curl -X POST -g 'http://localhost:9090/api/v1/admin/tsdb/delete_series?match[]=up&match[]=process_start_time_seconds{job="prometheus"}'
 ```
 
 ### Clean Tombstones
+
 ```
 POST /api/v1/admin/tsdb/clean_tombstones
 ```
+
 Remove deleted data from disk. Returns 204 on success.
 
 ---
@@ -451,6 +497,7 @@ Remove deleted data from disk. Returns 204 on success.
 ### Result Types
 
 **Instant Vector (vector):**
+
 ```json
 [
   {
@@ -461,6 +508,7 @@ Remove deleted data from disk. Returns 204 on success.
 ```
 
 **Range Vector (matrix):**
+
 ```json
 [
   {
@@ -471,11 +519,13 @@ Remove deleted data from disk. Returns 204 on success.
 ```
 
 **Scalar:**
+
 ```json
 [1704067200, "42"]
 ```
 
 **String:**
+
 ```json
 [1704067200, "hello"]
 ```
@@ -506,6 +556,7 @@ Boundary rules: 0=open-left, 1=open-right, 2=open-both, 3=closed-both.
 **Series Selectors:** `metric_name{label="value", label2=~"regex.*"}`
 
 Label matchers:
+
 - `=` exact match
 - `!=` not equal
 - `=~` regex match

@@ -3,6 +3,7 @@
 Complete reference for Grafana Data Source HTTP API endpoints.
 
 ## Table of Contents
+
 - [List Data Sources](#list-data-sources)
 - [Get Data Source](#get-data-source)
 - [Create Data Source](#create-data-source)
@@ -23,6 +24,7 @@ GET /api/datasources
 **Note:** Default max returned is 5000. Pagination not currently supported.
 
 **Example Response:**
+
 ```json
 [
   {
@@ -54,21 +56,25 @@ GET /api/datasources
 ## Get Data Source
 
 ### By ID (Deprecated)
+
 ```http
 GET /api/datasources/:id
 ```
 
 ### By UID (Recommended)
+
 ```http
 GET /api/datasources/uid/:uid
 ```
 
 ### By Name
+
 ```http
 GET /api/datasources/name/:name
 ```
 
 **Example Response:**
+
 ```json
 {
   "id": 1,
@@ -99,6 +105,7 @@ POST /api/datasources
 ```
 
 ### Prometheus Example
+
 ```json
 {
   "name": "Prometheus",
@@ -117,6 +124,7 @@ POST /api/datasources
 ```
 
 ### InfluxDB Example
+
 ```json
 {
   "name": "InfluxDB",
@@ -136,6 +144,7 @@ POST /api/datasources
 ```
 
 ### PostgreSQL Example
+
 ```json
 {
   "name": "PostgreSQL",
@@ -158,6 +167,7 @@ POST /api/datasources
 ```
 
 ### Loki Example
+
 ```json
 {
   "name": "Loki",
@@ -180,6 +190,7 @@ POST /api/datasources
 ```
 
 ### CloudWatch Example
+
 ```json
 {
   "name": "CloudWatch",
@@ -193,6 +204,7 @@ POST /api/datasources
 ```
 
 ### Azure Monitor Example
+
 ```json
 {
   "name": "Azure Monitor",
@@ -215,11 +227,13 @@ POST /api/datasources
 ## Update Data Source
 
 ### By ID (Deprecated)
+
 ```http
 PUT /api/datasources/:id
 ```
 
 ### By UID (Recommended)
+
 ```http
 PUT /api/datasources/uid/:uid
 ```
@@ -231,16 +245,19 @@ PUT /api/datasources/uid/:uid
 ## Delete Data Source
 
 ### By ID (Deprecated)
+
 ```http
 DELETE /api/datasources/:id
 ```
 
 ### By UID (Recommended)
+
 ```http
 DELETE /api/datasources/uid/:uid
 ```
 
 ### By Name
+
 ```http
 DELETE /api/datasources/name/:name
 ```
@@ -256,6 +273,7 @@ POST /api/ds/query
 Execute queries against any data source with a backend implementation.
 
 ### Prometheus Query Example
+
 ```json
 {
   "queries": [
@@ -278,6 +296,7 @@ Execute queries against any data source with a backend implementation.
 ```
 
 ### Loki Query Example
+
 ```json
 {
   "queries": [
@@ -298,6 +317,7 @@ Execute queries against any data source with a backend implementation.
 ```
 
 ### SQL Query Example
+
 ```json
 {
   "queries": [
@@ -317,6 +337,7 @@ Execute queries against any data source with a backend implementation.
 ```
 
 **Response Structure:**
+
 ```json
 {
   "results": {
@@ -352,6 +373,7 @@ GET /api/datasources/uid/:uid/health
 ```
 
 **Example Response (Success):**
+
 ```json
 {
   "status": "OK",
@@ -360,6 +382,7 @@ GET /api/datasources/uid/:uid/health
 ```
 
 **Example Response (Error):**
+
 ```json
 {
   "status": "ERROR",
@@ -378,11 +401,13 @@ GET /api/datasources/uid/:uid/resources/:resource
 ```
 
 ### CloudWatch Dimension Keys Example
+
 ```bash
 GET /api/datasources/uid/cloudwatch-uid/resources/dimension-keys?region=us-east-1&namespace=AWS/EC2
 ```
 
 ### Prometheus Label Values Example
+
 ```bash
 GET /api/datasources/uid/prometheus-uid/resources/api/v1/label/__name__/values
 ```
