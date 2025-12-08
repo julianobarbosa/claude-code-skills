@@ -49,7 +49,18 @@ Extended information not in SKILL.md. Use grep patterns: `## <cluster-name>` to 
 
 - **API Server**: `aks-hypera-sonora-dev-hlg-yz9t4ou8.d9f58524-b5b3-4fa9-af7d-cd5007447dea.privatelink.eastus.azmk8s.io`
 - **API Alias**: `sonora-dev-aks.eastus.cloudapp.azure.com`
+- **Key Vault**: `kv-sonora-dev`
+- **Managed Identity**: `92f03776-76e1-450c-b7f8-5e9dc22e5573`
 - **Nodepools**: `agentpoolqas`
+- **Region**: East US
+
+## sonora-prd
+
+- **API Server**: `aks-hypera-sonora-prod-2xiqgc37.84a80cec-6ef2-41fd-b6f7-2b6b934f8fb3.privatelink.eastus.azmk8s.io`
+- **API Alias**: `sonora-prd-aks.eastus.cloudapp.azure.com`
+- **Key Vault**: `kv-sonora-prd`
+- **Managed Identity**: `0bdae9cc-1fac-45e0-a2f7-8c6b792cdb58`
+- **Nodepools**: `agentpoolprd`
 - **Region**: East US
 
 ## painelclientes-dev
@@ -62,18 +73,15 @@ Extended information not in SKILL.md. Use grep patterns: `## <cluster-name>` to 
 - **Region**: East US2
 - **Policy**: AMD-only compute (Dasv5, Easv5 series)
 
-## painelclientes-hub
-
-- **Key Vault**: `kv-painelclientes-hub`
-- **Nodepools**: `hub`
-- **Region**: East US2
-
 ## painelclientes-prd
 
+- **API Server**: `akspainelclientesprd-dns-kezy4skd.hcp.eastus2.azmk8s.io`
+- **Subscription**: `operation` (1e705d23-900f-471e-b18d-7e0eb94d8c7a)
 - **Key Vault**: `painel-clientes-prd`
-- **Managed Identity (KV)**: `18a14a67-899c-45a1-aa84-c9b4813aa8d7`
-- **Managed Identity (Pool)**: `542b4bcd-811b-4f69-9d96-f2e52055f186`
-- **Nodepools**: `prd`
+- **Managed Identity (SystemAssigned)**: `94634d77-06cd-40ca-87c2-300d1352522f`
+- **Managed Identity (KV Secrets Provider)**: `18a14a67-899c-45a1-aa84-c9b4813aa8d7`
+- **Managed Identity (Agentpool)**: `542b4bcd-811b-4f69-9d96-f2e52055f186`
+- **Nodepools**: `pcprd`
 - **Region**: East US2
 
 ---

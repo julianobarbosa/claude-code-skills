@@ -7,10 +7,10 @@ description: Hypera Azure AKS infrastructure reference. Use when user mentions c
 
 ## Critical: Hub Cluster Naming
 
-| Context | cafehyna-hub | painelclientes-hub |
-|---------|--------------|-------------------|
-| Developer/Docs | `cafehyna-hub` | `painelclientes-hub` |
-| Azure CLI | `aks-cafehyna-default` | `akspainelclienteshub` |
+| Context | Name |
+|---------|------|
+| Developer/Docs | `cafehyna-hub` |
+| Azure CLI | `aks-cafehyna-default` |
 
 Always use Azure name in `az` commands.
 
@@ -29,10 +29,15 @@ Format: `developer-name` → Azure: `azure-name`, RG: `resource-group`, Config: 
 - `loyalty-dev` → Azure: `Loyalty_AKS-QAS`, RG: `RS_Hypera_Loyalty_AKS_QAS`, Config: `aks-rg-hypera-loyalty-dev-config`, Spot: Yes
 - `loyalty-prd` → Azure: `Loyalty_AKS-PRD`, RG: `RS_Hypera_Loyalty_AKS_PRD`, Config: `aks-rg-hypera-loyalty-prd-config`, Spot: No
 
-**Other**
+**Sonora**
 
 - `sonora-dev` → Azure: `AKS-Hypera-Sonora-Dev-Hlg`, RG: `rg-hypera-sonora-dev`, Config: `aks-rg-hypera-sonora-dev-config`, Spot: Yes
+- `sonora-prd` → Azure: `AKS-Hypera-Sonora-Prod`, RG: `rg-hypera-sonora-prd`, Config: `aks-rg-hypera-sonora-prd-config`, Spot: No
+
+**Painelclientes**
+
 - `painelclientes-dev` → Azure: `akspainelclientedev`, RG: `rg-hypera-painelclientes-dev`, Config: `aks-rg-hypera-painelclientes-dev-config`, Spot: Yes, Region: East US2
+- `painelclientes-prd` → Azure: `akspainelclientesprd`, RG: `rg-hypera-painelclientes-prd`, Config: `aks-rg-hypera-painelclientes-prd-config`, Spot: No, Region: East US2
 
 All kubeconfigs at `~/.kube/<config-name>`.
 
