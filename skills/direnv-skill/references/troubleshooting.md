@@ -34,6 +34,7 @@ direnv edit
 ### Issue: Environment Not Loading
 
 **Symptoms:**
+
 - Variables not set after entering directory
 - No direnv output on `cd`
 
@@ -81,6 +82,7 @@ direnv status
 ### Issue: Shell Hook Not Working
 
 **Symptoms:**
+
 - `direnv: command not found`
 - No environment changes on `cd`
 
@@ -163,6 +165,7 @@ direnv: error /path/to/.envrc is blocked. Run `direnv allow` to approve its cont
 ### Issue: Slow Loading / Performance
 
 **Symptoms:**
+
 - Shell prompt delayed on `cd`
 - High CPU usage
 
@@ -228,6 +231,7 @@ time (cd /project && direnv export bash)
 ### Issue: Variables Not Unloading
 
 **Symptoms:**
+
 - Environment variables persist after leaving directory
 - Old values remain
 
@@ -267,6 +271,7 @@ time (cd /project && direnv export bash)
 ### Issue: Layout Python Not Working
 
 **Symptoms:**
+
 - Virtual environment not created
 - Wrong Python version
 
@@ -324,6 +329,7 @@ which python
 ### Issue: dotenv Not Loading
 
 **Symptoms:**
+
 - Variables from .env not available
 - `dotenv: command not found`
 
@@ -363,6 +369,7 @@ which python
 ### Issue: source_up Not Finding Parent
 
 **Symptoms:**
+
 - Parent .envrc not loaded
 - `source_up: No ancestor .envrc found`
 
@@ -393,6 +400,7 @@ which python
 ### Issue: Nix/Flake Errors
 
 **Symptoms:**
+
 - `use nix` or `use flake` fails
 - Very slow loading
 
@@ -433,6 +441,7 @@ which python
 ### Issue: IDE Not Picking Up Environment
 
 **Symptoms:**
+
 - VS Code terminal doesn't have variables
 - IDE tools can't find dependencies
 
@@ -460,6 +469,7 @@ which python
 ### Issue: Conflicting with Version Managers
 
 **Symptoms:**
+
 - rbenv, pyenv, nvm conflicts
 - Wrong versions used
 
@@ -568,8 +578,8 @@ chmod +x debug-direnv.sh
 
 ## Getting Help
 
-1. **Official documentation:** https://direnv.net/
-2. **GitHub issues:** https://github.com/direnv/direnv/issues
+1. **Official documentation:** <https://direnv.net/>
+2. **GitHub issues:** <https://github.com/direnv/direnv/issues>
 3. **Man page:** `man direnv` / `man direnv-stdlib`
 
 ## Reset Everything

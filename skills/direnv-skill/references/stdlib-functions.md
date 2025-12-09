@@ -166,6 +166,7 @@ layout python /usr/local/bin/python3.12
 ```
 
 **What it does:**
+
 - Creates virtualenv in `.direnv/python-<version>`
 - Adds virtualenv to PATH
 - Sets VIRTUAL_ENV environment variable
@@ -179,6 +180,7 @@ layout pipenv
 ```
 
 **What it does:**
+
 - Uses `pipenv --venv` to locate virtualenv
 - Activates the Pipenv environment
 
@@ -199,6 +201,7 @@ layout node
 ```
 
 **What it does:**
+
 - Adds `node_modules/.bin` to PATH
 - Sets NPM_CONFIG_PREFIX
 
@@ -211,6 +214,7 @@ layout ruby
 ```
 
 **What it does:**
+
 - Sets GEM_HOME to `.direnv/ruby`
 - Adds gem bin directory to PATH
 
@@ -223,6 +227,7 @@ layout go
 ```
 
 **What it does:**
+
 - Sets GOPATH to current directory
 - Adds `$GOPATH/bin` to PATH
 
@@ -235,6 +240,7 @@ layout perl
 ```
 
 **What it does:**
+
 - Sets up local::lib in `.direnv/perl5`
 - Configures PERL5LIB and PATH
 

@@ -10,6 +10,7 @@ Shell extension for loading and unloading environment variables based on the cur
 ## Overview
 
 direnv enables:
+
 - Per-project environment configurations
 - Automatic loading of 12-factor app environment variables
 - Isolated development environments with language-specific layouts
@@ -37,16 +38,19 @@ direnv version
 ### Shell Hook Configuration
 
 **Zsh** (`~/.zshrc`):
+
 ```bash
 eval "$(direnv hook zsh)"
 ```
 
 **Bash** (`~/.bashrc`):
+
 ```bash
 eval "$(direnv hook bash)"
 ```
 
 **Fish** (`~/.config/fish/config.fish`):
+
 ```fish
 direnv hook fish | source
 ```
@@ -468,6 +472,6 @@ Plug 'direnv/direnv.vim'
 - `references/installation.md` - Complete installation guide
 - `references/stdlib-functions.md` - Full stdlib reference
 - `references/troubleshooting.md` - Extended troubleshooting
-- Official docs: https://direnv.net/
-- Stdlib reference: https://direnv.net/man/direnv-stdlib.1.html
-- nix-direnv: https://github.com/nix-community/nix-direnv
+- Official docs: <https://direnv.net/>
+- Stdlib reference: <https://direnv.net/man/direnv-stdlib.1.html>
+- nix-direnv: <https://github.com/nix-community/nix-direnv>
