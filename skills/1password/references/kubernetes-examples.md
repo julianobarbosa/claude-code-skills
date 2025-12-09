@@ -444,6 +444,7 @@ resources:
 ```
 
 Install command:
+
 ```bash
 helm install connect 1password/connect \
   --namespace onepassword-system \
@@ -714,6 +715,7 @@ spec:
 ```
 
 Check status:
+
 ```bash
 kubectl describe externalsecret debug-secret
 kubectl get externalsecret debug-secret -o yaml

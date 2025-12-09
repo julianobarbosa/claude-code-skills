@@ -1,0 +1,217 @@
+# OpenTelemetry Collector - Deployment Mode Example
+# Use as a centralized gateway with horizontal scaling
+
+nameOverride: "otel-gateway"
+mode: "deployment"
+namespaceOverride: "monitoring"
+replicaCount: 3
+
+# Enable cluster-level presets
+presets:
+  kubernetesAttributes:
+    enabled: true
+    extractAllPodLabels: true
+  kubernetesEvents:
+    enabled: true
+  clusterMetrics:
+    enabled: true
+
+# Pipeline configuration
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  processors:
+    batch:
+      timeout: 30s
+      send_batch_size: 2048
+      send_batch_max_size: 4096
+    memory_limiter:
+      check_interval: 5s
+      limit_percentage: 80
+      spike_limit_percentage: 25
+    resource:
+      attributes:
+        - key: cluster.name
+          value: ${env:CLUSTER_NAME}
+          action: upsert
+    k8sattributes:
+      auth_type: "serviceAccount"
+      passthrough: false
+      extract:
+        metadata:
+          - k8s.pod.name
+          - k8s.namespace.name
+          - k8s.deployment.name
+    # Sampling for high-volume environments
+    probabilistic_sampler:
+      hash_seed: 22
+      sampling_percentage: 10
+
+  exporters:
+    prometheusremotewrite:
+      endpoint: "http://prometheus:9090/api/v1/write"
+      tls:
+        insecure: true
+      resource_to_telemetry_conversion:
+        enabled: true
+      retry_on_failure:
+        enabled: true
+        initial_interval: 5s
+        max_interval: 30s
+    loki:
+      endpoint: "http://loki-gateway:3100/loki/api/v1/push"
+      labels:
+        resource:
+          k8s.namespace.name: "namespace"
+          k8s.pod.name: "pod"
+    otlp/tempo:
+      endpoint: "tempo-distributor:4317"
+      tls:
+        insecure: true
+
+  extensions:
+    health_check:
+      endpoint: 0.0.0.0:13133
+    memory_ballast:
+      size_in_percentage: 20
+
+  service:
+    extensions: [health_check, memory_ballast]
+    pipelines:
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, resource, batch]
+        exporters: [prometheusremotewrite]
+      logs:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, resource, batch]
+        exporters: [loki]
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, k8sattributes, resource, probabilistic_sampler, batch]
+        exporters: [otlp/tempo]
+
+# Resource limits (higher for gateway)
+useGOMEMLIMIT: true
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+# Security
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  fsGroup: 10001
+
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+
+# Service Account & RBAC
+serviceAccount:
+  create: true
+  name: "otel-gateway"
+
+clusterRole:
+  create: true
+  rules:
+    - apiGroups: [""]
+      resources: ["pods", "namespaces", "nodes", "services", "endpoints", "events"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["apps"]
+      resources: ["replicasets", "deployments", "daemonsets", "statefulsets"]
+      verbs: ["get", "list", "watch"]
+    - apiGroups: ["batch"]
+      resources: ["jobs", "cronjobs"]
+      verbs: ["get", "list", "watch"]
+
+# Ports (no hostPort for deployment)
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    protocol: TCP
+    appProtocol: grpc
+  otlp-http:
+    enabled: true
+    containerPort: 4318
+    servicePort: 4318
+    protocol: TCP
+  metrics:
+    enabled: true
+    containerPort: 8888
+    servicePort: 8888
+    protocol: TCP
+
+# Service configuration
+service:
+  type: ClusterIP
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+# Pod Disruption Budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Monitoring
+serviceMonitor:
+  enabled: true
+  extraLabels:
+    prometheus: kube-prometheus-stack
+  metricsEndpoints:
+    - port: metrics
+      interval: 30s
+
+# Labels
+podLabels:
+  app.kubernetes.io/name: otel-gateway
+  app.kubernetes.io/component: telemetry-gateway
+
+# Environment variables
+extraEnvs:
+  - name: CLUSTER_NAME
+    value: "my-cluster"
+  - name: ENVIRONMENT
+    value: "production"
+
+# Anti-affinity for HA
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+            - key: app.kubernetes.io/name
+              operator: In
+              values:
+                - otel-gateway
+        topologyKey: kubernetes.io/hostname
+
+# Topology spread
+topologySpreadConstraints:
+  - maxSkew: 1
+    topologyKey: topology.kubernetes.io/zone
+    whenUnsatisfiable: ScheduleAnyway
+    labelSelector:
+      matchLabels:
+        app.kubernetes.io/name: otel-gateway

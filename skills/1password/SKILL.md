@@ -74,6 +74,7 @@ op://<vault>/<item>/<field>
 ```
 
 Examples:
+
 - `op://Development/AWS/access_key_id`
 - `op://Production/Database/password`
 - `op://Shared/API Keys/github_token`
@@ -526,6 +527,7 @@ op plugin init aws
 ### Common Issues
 
 **Authentication fails:**
+
 ```bash
 # Check current session
 op whoami
@@ -538,6 +540,7 @@ echo $OP_SERVICE_ACCOUNT_TOKEN | head -c 10
 ```
 
 **Item not found:**
+
 ```bash
 # List items in vault to verify name
 op item list --vault "Vault Name"
@@ -547,6 +550,7 @@ op item get --vault Development dh7fjsh3kd8fjs
 ```
 
 **Permission denied in CI/CD:**
+
 ```bash
 # Verify service account has access to vault
 op vault list  # Should show accessible vaults
@@ -556,6 +560,7 @@ op service-account ratelimit
 ```
 
 **External Secrets not syncing:**
+
 ```bash
 # Check ExternalSecret status
 kubectl describe externalsecret <name>

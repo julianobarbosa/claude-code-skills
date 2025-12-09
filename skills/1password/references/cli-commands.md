@@ -604,12 +604,14 @@ op://<vault>/<item>[/<section>]/<field>
 ```
 
 Components:
+
 - `vault` - Vault name or ID
 - `item` - Item name or ID
 - `section` - Optional section name
 - `field` - Field label or ID
 
 Examples:
+
 ```
 op://Development/AWS/access_key_id
 op://Production/Database/credentials/password
