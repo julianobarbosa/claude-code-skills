@@ -3,12 +3,14 @@
 ## Helm Chart Installation
 
 ### Add Repository
+
 ```bash
 helm repo add open-telemetry https://open-telemetry.github.io/opentelemetry-helm-charts
 helm repo update
 ```
 
 ### Basic Installation
+
 ```bash
 helm install otel-collector open-telemetry/opentelemetry-collector \
   --namespace monitoring \
@@ -17,6 +19,7 @@ helm install otel-collector open-telemetry/opentelemetry-collector \
 ```
 
 ### Installation with Values File
+
 ```bash
 helm install otel-collector open-telemetry/opentelemetry-collector \
   --namespace monitoring \
@@ -27,6 +30,7 @@ helm install otel-collector open-telemetry/opentelemetry-collector \
 ## Deployment Modes
 
 ### DaemonSet Mode (Node-level Collection)
+
 ```yaml
 mode: "daemonset"
 
@@ -42,11 +46,13 @@ presets:
 ```
 
 **Use DaemonSet when**:
+
 - Collecting host-level metrics
 - Collecting container logs from nodes
 - Need data from every node in cluster
 
 ### Deployment Mode (Centralized Gateway)
+
 ```yaml
 mode: "deployment"
 replicaCount: 3
@@ -72,22 +78,26 @@ podDisruptionBudget:
 ```
 
 **Use Deployment when**:
+
 - Acting as a central gateway
 - Need horizontal scaling
 - Collecting cluster-wide metrics/events
 
 ### Sidecar Mode (Per-pod Collection)
+
 ```yaml
 mode: "sidecar"
 ```
 
 **Use Sidecar when**:
+
 - Need per-application isolation
 - Specific apps require custom processing
 
 ## Helm Values Reference
 
 ### Complete Production Values
+
 ```yaml
 nameOverride: "otel-collector"
 mode: "daemonset"
@@ -235,6 +245,7 @@ readinessProbe:
 ## Environment-Specific Overlays
 
 ### Development
+
 ```yaml
 # Lower resources
 resources:
@@ -264,6 +275,7 @@ config:
 ```
 
 ### Production
+
 ```yaml
 # Higher resources
 resources:
@@ -340,6 +352,7 @@ spec:
 ## RBAC Configuration
 
 ### ClusterRole for Full Kubernetes Access
+
 ```yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

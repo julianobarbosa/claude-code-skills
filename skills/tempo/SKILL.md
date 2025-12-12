@@ -34,6 +34,7 @@ Tempo is a **high-scale distributed tracing backend** that:
 ### Data Flow
 
 **Write Path:**
+
 ```
 Applications → Collector → Distributor → Ingester → Object Storage
                                   ↓
@@ -42,6 +43,7 @@ Applications → Collector → Distributor → Ingester → Object Storage
 ```
 
 **Read Path:**
+
 ```
 Query Request → Query Frontend → Queriers → Ingesters (recent data)
                       ↓                            ↓
@@ -53,17 +55,20 @@ Query Request → Query Frontend → Queriers → Ingesters (recent data)
 ## Deployment Modes
 
 ### 1. Monolithic Mode (`-target=all`)
+
 - All components in single process
 - Best for: Local testing, small-scale deployments
 - **Cannot horizontally scale** component count
 - Scale by increasing replicas
 
 ### 2. Scalable Monolithic (`-target=scalable-single-binary`)
+
 - All components in one process with horizontal scaling
 - Each instance runs all components
 - Good for development with scaling needs
 
 ### 3. Microservices Mode (Distributed) - Recommended for Production
+
 ```yaml
 # Using tempo-distributed Helm chart
 distributor:
@@ -85,12 +90,14 @@ compactor:
 ## Helm Deployment
 
 ### Add Repository
+
 ```bash
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
 ```
 
 ### Install Distributed Tempo
+
 ```bash
 helm install tempo grafana/tempo-distributed \
   --namespace monitoring \
@@ -346,6 +353,7 @@ multitenancy_enabled: true
 ### Workload Identity Federation (Recommended)
 
 **1. Enable Workload Identity on AKS:**
+
 ```bash
 az aks update \
   --name <aks-cluster> \
@@ -355,6 +363,7 @@ az aks update \
 ```
 
 **2. Create User-Assigned Managed Identity:**
+
 ```bash
 az identity create \
   --name tempo-identity \
@@ -364,6 +373,7 @@ IDENTITY_CLIENT_ID=$(az identity show --name tempo-identity --resource-group <rg
 ```
 
 **3. Assign Storage Permission:**
+
 ```bash
 az role assignment create \
   --role "Storage Blob Data Contributor" \
@@ -372,6 +382,7 @@ az role assignment create \
 ```
 
 **4. Create Federated Credential:**
+
 ```bash
 az identity federated-credential create \
   --name tempo-federated \
@@ -383,6 +394,7 @@ az identity federated-credential create \
 ```
 
 **5. Configure Helm Values:**
+
 ```yaml
 serviceAccount:
   annotations:
@@ -402,11 +414,13 @@ storage:
 ### Common Issues
 
 **1. Container Not Found (Azure)**
+
 ```bash
 az storage container create --name tempo-traces --account-name <storage>
 ```
 
 **2. Authorization Failure (Azure)**
+
 ```bash
 # Verify RBAC assignment
 az role assignment list --scope <storage-scope>
@@ -419,6 +433,7 @@ az role assignment create \
 ```
 
 **3. Ingester OOM**
+
 ```yaml
 ingester:
   resources:
@@ -427,6 +442,7 @@ ingester:
 ```
 
 **4. Query Timeout**
+
 ```yaml
 querier:
   query_timeout: 5m
@@ -456,6 +472,7 @@ curl http://localhost:3200/distributor/ring
 ## API Reference
 
 ### Trace Retrieval
+
 ```bash
 # Get trace by ID
 GET /api/traces/<traceID>
@@ -469,6 +486,7 @@ GET /api/search/tag/<tag>/values
 ```
 
 ### Health
+
 ```bash
 GET /ready
 GET /metrics
@@ -477,6 +495,7 @@ GET /metrics
 ## Reference Documentation
 
 For detailed configuration by topic:
+
 - **[Storage Configuration](references/storage.md)**: Object stores, retention, caching
 - **[TraceQL Reference](references/traceql.md)**: Query syntax and examples
 - **[Configuration Reference](references/configuration.md)**: Full configuration manifest

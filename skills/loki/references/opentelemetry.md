@@ -43,6 +43,7 @@ loki:
 ### OpenTelemetry Collector Configuration
 
 **Basic Configuration:**
+
 ```yaml
 receivers:
   otlp:
@@ -64,6 +65,7 @@ service:
 ```
 
 **With Authentication:**
+
 ```yaml
 extensions:
   basicauth:
@@ -86,6 +88,7 @@ service:
 ```
 
 **With Multi-Tenancy:**
+
 ```yaml
 exporters:
   otlphttp:
@@ -119,6 +122,7 @@ Loki automatically indexes these default resource attributes as labels:
 | `cloud.availability_zone` | `cloud_availability_zone` |
 
 **Transformation Rules:**
+
 - Dots converted to underscores: `service.name` → `service_name`
 - Nested attributes flattened: `http.request.body` → `http_request_body`
 - Non-string values stringified automatically
@@ -126,6 +130,7 @@ Loki automatically indexes these default resource attributes as labels:
 ### OTLP Data Model
 
 **LogRecord Structure:**
+
 ```
 LogRecord:
   Timestamp            # Event occurrence time
@@ -143,6 +148,7 @@ LogRecord:
 ```
 
 **Severity Level Mapping:**
+
 | SeverityNumber | SeverityText |
 |---------------|--------------|
 | 1-4 | TRACE |
@@ -155,6 +161,7 @@ LogRecord:
 ### Querying OTLP Logs
 
 **Direct Attribute Access:**
+
 ```logql
 # Filter by severity
 {service_name="api"} | severity_text="ERROR"
@@ -167,6 +174,7 @@ LogRecord:
 ```
 
 **Compare with LokiExporter (legacy):**
+
 ```logql
 # OTLP Native (simple)
 {service_name="api"} | severity_text="ERROR"
@@ -190,6 +198,7 @@ LogRecord:
 ### Migration to Native OTLP
 
 **Step 1: Update Loki Configuration**
+
 ```yaml
 loki:
   limits_config:
@@ -197,6 +206,7 @@ loki:
 ```
 
 **Step 2: Update Collector Configuration**
+
 ```yaml
 # Old (LokiExporter)
 exporters:
@@ -213,6 +223,7 @@ exporters:
 ```
 
 **Step 3: Update LogQL Queries**
+
 ```logql
 # Old (LokiExporter)
 {job="namespace/service"} | json | level="error"
@@ -226,6 +237,7 @@ exporters:
 Grafana Alloy is the recommended collector for Loki.
 
 **Basic OTLP to Loki:**
+
 ```river
 otelcol.receiver.otlp "default" {
   grpc {
@@ -251,6 +263,7 @@ otelcol.exporter.otlphttp "loki" {
 ```
 
 **With Kubernetes Attributes:**
+
 ```river
 otelcol.processor.k8sattributes "default" {
   extract {
@@ -364,6 +377,7 @@ loggerProvider.addLogRecordProcessor(
 ### Query Optimization
 
 1. **Index Labels First**
+
    ```logql
    # Good - uses indexed labels
    {service_name="api", k8s_namespace_name="prod"} | severity_text="ERROR"
@@ -373,6 +387,7 @@ loggerProvider.addLogRecordProcessor(
    ```
 
 2. **Use Structured Metadata for Secondary Filters**
+
    ```logql
    {service_name="api"} | user_id="12345"
    ```
@@ -394,6 +409,7 @@ loggerProvider.addLogRecordProcessor(
 **Error:** `malformed request` or structured metadata errors
 
 **Solution:**
+
 ```yaml
 loki:
   limits_config:
@@ -405,6 +421,7 @@ loki:
 **Issue:** Resource attributes not appearing as index labels
 
 **Check:**
+
 1. Verify attribute is in default list or custom config
 2. Check attribute naming follows conventions
 3. Verify collector is sending attributes
@@ -414,6 +431,7 @@ loki:
 **Issue:** Too many unique label values
 
 **Solution:**
+
 1. Move high-cardinality attributes to structured metadata
 2. Use `otlp_config` to drop or not index certain attributes
 

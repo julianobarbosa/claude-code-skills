@@ -5,9 +5,11 @@ TraceQL is Tempo's powerful query language for distributed traces, inspired by P
 ## Query Types
 
 ### Trace Queries
+
 Filter and return matching traces based on span attributes.
 
 ### Metrics Queries
+
 Extract time-series metrics from trace data.
 
 ## Trace Structure
@@ -52,6 +54,7 @@ Fundamental built-in fields defined by OpenTelemetry:
 ### Common Attributes
 
 **HTTP:**
+
 - `span.http.method` - GET, POST, etc.
 - `span.http.status_code` - 200, 404, 500, etc.
 - `span.http.url` - Full URL
@@ -59,17 +62,20 @@ Fundamental built-in fields defined by OpenTelemetry:
 - `span.http.response.size` - Response size in bytes
 
 **Database:**
+
 - `span.db.system` - postgresql, mysql, etc.
 - `span.db.operation` - SELECT, INSERT, etc.
 - `span.db.statement` - SQL query
 
 **Kubernetes:**
+
 - `resource.k8s.cluster.name`
 - `resource.k8s.namespace.name`
 - `resource.k8s.pod.name`
 - `resource.k8s.container.name`
 
 **Service:**
+
 - `resource.service.name`
 - `resource.service.version`
 - `resource.service.instance.id`
@@ -379,7 +385,7 @@ GET /api/traces/<traceID>
 
 - Uses Golang regular expressions
 - Fully anchored at both ends (implicit `^...$`)
-- Validate at https://regex101.com/ (select Go flavor)
+- Validate at <https://regex101.com/> (select Go flavor)
 
 ```traceql
 # Match paths starting with /api/

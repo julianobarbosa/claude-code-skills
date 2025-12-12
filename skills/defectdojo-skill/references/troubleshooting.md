@@ -7,6 +7,7 @@
 #### Error: ADSTS50011 - Redirect URI Mismatch
 
 **Error Message:**
+
 ```
 ADSTS50011: The redirect URI 'http://xxxxx/azuread-tenant-oauth2/' specified in the request does not match
 ```
@@ -20,6 +21,7 @@ ADSTS50011: The redirect URI 'http://xxxxx/azuread-tenant-oauth2/' specified in 
    - Note the `/complete/` in the path
 
 2. **Set SSL Environment Variables:**
+
    ```yaml
    extraEnv:
      - name: DD_SESSION_COOKIE_SECURE
@@ -31,6 +33,7 @@ ADSTS50011: The redirect URI 'http://xxxxx/azuread-tenant-oauth2/' specified in 
    ```
 
 3. **Restart pods after changes:**
+
    ```bash
    KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
      kubectl rollout restart deployment/defectdojo-django -n defectdojo
@@ -41,6 +44,7 @@ ADSTS50011: The redirect URI 'http://xxxxx/azuread-tenant-oauth2/' specified in 
 **Cause:** `DD_SECURE_SSL_REDIRECT=True` behind TLS-terminating proxy causes infinite redirect loop
 
 **Solution:**
+
 ```yaml
 # Set to False when behind NGINX Ingress (it handles SSL redirect)
 - name: DD_SECURE_SSL_REDIRECT
@@ -61,6 +65,7 @@ This bypasses SSO redirect and shows standard username/password login.
 ### Groups Not Syncing from Azure AD
 
 **Symptoms:**
+
 - User logs in via Azure AD
 - User profile shows "No group members found"
 - User doesn't have expected permissions
@@ -68,11 +73,13 @@ This bypasses SSO redirect and shows standard username/password login.
 **Diagnostic Steps:**
 
 1. **Check Configuration:**
+
    ```bash
    KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
      kubectl get deployment defectdojo-django -n defectdojo -o yaml | \
      grep -A1 "DD_SOCIAL_AUTH_AZUREAD_TENANT_OAUTH2_GET_GROUPS"
    ```
+
    Should show `value: "True"`
 
 2. **Check Azure AD API Permissions:**
@@ -86,6 +93,7 @@ This bypasses SSO redirect and shows standard username/password login.
    - Verify "Emit groups as role claims" is **NOT** enabled
 
 4. **Check Pod Logs for Graph API Errors:**
+
    ```bash
    KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
      kubectl logs -n defectdojo -l app.kubernetes.io/name=defectdojo -c uwsgi | \
@@ -117,12 +125,14 @@ This bypasses SSO redirect and shows standard username/password login.
 **Cause:** Missing or incorrect API permissions
 
 **Check Current Permissions:**
+
 ```bash
 az ad app show --id 79ada8c7-4270-41e8-9ea0-1e1e62afff3d \
   --query "requiredResourceAccess" -o json
 ```
 
 **Solution:**
+
 1. Go to Azure AD > App Registration > API Permissions
 2. Add `Group.Read.All` as **Application** permission (not Delegated)
 3. Click "Grant admin consent for [tenant]"
@@ -140,6 +150,7 @@ az ad app show --id 79ada8c7-4270-41e8-9ea0-1e1e62afff3d \
 **Common Causes:**
 
 1. **Missing CSRF Trusted Origins:**
+
    ```yaml
    - name: DD_CSRF_TRUSTED_ORIGINS
      value: https://defectdojo.dev.cafehyna.com.br
@@ -150,6 +161,7 @@ az ad app show --id 79ada8c7-4270-41e8-9ea0-1e1e62afff3d \
    - Use incognito/private window
 
 3. **Proxy Not Forwarding Headers:**
+
    ```yaml
    # Trust X-Forwarded-Proto header
    - name: DD_SECURE_PROXY_SSL_HEADER
@@ -163,6 +175,7 @@ az ad app show --id 79ada8c7-4270-41e8-9ea0-1e1e62afff3d \
 ### Pods Stuck in ContainerCreating
 
 **Check Events:**
+
 ```bash
 KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
   kubectl describe pod -n defectdojo -l app.kubernetes.io/name=defectdojo | tail -20
@@ -175,6 +188,7 @@ KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
    - Verify Key Vault permissions
 
 2. **PVC Not Bound:**
+
    ```bash
    KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
      kubectl get pvc -n defectdojo
@@ -187,6 +201,7 @@ KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
 ### Pods CrashLoopBackOff
 
 **Check Logs:**
+
 ```bash
 KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
   kubectl logs -n defectdojo -l app.kubernetes.io/name=defectdojo -c uwsgi --previous
@@ -212,6 +227,7 @@ KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
 **Solutions:**
 
 1. **Increase Initial Delay:**
+
    ```yaml
    django:
      uwsgi:
@@ -232,6 +248,7 @@ KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
 ### Database Migration Failures
 
 **Check Migration Status:**
+
 ```bash
 KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
   kubectl logs -n defectdojo -l app.kubernetes.io/component=initializer
@@ -240,6 +257,7 @@ KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
 **Solutions:**
 
 1. **Run Migrations Manually:**
+
    ```bash
    KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
      kubectl exec -it -n defectdojo deployment/defectdojo-django -c uwsgi -- \
@@ -247,6 +265,7 @@ KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
    ```
 
 2. **Check Database Connectivity:**
+
    ```bash
    KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
      kubectl exec -it -n defectdojo deployment/defectdojo-django -c uwsgi -- \
@@ -264,11 +283,13 @@ KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
 **Cause:** CSI driver only creates secrets when a pod mounts the volume
 
 **Solution:**
+
 1. Verify `secret-sync-pod` is running
 2. Check SecretProviderClass is correctly configured
 3. Pod must mount the CSI volume for secrets to sync
 
 **Check Secret Sync Pod:**
+
 ```bash
 KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
   kubectl get pods -n defectdojo | grep secret-sync
@@ -277,11 +298,13 @@ KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config \
 ### Key Vault 403 Forbidden
 
 **Check Managed Identity Permissions:**
+
 ```bash
 az keyvault show --name kv-cafehyna-dev-hlg --query "properties.accessPolicies"
 ```
 
 **Grant Permissions:**
+
 ```bash
 az keyvault set-policy \
   --name kv-cafehyna-dev-hlg \
@@ -307,11 +330,13 @@ az keyvault set-policy \
 ### Sync Failed
 
 **Check ArgoCD Logs:**
+
 ```bash
 kubectl logs -n argocd -l app.kubernetes.io/name=argocd-application-controller
 ```
 
 **Manual Sync:**
+
 ```bash
 argocd app sync cafehyna-dev-defectdojo
 ```

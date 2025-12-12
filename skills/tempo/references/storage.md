@@ -3,6 +3,7 @@
 ## Storage Architecture
 
 Tempo stores all trace data in object storage with the following structure:
+
 ```
 <bucketname>/<tenantID>/<blockID>/
 ├── meta.json
@@ -18,12 +19,14 @@ Tempo stores all trace data in object storage with the following structure:
 **Default format** (since Tempo 2.0): vParquet4
 
 **Benefits:**
+
 - 5-10x less data pulled per query
 - Search speed: 300 GB/s (vs 40-50 GB/s with legacy format)
 - Selective column retrieval
 - Required for TraceQL
 
 **Dedicated Columns:**
+
 - Well-known attributes stored in dedicated columns for faster retrieval
 - All other attributes stored in generic key/value maps
 
@@ -32,6 +35,7 @@ Tempo stores all trace data in object storage with the following structure:
 ### AWS S3
 
 **Required IAM Permissions:**
+
 ```json
 {
   "Version": "2012-10-17",
@@ -54,6 +58,7 @@ Tempo stores all trace data in object storage with the following structure:
 ```
 
 **Configuration:**
+
 ```yaml
 storage:
   trace:
@@ -76,6 +81,7 @@ serviceAccount:
 ```
 
 **SSE-KMS Encryption:**
+
 ```yaml
 storage:
   trace:
@@ -90,6 +96,7 @@ storage:
 **Authentication Methods:**
 
 #### 1. Workload Identity Federation (Recommended)
+
 ```yaml
 serviceAccount:
   annotations:
@@ -109,6 +116,7 @@ storage:
 ```
 
 #### 2. User-Assigned Managed Identity
+
 ```yaml
 storage:
   trace:
@@ -121,6 +129,7 @@ storage:
 ```
 
 #### 3. Account Key (Development Only)
+
 ```yaml
 storage:
   trace:
@@ -142,6 +151,7 @@ extraEnv:
 ```
 
 #### 4. SAS Token
+
 ```yaml
 storage:
   trace:
@@ -153,6 +163,7 @@ storage:
 ```
 
 **Required RBAC Role:**
+
 - `Storage Blob Data Contributor` on the storage account
 
 **Azure Configuration Parameters:**
@@ -167,6 +178,7 @@ storage:
 | `hedge_requests_up_to` | Integer | Max hedged requests |
 
 **Azurite Emulator (Local Development):**
+
 ```yaml
 storage:
   trace:
@@ -178,6 +190,7 @@ storage:
 ### Google Cloud Storage
 
 **Configuration:**
+
 ```yaml
 storage:
   trace:
@@ -191,6 +204,7 @@ storage:
 ```
 
 **For GKE with Workload Identity:**
+
 ```yaml
 serviceAccount:
   annotations:
@@ -224,6 +238,7 @@ storage:
 ```
 
 **Limitations:**
+
 - NOT production-supported
 - Single-node only
 - No persistence across pod restarts
@@ -231,6 +246,7 @@ storage:
 ## Retention Configuration
 
 **Enable Retention:**
+
 ```yaml
 compactor:
   compaction:
@@ -238,6 +254,7 @@ compactor:
 ```
 
 **Compactor Configuration:**
+
 ```yaml
 compactor:
   config:
@@ -253,6 +270,7 @@ compactor:
 **Purpose:** Records incoming data for crash recovery.
 
 **Configuration:**
+
 ```yaml
 ingester:
   config:
@@ -268,6 +286,7 @@ storage:
 ```
 
 **Requirements:**
+
 - Use StatefulSets with persistent volumes
 - Each ingester must have unique WAL directory
 - Expect ~10-15GB disk usage per ingester
@@ -302,6 +321,7 @@ storage:
 ## Bloom Filters and Indexes
 
 **Configuration:**
+
 ```yaml
 storage:
   trace:
@@ -375,9 +395,11 @@ Automatically delete old data:
 ## Deployment Mode Considerations
 
 ### Monolithic Mode
+
 - Apply storage config under `tempo.storage.trace`
 
 ### Distributed Mode
+
 - Apply at root `storage.trace` level
 - Propagate `extraArgs` and `extraEnv` to all services:
   - distributor
@@ -414,11 +436,13 @@ ingester:
 ## Storage Troubleshooting
 
 ### Azure Container Not Found
+
 ```bash
 az storage container create --name tempo-traces --account-name <storage>
 ```
 
 ### Azure Authorization Failure
+
 ```bash
 # Check role assignments
 az role assignment list --scope <storage-scope> --query "[?principalId=='<principal-id>']"
@@ -434,6 +458,7 @@ kubectl delete pod -n monitoring <tempo-pod>
 ```
 
 ### S3 Access Denied
+
 ```bash
 # Verify IAM policy
 aws iam get-policy --policy-arn <policy-arn>
@@ -443,6 +468,7 @@ aws s3 ls s3://my-tempo-bucket/
 ```
 
 ### Compactor Issues
+
 ```bash
 # Check compactor logs
 kubectl logs -n monitoring -l app.kubernetes.io/component=compactor --tail=200

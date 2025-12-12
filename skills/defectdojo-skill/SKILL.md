@@ -74,11 +74,13 @@ extraEnv:
 ```
 
 **Required Azure AD Permissions (Application type, Admin consent required):**
+
 - `Group.Read.All`
 - `GroupMember.Read.All`
 - `User.Read.All`
 
 **Azure AD Token Configuration:**
+
 - Add Groups claim (select "All Groups")
 - Do NOT enable "Emit groups as role claims"
 
@@ -106,6 +108,7 @@ For complete Azure AD SSO details, see [references/azure-ad-sso.md](references/a
 | `G-Usuarios-DefectDojo-Reader` | Reader |
 
 **Setup Steps:**
+
 1. Create Azure AD groups matching the pattern above
 2. Enable group sync in DefectDojo (`DD_SOCIAL_AUTH_AZUREAD_TENANT_OAUTH2_GET_GROUPS=True`)
 3. Create matching groups in DefectDojo (Configuration > Groups)
@@ -119,6 +122,7 @@ For complete Azure AD SSO details, see [references/azure-ad-sso.md](references/a
 **Symptoms:** User logged in via Azure AD but shows "No group members found"
 
 **Solutions:**
+
 1. Verify `DD_SOCIAL_AUTH_AZUREAD_TENANT_OAUTH2_GET_GROUPS=True`
 2. Check Azure AD API permissions (Group.Read.All with admin consent)
 3. Verify Azure AD token includes group claim (not role claims)
@@ -130,6 +134,7 @@ For complete Azure AD SSO details, see [references/azure-ad-sso.md](references/a
 **Error:** "The redirect URI specified in the request does not match"
 
 **Solution:** Ensure these are set:
+
 ```yaml
 - name: DD_SESSION_COOKIE_SECURE
   value: "True"
@@ -148,6 +153,7 @@ For complete Azure AD SSO details, see [references/azure-ad-sso.md](references/a
 ### Emergency Login Access
 
 If SSO breaks, access standard login form:
+
 ```
 https://defectdojo.dev.cafehyna.com.br/login?force_login_form
 ```
@@ -225,16 +231,19 @@ curl -X POST "https://defectdojo.dev.cafehyna.com.br/api/v2/import-scan/" \
 ## Useful Commands
 
 ### Check Pod Status
+
 ```bash
 KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config kubectl get pods -n defectdojo
 ```
 
 ### View Logs
+
 ```bash
 KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config kubectl logs -n defectdojo -l app.kubernetes.io/name=defectdojo -c uwsgi
 ```
 
 ### Restart Deployment
+
 ```bash
 KUBECONFIG=~/.kube/aks-rg-hypera-cafehyna-dev-config kubectl rollout restart deployment/defectdojo-django -n defectdojo
 ```

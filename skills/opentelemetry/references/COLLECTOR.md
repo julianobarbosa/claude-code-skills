@@ -3,6 +3,7 @@
 ## Receivers
 
 ### OTLP Receiver (Primary)
+
 ```yaml
 receivers:
   otlp:
@@ -17,6 +18,7 @@ receivers:
 ```
 
 ### Prometheus Receiver
+
 ```yaml
 receivers:
   prometheus:
@@ -41,6 +43,7 @@ receivers:
 ```
 
 ### Filelog Receiver (Container Logs)
+
 ```yaml
 receivers:
   filelog:
@@ -64,6 +67,7 @@ receivers:
 ```
 
 ### Jaeger Receiver (Legacy Support)
+
 ```yaml
 receivers:
   jaeger:
@@ -77,6 +81,7 @@ receivers:
 ```
 
 ### Zipkin Receiver
+
 ```yaml
 receivers:
   zipkin:
@@ -84,6 +89,7 @@ receivers:
 ```
 
 ### Hostmetrics Receiver
+
 ```yaml
 receivers:
   hostmetrics:
@@ -106,6 +112,7 @@ receivers:
 ## Processors
 
 ### Batch Processor
+
 ```yaml
 processors:
   batch:
@@ -115,6 +122,7 @@ processors:
 ```
 
 **Production Tuning**:
+
 ```yaml
 processors:
   batch:
@@ -124,6 +132,7 @@ processors:
 ```
 
 ### Memory Limiter Processor
+
 ```yaml
 processors:
   memory_limiter:
@@ -133,6 +142,7 @@ processors:
 ```
 
 ### Resource Processor
+
 ```yaml
 processors:
   resource:
@@ -146,6 +156,7 @@ processors:
 ```
 
 ### K8s Attributes Processor
+
 ```yaml
 processors:
   k8sattributes:
@@ -175,6 +186,7 @@ processors:
 ```
 
 ### Probabilistic Sampler (Traces)
+
 ```yaml
 processors:
   probabilistic_sampler:
@@ -183,6 +195,7 @@ processors:
 ```
 
 ### Filter Processor
+
 ```yaml
 processors:
   filter/logs:
@@ -195,6 +208,7 @@ processors:
 ```
 
 ### Transform Processor
+
 ```yaml
 processors:
   transform:
@@ -207,6 +221,7 @@ processors:
 ## Exporters
 
 ### Prometheus Remote Write
+
 ```yaml
 exporters:
   prometheusremotewrite:
@@ -223,6 +238,7 @@ exporters:
 ```
 
 ### Loki Exporter
+
 ```yaml
 exporters:
   loki:
@@ -242,6 +258,7 @@ exporters:
 ```
 
 ### OTLP Exporter
+
 ```yaml
 exporters:
   otlp:
@@ -258,6 +275,7 @@ exporters:
 ```
 
 ### Debug Exporter
+
 ```yaml
 exporters:
   debug:
@@ -269,6 +287,7 @@ exporters:
 ## Extensions
 
 ### Health Check
+
 ```yaml
 extensions:
   health_check:
@@ -277,6 +296,7 @@ extensions:
 ```
 
 ### Memory Ballast
+
 ```yaml
 extensions:
   memory_ballast:
@@ -284,6 +304,7 @@ extensions:
 ```
 
 ### zPages (Debug)
+
 ```yaml
 extensions:
   zpages:
@@ -291,6 +312,7 @@ extensions:
 ```
 
 ### pprof (Profiling)
+
 ```yaml
 extensions:
   pprof:
@@ -300,6 +322,7 @@ extensions:
 ## Service Configuration
 
 ### Complete Pipeline Example
+
 ```yaml
 service:
   extensions: [health_check, memory_ballast]
@@ -367,11 +390,13 @@ extraEnvs:
 ## Configuration Syntax
 
 Use `${env:VAR_NAME}` for environment variable substitution:
+
 ```yaml
 endpoint: ${env:MY_POD_IP}:4317
 ```
 
 With default values:
+
 ```yaml
 endpoint: ${env:MY_POD_IP:-0.0.0.0}:4317
 ```

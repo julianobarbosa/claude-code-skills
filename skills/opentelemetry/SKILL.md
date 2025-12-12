@@ -36,11 +36,13 @@ curl -X POST http://otel-collector:4318/v1/traces \
 ## Core Concepts
 
 **Signals**: Three types of telemetry data:
+
 - **Traces**: Distributed request flows across services
 - **Metrics**: Numerical measurements (counters, gauges, histograms)
 - **Logs**: Event records with structured/unstructured data
 
 **Collector Components**:
+
 - **Receivers**: Accept data (OTLP, Prometheus, Jaeger, Zipkin)
 - **Processors**: Transform data (batch, memory_limiter, k8sattributes)
 - **Exporters**: Send data (prometheusremotewrite, loki, otlp)
@@ -119,11 +121,13 @@ processors:
 ## Common Patterns
 
 ### Development Environment
+
 - Enable debug exporter for visibility
 - Lower resource limits (250m CPU, 512Mi memory)
 - Include spot instance tolerations for cost savings
 
 ### Production Environment
+
 - Implement sampling (10-50% for traces)
 - Higher batch sizes (2048-4096)
 - Enable autoscaling and PodDisruptionBudget
@@ -132,6 +136,7 @@ processors:
 ## Detailed References
 
 For in-depth guidance, see:
+
 - **Collector Configuration**: [COLLECTOR.md](references/COLLECTOR.md)
 - **Kubernetes Deployment**: [KUBERNETES.md](references/KUBERNETES.md)
 - **Troubleshooting**: [TROUBLESHOOTING.md](references/TROUBLESHOOTING.md)

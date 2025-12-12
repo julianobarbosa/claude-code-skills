@@ -3,6 +3,7 @@
 ## Overview
 
 Instrumentation is how applications generate telemetry data. OpenTelemetry supports:
+
 - **Zero-code/Auto-instrumentation**: Automatic via agents/libraries
 - **Code-based instrumentation**: Explicit SDK usage
 
@@ -35,6 +36,7 @@ OTEL_EXPORTER_OTLP_TIMEOUT=30000
 ## Kubernetes Pod Configuration
 
 ### Basic OTLP Configuration
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -55,6 +57,7 @@ spec:
 ```
 
 ### With Pod Metadata Injection
+
 ```yaml
 env:
 - name: OTEL_SERVICE_NAME
@@ -78,6 +81,7 @@ env:
 ### Java
 
 **Auto-instrumentation (Agent)**:
+
 ```dockerfile
 FROM eclipse-temurin:17-jre
 COPY opentelemetry-javaagent.jar /opt/
@@ -87,6 +91,7 @@ ENV OTEL_SERVICE_NAME=my-java-app
 ```
 
 **Kubernetes deployment**:
+
 ```yaml
 env:
 - name: JAVA_TOOL_OPTIONS
@@ -104,6 +109,7 @@ env:
 ```
 
 **Manual instrumentation**:
+
 ```java
 // Add dependencies
 // io.opentelemetry:opentelemetry-api
@@ -126,6 +132,7 @@ try {
 ### Python
 
 **Auto-instrumentation**:
+
 ```bash
 pip install opentelemetry-distro opentelemetry-exporter-otlp
 opentelemetry-bootstrap -a install
@@ -133,6 +140,7 @@ opentelemetry-instrument python app.py
 ```
 
 **Kubernetes deployment**:
+
 ```yaml
 env:
 - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -145,6 +153,7 @@ command: ["opentelemetry-instrument", "python", "app.py"]
 ```
 
 **Manual instrumentation**:
+
 ```python
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
@@ -166,6 +175,7 @@ with tracer.start_as_current_span("my-operation") as span:
 ### Node.js/JavaScript
 
 **Auto-instrumentation**:
+
 ```bash
 npm install @opentelemetry/auto-instrumentations-node
 ```
@@ -187,6 +197,7 @@ sdk.start();
 ```
 
 **Kubernetes deployment**:
+
 ```yaml
 env:
 - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -200,6 +211,7 @@ env:
 ### Go
 
 **Manual instrumentation**:
+
 ```go
 import (
     "go.opentelemetry.io/otel"
@@ -232,6 +244,7 @@ defer span.End()
 ### .NET
 
 **Auto-instrumentation**:
+
 ```csharp
 // Add packages
 // OpenTelemetry.Extensions.Hosting
@@ -251,11 +264,13 @@ builder.Services.AddOpenTelemetry()
 ## Kubernetes Operator (Auto-Instrumentation)
 
 ### Install Operator
+
 ```bash
 kubectl apply -f https://github.com/open-telemetry/opentelemetry-operator/releases/latest/download/opentelemetry-operator.yaml
 ```
 
 ### Create Instrumentation Resource
+
 ```yaml
 apiVersion: opentelemetry.io/v1alpha1
 kind: Instrumentation
@@ -282,6 +297,7 @@ spec:
 ```
 
 ### Annotate Pods for Auto-Instrumentation
+
 ```yaml
 apiVersion: apps/v1
 kind: Deployment
@@ -303,6 +319,7 @@ spec:
 Use standard attribute names for interoperability:
 
 ### Service Attributes
+
 ```
 service.name
 service.version
@@ -311,6 +328,7 @@ service.instance.id
 ```
 
 ### Kubernetes Attributes
+
 ```
 k8s.cluster.name
 k8s.namespace.name
@@ -322,6 +340,7 @@ k8s.container.name
 ```
 
 ### HTTP Attributes
+
 ```
 http.method
 http.url
@@ -331,6 +350,7 @@ http.user_agent
 ```
 
 ### Database Attributes
+
 ```
 db.system
 db.name
@@ -341,6 +361,7 @@ db.statement
 ## Testing Instrumentation
 
 ### Verify Traces
+
 ```bash
 # Check collector logs for received spans
 kubectl logs -n monitoring -l app.kubernetes.io/name=otel-collector | grep -i span
@@ -350,6 +371,7 @@ kubectl logs -n monitoring -l app.kubernetes.io/name=otel-collector | grep -A 20
 ```
 
 ### Generate Test Traffic
+
 ```bash
 # Simple curl test
 for i in {1..10}; do
@@ -359,6 +381,7 @@ done
 ```
 
 ### Verify in Backend
+
 ```bash
 # Grafana Tempo query
 kubectl port-forward -n monitoring svc/tempo 3100:3100

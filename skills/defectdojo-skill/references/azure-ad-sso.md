@@ -135,6 +135,7 @@ extraEnv:
    - Add users to appropriate groups
 
 2. **Enable Group Sync in DefectDojo:**
+
    ```yaml
    - name: DD_SOCIAL_AUTH_AZUREAD_TENANT_OAUTH2_GET_GROUPS
      value: "True"
@@ -159,9 +160,11 @@ extraEnv:
 **Cause:** Azure AD requires HTTPS, but DefectDojo sending HTTP redirect
 
 **Solution:**
+
 1. Verify redirect URI in Azure AD is exactly:
    `https://defectdojo.dev.cafehyna.com.br/complete/azuread-tenant-oauth2/`
 2. Set SSL environment variables:
+
    ```yaml
    - name: DD_SESSION_COOKIE_SECURE
      value: "True"
@@ -176,6 +179,7 @@ extraEnv:
 **Symptoms:** User logged in but shows "No group members found"
 
 **Checklist:**
+
 - [ ] `DD_SOCIAL_AUTH_AZUREAD_TENANT_OAUTH2_GET_GROUPS=True`
 - [ ] Azure AD App has `Group.Read.All` permission (Application type)
 - [ ] Admin consent granted for API permissions
@@ -189,6 +193,7 @@ extraEnv:
 **Cause:** Missing or incorrect API permissions
 
 **Solution:**
+
 1. Go to Azure AD > App Registration > API Permissions
 2. Add `Group.Read.All` as Application permission
 3. Click "Grant admin consent"
@@ -197,6 +202,7 @@ extraEnv:
 ### Emergency Access
 
 If SSO is broken and you're locked out:
+
 ```
 https://defectdojo.dev.cafehyna.com.br/login?force_login_form
 ```

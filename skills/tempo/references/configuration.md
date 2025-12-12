@@ -571,10 +571,13 @@ overrides:
 ## Breaking Changes
 
 ### Tempo 2.9+
+
 - Review release notes before upgrading
 
 ### Port Migration (Chart v1.21.1+)
+
 - Default HTTP port changed from 3100 to 3200
 
 ### Configuration Structure (Chart v1.19.0+)
+
 - `overrides` structure reorganized

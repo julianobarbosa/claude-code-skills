@@ -36,6 +36,7 @@ Mimir is an **open-source, horizontally scalable, highly available, multi-tenant
 ### Data Flow
 
 **Write Path:**
+
 ```
 Prometheus/OTel → Distributor → Ingester → Object Storage
                        ↓
@@ -44,6 +45,7 @@ Prometheus/OTel → Distributor → Ingester → Object Storage
 ```
 
 **Read Path:**
+
 ```
 Query → Query Frontend → Query Scheduler → Querier
                                               ↓
@@ -55,12 +57,14 @@ Query → Query Frontend → Query Scheduler → Querier
 ## Deployment Modes
 
 ### 1. Monolithic Mode (`-target=all`)
+
 - All components in single process
 - Best for: Development, testing, small-scale (~1M series)
 - Horizontally scalable by deploying multiple instances
 - **Not recommended** for large-scale (all components scale together)
 
 ### 2. Microservices Mode (Distributed) - Recommended for Production
+
 ```yaml
 # Using mimir-distributed Helm chart
 distributor:
@@ -90,12 +94,14 @@ compactor:
 ## Helm Deployment
 
 ### Add Repository
+
 ```bash
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
 ```
 
 ### Install Distributed Mimir
+
 ```bash
 helm install mimir grafana/mimir-distributed \
   --namespace monitoring \
@@ -230,6 +236,7 @@ metaMonitoring:
 ## Storage Configuration
 
 ### Critical Requirements
+
 - **Must create buckets manually** - Mimir doesn't create them
 - **Separate buckets required** - blocks_storage, alertmanager_storage, ruler_storage cannot share the same bucket+prefix
 - **Azure**: Hierarchical namespace must be disabled
@@ -358,6 +365,7 @@ overrides:
 ```
 
 Enable runtime configuration:
+
 ```yaml
 mimir:
   structuredConfig:
@@ -387,6 +395,7 @@ mimir:
 ```
 
 **Prometheus Configuration:**
+
 ```yaml
 global:
   external_labels:
@@ -442,6 +451,7 @@ mimir:
 ### OTLP Metrics Ingestion
 
 **OpenTelemetry Collector Config:**
+
 ```yaml
 exporters:
   otlphttp:
@@ -467,6 +477,7 @@ Aggregation: metric.AggregationBase2ExponentialHistogram{
 ```
 
 **Key Benefits:**
+
 - Explicit min/max values (no estimation needed)
 - Better accuracy for extreme percentiles
 - Native OTLP format preservation
@@ -481,12 +492,14 @@ mimir:
 ```
 
 **Query with tenant header:**
+
 ```bash
 curl -H "X-Scope-OrgID: tenant-a" \
   "http://mimir:8080/prometheus/api/v1/query?query=up"
 ```
 
 **Tenant ID Constraints:**
+
 - Max 150 characters
 - Allowed: alphanumeric, `!` `-` `_` `.` `*` `'` `(` `)`
 - Prohibited: `.` or `..` alone, `__mimir_cluster`, slashes
@@ -494,6 +507,7 @@ curl -H "X-Scope-OrgID: tenant-a" \
 ## API Reference
 
 ### Ingestion Endpoints
+
 ```bash
 # Prometheus remote write
 POST /api/v1/push
@@ -506,6 +520,7 @@ POST /api/v1/push/influx/write
 ```
 
 ### Query Endpoints
+
 ```bash
 # Instant query
 GET,POST /prometheus/api/v1/query?query=<promql>&time=<timestamp>
@@ -529,6 +544,7 @@ GET,POST /prometheus/api/v1/cardinality/active_series
 ```
 
 ### Administrative Endpoints
+
 ```bash
 # Flush ingester data
 GET,POST /ingester/flush
@@ -549,6 +565,7 @@ GET /api/v1/user_limits
 ```
 
 ### Health & Config
+
 ```bash
 GET /ready
 GET /metrics
@@ -562,6 +579,7 @@ GET /runtime_config
 ### User-Assigned Managed Identity
 
 **1. Create Identity:**
+
 ```bash
 az identity create \
   --name mimir-identity \
@@ -572,6 +590,7 @@ IDENTITY_PRINCIPAL_ID=$(az identity show --name mimir-identity --resource-group 
 ```
 
 **2. Assign to Node Pool:**
+
 ```bash
 az vmss identity assign \
   --resource-group <aks-node-rg> \
@@ -580,6 +599,7 @@ az vmss identity assign \
 ```
 
 **3. Grant Storage Permission:**
+
 ```bash
 az role assignment create \
   --role "Storage Blob Data Contributor" \
@@ -588,6 +608,7 @@ az role assignment create \
 ```
 
 **4. Configure Mimir:**
+
 ```yaml
 mimir:
   structuredConfig:
@@ -600,6 +621,7 @@ mimir:
 ### Workload Identity Federation
 
 **1. Create Federated Credential:**
+
 ```bash
 az identity federated-credential create \
   --name mimir-federated \
@@ -611,6 +633,7 @@ az identity federated-credential create \
 ```
 
 **2. Configure Helm Values:**
+
 ```yaml
 serviceAccount:
   annotations:
@@ -625,6 +648,7 @@ podLabels:
 ### Common Issues
 
 **1. Container Not Found (Azure)**
+
 ```bash
 # Create required containers
 az storage container create --name mimir-blocks --account-name <storage>
@@ -633,6 +657,7 @@ az storage container create --name mimir-ruler --account-name <storage>
 ```
 
 **2. Authorization Failure (Azure)**
+
 ```bash
 # Verify RBAC assignment
 az role assignment list --scope /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<storage>
@@ -648,6 +673,7 @@ kubectl delete pod -n monitoring <ingester-pod>
 ```
 
 **3. Ingester OOM**
+
 ```yaml
 ingester:
   resources:
@@ -656,6 +682,7 @@ ingester:
 ```
 
 **4. Query Timeout**
+
 ```yaml
 mimir:
   structuredConfig:
@@ -665,6 +692,7 @@ mimir:
 ```
 
 **5. High Cardinality**
+
 ```yaml
 mimir:
   structuredConfig:
@@ -736,6 +764,7 @@ mimir:
 ```
 
 **States:**
+
 1. **Closed** - Normal operation
 2. **Open** - Stops forwarding to failing instances
 3. **Half-open** - Limited trial requests after cooldown

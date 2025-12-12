@@ -3,6 +3,7 @@
 ## Storage Architecture
 
 Loki manages three primary data types:
+
 - **Chunks**: Compressed log entries stored in object stores
 - **Indexes**: Stream metadata and references linking to chunks
 - **Bloom Blocks**: Optional advanced indexes for accelerated search
@@ -14,6 +15,7 @@ Loki manages three primary data types:
 The recommended index store for all new deployments.
 
 **Benefits:**
+
 - Stores index files directly in object storage
 - More efficient, faster, and more scalable than BoltDB
 - Feature parity with all previous approaches
@@ -21,6 +23,7 @@ The recommended index store for all new deployments.
 - Index caching not required
 
 **Configuration:**
+
 ```yaml
 loki:
   schemaConfig:
@@ -45,6 +48,7 @@ loki:
 Suitable for Loki 2.0-2.7.x deployments only.
 
 **Characteristics:**
+
 - Index period MUST be 24 hours
 - Requires compactor for deduplication
 - Write deduplication disabled when replication factor > 1
@@ -54,6 +58,7 @@ Suitable for Loki 2.0-2.7.x deployments only.
 ### AWS S3
 
 **Required IAM Permissions:**
+
 ```json
 {
   "Version": "2012-10-17",
@@ -76,6 +81,7 @@ Suitable for Loki 2.0-2.7.x deployments only.
 ```
 
 **Configuration:**
+
 ```yaml
 loki:
   storage:
@@ -98,6 +104,7 @@ loki:
 ```
 
 **SSE-KMS Encryption:**
+
 ```yaml
 loki:
   storage:
@@ -112,6 +119,7 @@ loki:
 **Authentication Methods:**
 
 1. **User-Assigned Managed Identity (Recommended)**
+
 ```yaml
 loki:
   storage:
@@ -125,6 +133,7 @@ loki:
 ```
 
 2. **Workload Identity Federation**
+
 ```yaml
 loki:
   podLabels:
@@ -143,6 +152,7 @@ loki:
 ```
 
 3. **Account Key (Dev only)**
+
 ```yaml
 loki:
   storage:
@@ -152,6 +162,7 @@ loki:
 ```
 
 4. **SAS Token**
+
 ```yaml
 loki:
   storage:
@@ -161,11 +172,13 @@ loki:
 ```
 
 **Required RBAC Role:**
+
 - `Storage Blob Data Contributor` on the storage account
 
 ### Google Cloud Storage
 
 **Configuration:**
+
 ```yaml
 loki:
   storage:
@@ -214,6 +227,7 @@ loki:
 ```
 
 **Limitations:**
+
 - NOT production-supported
 - Directory limits at ~5.5M+ files
 - Requires shared filesystem (NFS) for HA
@@ -222,6 +236,7 @@ loki:
 ## Retention Configuration
 
 **Enable Retention:**
+
 ```yaml
 loki:
   compactor:
@@ -236,6 +251,7 @@ loki:
 ```
 
 **Stream-Level Retention:**
+
 ```yaml
 loki:
   limits_config:
@@ -256,6 +272,7 @@ loki:
 ```
 
 **Per-Tenant Overrides:**
+
 ```yaml
 # runtime-config.yaml
 overrides:
@@ -270,6 +287,7 @@ overrides:
 **Purpose:** Records incoming data for crash recovery.
 
 **Configuration:**
+
 ```yaml
 loki:
   ingester:
@@ -281,11 +299,13 @@ loki:
 ```
 
 **Requirements:**
+
 - Use StatefulSets with persistent volumes
 - Each ingester must have unique WAL directory
 - Expect ~10-15GB disk usage per ingester
 
 **Monitoring Metrics:**
+
 - `loki_ingester_wal_records_logged`
 - `loki_ingester_wal_logged_bytes_total`
 - `loki_ingester_wal_corruptions_total`
@@ -346,6 +366,7 @@ memcached-frontend:
 ## Compaction
 
 **Configuration:**
+
 ```yaml
 loki:
   compactor:
@@ -358,6 +379,7 @@ loki:
 ```
 
 **Component Requirements:**
+
 - Must run as singleton instance
 - Requires delete permissions on object storage
 - Handles index deduplication and merging
@@ -365,6 +387,7 @@ loki:
 ## Schema Migration
 
 **Adding New Schema:**
+
 ```yaml
 loki:
   schemaConfig:
@@ -389,6 +412,7 @@ loki:
 ```
 
 **Rules:**
+
 - `from` date must be in future (UTC 00:00:00)
 - Schema changes are irreversible
 - Multiple schemas can coexist
@@ -397,6 +421,7 @@ loki:
 ## Storage Troubleshooting
 
 ### Azure Container Not Found
+
 ```bash
 az storage container create --name loki-chunks --account-name <storage>
 az storage container create --name loki-ruler --account-name <storage>
@@ -404,6 +429,7 @@ az storage container create --name loki-admin --account-name <storage>
 ```
 
 ### Azure Authorization Failure
+
 ```bash
 # Check role assignments
 az role assignment list --scope <storage-scope> --query "[?principalId=='<principal-id>']"
@@ -419,6 +445,7 @@ kubectl delete pod -n monitoring <ingester-pod>
 ```
 
 ### S3 Access Denied
+
 ```bash
 # Verify IAM policy
 aws iam get-policy --policy-arn <policy-arn>
@@ -428,6 +455,7 @@ aws s3 ls s3://my-loki-bucket/
 ```
 
 ### Compactor Issues
+
 ```bash
 # Check compactor logs
 kubectl logs -n monitoring -l app.kubernetes.io/component=compactor --tail=200

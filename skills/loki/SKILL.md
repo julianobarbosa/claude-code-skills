@@ -35,6 +35,7 @@ Loki is a **horizontally-scalable, highly-available, multi-tenant log aggregatio
 ### Data Flow
 
 **Write Path:**
+
 ```
 Log Source → Distributor → Ingester → Object Storage
                                     ↓
@@ -42,6 +43,7 @@ Log Source → Distributor → Ingester → Object Storage
 ```
 
 **Read Path:**
+
 ```
 Query → Query Frontend → Query Scheduler → Querier
                                              ↓
@@ -51,11 +53,13 @@ Query → Query Frontend → Query Scheduler → Querier
 ## Deployment Modes
 
 ### 1. Monolithic Mode (`-target=all`)
+
 - All components in single process
 - Best for: Initial experimentation, small-scale (~20GB logs/day)
 - Simplest approach
 
 ### 2. Simple Scalable Deployment (SSD) - Recommended Default
+
 ```yaml
 deploymentMode: SimpleScalable
 
@@ -70,6 +74,7 @@ backend:
 ```
 
 ### 3. Microservices Mode (Distributed)
+
 ```yaml
 deploymentMode: Distributed
 
@@ -324,6 +329,7 @@ topk(10, sum by (namespace) (bytes_rate({}[5m])))
 ### Native OTLP (Recommended - Loki 3.0+)
 
 **OpenTelemetry Collector Config:**
+
 ```yaml
 exporters:
   otlphttp:
@@ -339,6 +345,7 @@ service:
 ```
 
 **Loki Config:**
+
 ```yaml
 loki:
   limits_config:
@@ -346,6 +353,7 @@ loki:
 ```
 
 **Key Benefits:**
+
 - Log body stored as plain text (not JSON encoded)
 - 17 default resource attributes auto-indexed
 - Simpler queries without JSON parsing
@@ -364,12 +372,14 @@ loki:
 ## Kubernetes Helm Deployment
 
 ### Add Repository
+
 ```bash
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo update
 ```
 
 ### Install with Values
+
 ```bash
 helm install loki grafana/loki \
   --namespace monitoring \
@@ -454,6 +464,7 @@ monitoring:
 ### User-Assigned Managed Identity (Recommended)
 
 **1. Create Identity:**
+
 ```bash
 az identity create \
   --name loki-identity \
@@ -464,6 +475,7 @@ IDENTITY_PRINCIPAL_ID=$(az identity show --name loki-identity --resource-group <
 ```
 
 **2. Assign to Node Pool:**
+
 ```bash
 az vmss identity assign \
   --resource-group <aks-node-rg> \
@@ -472,6 +484,7 @@ az vmss identity assign \
 ```
 
 **3. Grant Storage Permission:**
+
 ```bash
 az role assignment create \
   --role "Storage Blob Data Contributor" \
@@ -480,6 +493,7 @@ az role assignment create \
 ```
 
 **4. Configure Loki:**
+
 ```yaml
 loki:
   storage:
@@ -507,6 +521,7 @@ curl -H "X-Scope-OrgID: tenant-a" \
 ### Common Issues
 
 **1. Container Not Found (Azure)**
+
 ```bash
 # Create required containers
 az storage container create --name loki-chunks --account-name <storage>
@@ -515,6 +530,7 @@ az storage container create --name loki-admin --account-name <storage>
 ```
 
 **2. Authorization Failure (Azure)**
+
 ```bash
 # Verify RBAC assignment
 az role assignment list --scope /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Storage/storageAccounts/<storage>
@@ -530,6 +546,7 @@ kubectl delete pod -n monitoring <ingester-pod>
 ```
 
 **3. Ingester OOM**
+
 ```yaml
 # Increase memory limits
 ingester:
@@ -539,6 +556,7 @@ ingester:
 ```
 
 **4. Query Timeout**
+
 ```yaml
 loki:
   querier:
@@ -570,6 +588,7 @@ kubectl exec -it <loki-pod> -n monitoring -- cat /etc/loki/config/config.yaml
 ## API Reference
 
 ### Ingestion
+
 ```bash
 # Push logs
 POST /loki/api/v1/push
@@ -579,6 +598,7 @@ POST /otlp/v1/logs
 ```
 
 ### Query
+
 ```bash
 # Instant query
 GET /loki/api/v1/query?query={job="app"}&time=<timestamp>
@@ -598,6 +618,7 @@ GET /loki/api/v1/tail?query={job="app"}
 ```
 
 ### Health
+
 ```bash
 GET /ready
 GET /metrics
@@ -606,6 +627,7 @@ GET /metrics
 ## Reference Documentation
 
 For detailed configuration by topic:
+
 - **[Storage Configuration](references/storage.md)**: Object stores, retention, WAL
 - **[LogQL Reference](references/logql.md)**: Query syntax and examples
 - **[OpenTelemetry Integration](references/opentelemetry.md)**: OTLP configuration

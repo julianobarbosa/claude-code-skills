@@ -5,9 +5,11 @@ LogQL is Loki's Prometheus-inspired query language for logs.
 ## Query Types
 
 ### Log Queries
+
 Filter and return log lines.
 
 ### Metric Queries
+
 Extract numeric values and aggregate.
 
 ## Stream Selectors
