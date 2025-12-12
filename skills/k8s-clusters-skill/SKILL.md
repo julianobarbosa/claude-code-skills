@@ -156,6 +156,94 @@ persistence:
   accessMode: ReadWriteMany
 ```
 
+### 5. Robusta CSI Secret Store Pattern (ALL clusters)
+
+**MANDATORY for ALL Robusta deployments:**
+
+Robusta requires secrets from Azure Key Vault. The CSI Secret Store driver syncs these secrets to Kubernetes Secrets that the Robusta runner pod references.
+
+**Required SecretProviderClass** (`secretproviderclass.yaml` in each cluster's robusta directory):
+
+```yaml
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: robusta-secrets-kv
+  namespace: monitoring
+spec:
+  provider: azure
+  secretObjects:
+    - data:
+        - key: ms-teams-webhook
+          objectName: robusta-ms-teams-webhook
+        - key: robusta-ui-token
+          objectName: robusta-ui-token
+        - key: azure-openai-key
+          objectName: azure-openai-key
+        - key: robusta-signing-key
+          objectName: robusta-signing-key
+        - key: robusta-account-id
+          objectName: robusta-account-id
+      secretName: robusta-secrets
+      type: Opaque
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: "<cluster-managed-identity>"  # From cluster lookup
+    keyvaultName: "<cluster-keyvault>"                     # From cluster lookup
+    tenantId: "3f7a3df4-f85b-4ca8-98d0-08b1034e6567"
+    objects: |
+      array:
+        - |
+          objectName: robusta-ms-teams-webhook
+          objectType: secret
+        - |
+          objectName: robusta-ui-token
+          objectType: secret
+        - |
+          objectName: azure-openai-key
+          objectType: secret
+        - |
+          objectName: robusta-signing-key
+          objectType: secret
+        - |
+          objectName: robusta-account-id
+          objectType: secret
+```
+
+**Required Helm values** (in `values.yaml` under `runner:` section):
+
+```yaml
+runner:
+  # CSI volume mount to trigger robusta-secrets creation from Azure Key Vault
+  extraVolumes:
+    - name: robusta-secrets-store
+      csi:
+        driver: secrets-store.csi.k8s.io
+        readOnly: true
+        volumeAttributes:
+          secretProviderClass: robusta-secrets-kv
+  extraVolumeMounts:
+    - name: robusta-secrets-store
+      mountPath: /mnt/secrets-store/robusta
+      readOnly: true
+```
+
+**How it works:**
+
+1. CSI driver mounts the SecretProviderClass volume to the runner pod
+2. On mount, driver fetches secrets from Azure Key Vault using Managed Identity
+3. Driver creates Kubernetes Secret `robusta-secrets` in monitoring namespace
+4. Runner pod references this secret for environment variables
+
+**Common issues:**
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| Pod stuck `ContainerCreating` | SecretProviderClass name mismatch | Ensure `secretProviderClass: robusta-secrets-kv` matches metadata.name |
+| Secret not created | Missing extraVolumes/extraVolumeMounts | Add CSI volume configuration to values.yaml |
+| Auth error in pod events | Wrong Managed Identity ID | Check `userAssignedIdentityID` matches cluster's identity |
+
 ## Quick Troubleshooting
 
 | Symptom | Fix |
@@ -168,6 +256,7 @@ persistence:
 | Connection timeout | Check VPN, run `scripts/diagnose.sh` |
 | Auth failed | `az login` then re-get credentials |
 | ArgoCD sync error: `podReplacementPolicy: field not declared in schema` | See ArgoCD SSA troubleshooting below |
+| Robusta pod stuck ContainerCreating | Check SecretProviderClass name matches `robusta-secrets-kv`, add CSI volumes |
 
 ## ArgoCD Server-Side Apply (SSA) Troubleshooting
 
