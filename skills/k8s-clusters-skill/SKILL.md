@@ -162,6 +162,30 @@ persistence:
 
 Robusta requires secrets from Azure Key Vault. The CSI Secret Store driver syncs these secrets to Kubernetes Secrets that the Robusta runner pod references.
 
+**Required Azure Key Vault Secrets** (must exist in each cluster's Key Vault):
+
+| Secret Name | Description | Required By |
+|-------------|-------------|-------------|
+| `robusta-ms-teams-webhook` | MS Teams incoming webhook URL | MS Teams sink |
+| `robusta-ui-token` | Robusta SaaS UI authentication token | Robusta UI sink |
+| `robusta-signing-key` | Signing key for Robusta authentication | globalConfig |
+| `robusta-account-id` | Robusta account identifier | globalConfig |
+| `azure-openai-key` | Azure OpenAI API key | HolmesGPT |
+
+**Create missing secrets** (if any are missing, pod will fail with `FailedMount`):
+
+```bash
+# Check existing secrets in Key Vault
+az keyvault secret list --vault-name <keyvault-name> --query "[?starts_with(name,'robusta') || starts_with(name,'azure-openai')].name" -o tsv
+
+# Create missing secrets (get values from Hub KV or Robusta SaaS)
+az keyvault secret set --vault-name <keyvault-name> --name robusta-ms-teams-webhook --value "<webhook-url>"
+az keyvault secret set --vault-name <keyvault-name> --name robusta-ui-token --value "<ui-token>"
+az keyvault secret set --vault-name <keyvault-name> --name robusta-signing-key --value "<signing-key>"
+az keyvault secret set --vault-name <keyvault-name> --name robusta-account-id --value "<account-id>"
+az keyvault secret set --vault-name <keyvault-name> --name azure-openai-key --value "<openai-key>"
+```
+
 **Required SecretProviderClass** (`secretproviderclass.yaml` in each cluster's robusta directory):
 
 ```yaml
@@ -240,9 +264,64 @@ runner:
 
 | Symptom | Cause | Fix |
 |---------|-------|-----|
+| `FailedMount` with `SecretNotFound` | Secret missing in Key Vault | Create the missing secret with `az keyvault secret set` |
 | Pod stuck `ContainerCreating` | SecretProviderClass name mismatch | Ensure `secretProviderClass: robusta-secrets-kv` matches metadata.name |
 | Secret not created | Missing extraVolumes/extraVolumeMounts | Add CSI volume configuration to values.yaml |
 | Auth error in pod events | Wrong Managed Identity ID | Check `userAssignedIdentityID` matches cluster's identity |
+
+### 6. HolmesGPT Azure OpenAI Configuration
+
+**Reference**: [HolmesGPT Azure OpenAI Docs](https://holmesgpt.dev/ai-providers/azure-openai/)
+
+HolmesGPT uses the LiteLLM API to support Azure OpenAI. Configuration is done via Helm values.
+
+**Required environment variables** (in `values.yaml` under `holmes:` section):
+
+```yaml
+enableHolmesGPT: true
+holmes:
+  additionalEnvVars:
+    - name: ROBUSTA_AI
+      value: "true"
+    - name: AZURE_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: robusta-secrets
+          key: azure-openai-key
+    - name: MODEL
+      value: "azure/<deployment-name>"  # e.g., azure/gpt-4o or azure/claude-sonnet-4-5
+    - name: AZURE_API_VERSION
+      value: "2024-12-01-preview"  # Use latest stable version
+    - name: AZURE_API_BASE
+      value: "https://<resource>.openai.azure.com/"  # Or AI Foundry endpoint
+```
+
+**Advanced: Multiple models with modelList** (2025 approach):
+
+```yaml
+holmes:
+  additionalEnvVars:
+    - name: AZURE_API_KEY
+      valueFrom:
+        secretKeyRef:
+          name: robusta-secrets
+          key: azure-openai-key
+  modelList:
+    azure-gpt-4o:
+      api_key: "{{ env.AZURE_API_KEY }}"
+      model: azure/gpt-4o
+      api_base: https://your-resource.openai.azure.com/
+      api_version: "2024-12-01-preview"
+      temperature: 0
+  config:
+    model: "azure-gpt-4o"  # References key name in modelList
+```
+
+**Important notes:**
+
+- Increase token limit in Azure Portal to at least 450K for your deployment
+- The `MODEL` value uses format `azure/<deployment-name>` (keep the `azure/` prefix)
+- For AI Foundry projects, use the full project endpoint as `AZURE_API_BASE`
 
 ## Quick Troubleshooting
 
