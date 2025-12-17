@@ -1,0 +1,380 @@
+# yamllint disable rule:document-start rule:quoted-strings rule:comments-indentation
+# Kustomize Templates for GitOps
+# Overlay-based configuration management
+#
+# Directory Structure:
+#   manifests/
+#   ├── base/                    # Shared base configuration
+#   │   ├── kustomization.yaml
+#   │   ├── deployment.yaml
+#   │   ├── service.yaml
+#   │   └── configmap.yaml
+#   └── overlays/
+#       ├── dev/
+#       │   └── kustomization.yaml
+#       ├── staging/
+#       │   └── kustomization.yaml
+#       └── production/
+#           └── kustomization.yaml
+---
+# ============================================
+# BASE KUSTOMIZATION
+# manifests/base/kustomization.yaml
+# ============================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Metadata applied to all resources
+metadata:
+  name: <app-name>-base
+
+# Common labels applied to all resources
+commonLabels:
+  app.kubernetes.io/name: <app-name>
+  app.kubernetes.io/managed-by: kustomize
+
+# Common annotations
+commonAnnotations:
+  app.kubernetes.io/part-of: <project-name>
+
+# Resources to include
+resources:
+  - deployment.yaml
+  - service.yaml
+  - configmap.yaml
+  - serviceaccount.yaml
+  # - ingress.yaml
+  # - hpa.yaml
+  # - pdb.yaml
+
+# ConfigMap generator (creates ConfigMap from files/literals)
+# configMapGenerator:
+#   - name: app-config
+#     files:
+#       - config.json
+#     literals:
+#       - LOG_LEVEL=info
+
+# Secret generator (creates Secret from files/literals)
+# secretGenerator:
+#   - name: app-secrets
+#     files:
+#       - secrets/api-key.txt
+#     type: Opaque
+
+---
+# ============================================
+# DEVELOPMENT OVERLAY
+# manifests/overlays/dev/kustomization.yaml
+# ============================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Reference the base
+resources:
+  - ../../base
+
+# Namespace for all resources
+namespace: <app-name>-dev
+
+# Name prefix/suffix
+namePrefix: dev-
+# nameSuffix: -dev
+
+# Additional labels for this environment
+commonLabels:
+  environment: development
+
+# Image override
+images:
+  - name: <app-name>
+    newName: <registry>/<app-name>
+    newTag: latest  # Dev can use latest
+
+# Replica count override
+replicas:
+  - name: <app-name>
+    count: 1
+
+# Resource patches (strategic merge)
+patches:
+  # Reduce resources for dev
+  - target:
+      kind: Deployment
+      name: <app-name>
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+
+# ConfigMap patches
+configMapGenerator:
+  - name: app-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=debug
+      - ENV=development
+
+---
+# ============================================
+# STAGING OVERLAY
+# manifests/overlays/staging/kustomization.yaml
+# ============================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+namespace: <app-name>-staging
+
+namePrefix: stg-
+
+commonLabels:
+  environment: staging
+
+images:
+  - name: <app-name>
+    newName: <registry>/<app-name>
+    newTag: v1.0.0-rc1  # Release candidate
+
+replicas:
+  - name: <app-name>
+    count: 2
+
+patches:
+  # Enable spot tolerations for staging
+  - target:
+      kind: Deployment
+      name: <app-name>
+    patch: |-
+      - op: add
+        path: /spec/template/spec/tolerations
+        value:
+          - key: "kubernetes.azure.com/scalesetpriority"
+            operator: "Equal"
+            value: "spot"
+            effect: "NoSchedule"
+      - op: add
+        path: /spec/template/spec/affinity
+        value:
+          nodeAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 1
+                preference:
+                  matchExpressions:
+                    - key: "kubernetes.azure.com/scalesetpriority"
+                      operator: In
+                      values:
+                        - "spot"
+
+configMapGenerator:
+  - name: app-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=info
+      - ENV=staging
+
+---
+# ============================================
+# PRODUCTION OVERLAY
+# manifests/overlays/production/kustomization.yaml
+# ============================================
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  # Production-specific resources
+  - pdb.yaml           # Pod Disruption Budget
+  - hpa.yaml           # Horizontal Pod Autoscaler
+  - network-policy.yaml
+
+namespace: <app-name>-prod
+
+namePrefix: prod-
+
+commonLabels:
+  environment: production
+
+commonAnnotations:
+  owner: platform-team
+  cost-center: engineering
+
+# Pin to specific immutable tag
+images:
+  - name: <app-name>
+    newName: <registry>/<app-name>
+    # Use digest for production
+    # digest: sha256:abc123...
+    newTag: v1.0.0
+
+replicas:
+  - name: <app-name>
+    count: 3
+
+patches:
+  # Production-grade resources
+  - target:
+      kind: Deployment
+      name: <app-name>
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources
+        value:
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+      - op: add
+        path: /spec/template/spec/topologySpreadConstraints
+        value:
+          - maxSkew: 1
+            topologyKey: topology.kubernetes.io/zone
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                app.kubernetes.io/name: <app-name>
+
+configMapGenerator:
+  - name: app-config
+    behavior: merge
+    literals:
+      - LOG_LEVEL=warn
+      - ENV=production
+
+---
+# ============================================
+# SAMPLE BASE DEPLOYMENT
+# manifests/base/deployment.yaml
+# ============================================
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: <app-name>
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: <app-name>
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: <app-name>
+    spec:
+      serviceAccountName: <app-name>
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: <app-name>
+          image: <app-name>  # Replaced by kustomize
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: app-config
+          resources:
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+            requests:
+              cpu: "250m"
+              memory: "256Mi"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+
+---
+# ============================================
+# SAMPLE PRODUCTION PDB
+# manifests/overlays/production/pdb.yaml
+# ============================================
+
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: <app-name>
+spec:
+  minAvailable: 2  # Or use maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: <app-name>
+
+---
+# ============================================
+# SAMPLE PRODUCTION HPA
+# manifests/overlays/production/hpa.yaml
+# ============================================
+
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: <app-name>
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: <app-name>
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Percent
+          value: 10
+          periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+        - type: Percent
+          value: 100
+          periodSeconds: 15
+        - type: Pods
+          value: 4
+          periodSeconds: 15
+      selectPolicy: Max
