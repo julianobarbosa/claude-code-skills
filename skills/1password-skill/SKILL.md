@@ -522,6 +522,133 @@ op plugin init aws
 # Add to your shell profile as instructed
 ```
 
+## Git Workflow with 1Password
+
+Use 1Password to manage GitHub authentication for git operations (push, pull, clone).
+
+### Quick Setup
+
+Run the setup script to configure everything:
+
+```bash
+./scripts/setup-gh-plugin.sh
+```
+
+### Manual Setup
+
+#### Step 1: Initialize the gh plugin
+
+```bash
+# Sign in to 1Password
+op signin
+
+# Initialize gh plugin (interactive - select your GitHub token)
+op plugin init gh
+```
+
+#### Step 2: Configure git credential helper
+
+```bash
+# Remove any broken credential helpers
+git config --global --unset-all credential.https://github.com.helper 2>/dev/null
+
+# Set gh as the credential helper for GitHub
+git config --global credential.https://github.com.helper '!/opt/homebrew/bin/gh auth git-credential'
+git config --global credential.https://gist.github.com.helper '!/opt/homebrew/bin/gh auth git-credential'
+```
+
+#### Step 3: Add shell integration
+
+Add to your `~/.zshrc` or `~/.bashrc`:
+
+```bash
+# 1Password CLI plugins
+source ~/.config/op/plugins.sh
+```
+
+### How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                        Git Push Workflow                         │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│   git push                                                       │
+│      │                                                           │
+│      ▼                                                           │
+│   Git credential helper                                          │
+│      │                                                           │
+│      ▼                                                           │
+│   gh auth git-credential                                         │
+│      │                                                           │
+│      ▼                                                           │
+│   1Password plugin (via op wrapper)                              │
+│      │                                                           │
+│      ▼                                                           │
+│   1Password (biometric/password unlock)                          │
+│      │                                                           │
+│      ▼                                                           │
+│   Token retrieved and passed to git                              │
+│      │                                                           │
+│      ▼                                                           │
+│   Push completes successfully                                    │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Multiple GitHub Accounts
+
+If you work with multiple GitHub accounts, you can configure per-repo credentials:
+
+```bash
+# For a specific repo, use a different 1Password item
+cd /path/to/work-repo
+git config credential.https://github.com.helper '!/opt/homebrew/bin/gh auth git-credential'
+
+# Or use includeIf in ~/.gitconfig for path-based selection
+[includeIf "gitdir:~/work/"]
+    path = ~/.gitconfig-work
+```
+
+### Fixing Common Issues
+
+#### "Item not found in vault" error
+
+This means the 1Password plugin is pointing to a deleted token:
+
+```bash
+# Remove the broken plugin configuration
+rm ~/.config/op/plugins/used_items/gh.json
+
+# Re-initialize
+op plugin init gh
+```
+
+#### gh aliased to op plugin run
+
+If `gh` is aliased to run through 1Password but failing:
+
+```bash
+# Check the alias
+which gh  # Shows: gh: aliased to op plugin run -- gh
+
+# Run gh directly to bypass the alias
+/opt/homebrew/bin/gh auth status
+```
+
+#### Git prompting for username/password
+
+Verify the credential helper is configured:
+
+```bash
+git config --list | grep credential
+```
+
+Should show:
+```
+credential.https://github.com.helper=!/opt/homebrew/bin/gh auth git-credential
+```
+
 ## Troubleshooting
 
 ### Common Issues
@@ -592,6 +719,7 @@ kubectl describe secretstore <name>
 
 ### Scripts
 
+- `scripts/setup-gh-plugin.sh` - Setup GitHub CLI with 1Password integration
 - `scripts/setup-service-account.sh` - Create and configure a service account
 - `scripts/sync-check.sh` - Verify External Secrets synchronization
 

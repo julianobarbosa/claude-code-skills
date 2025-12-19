@@ -1,6 +1,6 @@
 ---
 name: gitops-principles-skill
-description: Comprehensive GitOps methodology and principles skill for cloud-native operations. Use when (1) Designing GitOps architecture for Kubernetes deployments, (2) Implementing declarative infrastructure with Git as single source of truth, (3) Setting up continuous deployment pipelines with ArgoCD/Flux/Kargo, (4) Establishing branching strategies and repository structures, (5) Troubleshooting drift, sync failures, or reconciliation issues, (6) Evaluating GitOps tooling decisions, (7) Teaching or explaining GitOps concepts and best practices. Covers the 4 pillars of GitOps (OpenGitOps), patterns, anti-patterns, tooling ecosystem, and operational guidance.
+description: Comprehensive GitOps methodology and principles skill for cloud-native operations. Use when (1) Designing GitOps architecture for Kubernetes deployments, (2) Implementing declarative infrastructure with Git as single source of truth, (3) Setting up continuous deployment pipelines with ArgoCD/Flux/Kargo, (4) Establishing branching strategies and repository structures, (5) Troubleshooting drift, sync failures, or reconciliation issues, (6) Evaluating GitOps tooling decisions, (7) Teaching or explaining GitOps concepts and best practices, (8) Deploying ArgoCD on Azure Arc-enabled Kubernetes or AKS with workload identity. Covers the 4 pillars of GitOps (OpenGitOps), patterns, anti-patterns, tooling ecosystem, Azure Arc integration, and operational guidance.
 ---
 
 # GitOps Principles Skill
@@ -287,6 +287,45 @@ Warehouse → Dev Stage → Staging Stage → Production Stage
     └── Freight promotion through environments ───┘
 ```
 
+## Cloud Provider Integration
+
+### Azure Arc-enabled Kubernetes & AKS
+
+Azure provides a managed ArgoCD experience through the **Microsoft.ArgoCD** cluster extension:
+
+```bash
+# Simple installation (single node)
+az k8s-extension create \
+  --resource-group <rg> --cluster-name <cluster> \
+  --cluster-type managedClusters \
+  --name argocd \
+  --extension-type Microsoft.ArgoCD \
+  --release-train preview \
+  --config deployWithHighAvailability=false
+
+# Production with workload identity (recommended)
+# Use Bicep template - see references/azure-arc-integration.md
+```
+
+**Key Benefits:**
+
+| Feature | Description |
+|---------|-------------|
+| Managed Installation | Azure handles deployment and upgrades |
+| Workload Identity | Azure AD authentication without secrets |
+| Multi-Cluster | Consistent GitOps across hybrid environments |
+| Azure Integration | Native ACR, Key Vault, Azure AD support |
+
+**Prerequisites:**
+
+- Azure Arc-connected cluster OR MSI-based AKS cluster
+- `Microsoft.KubernetesConfiguration` provider registered
+- `k8s-extension` CLI extension installed
+
+See `references/azure-arc-integration.md` for complete setup guide.
+
+---
+
 ## Security Considerations
 
 ### Secrets Management
@@ -376,6 +415,7 @@ For detailed information, see:
 - `references/tooling-ecosystem.md` - ArgoCD vs Flux vs Kargo
 - `references/anti-patterns.md` - Common mistakes to avoid
 - `references/troubleshooting.md` - Debugging guide
+- `references/azure-arc-integration.md` - Azure Arc & AKS GitOps setup
 
 ## Templates
 
@@ -398,3 +438,5 @@ Utility scripts in `scripts/`:
 - [Flux Documentation](https://fluxcd.io/docs/)
 - [Kargo Documentation](https://docs.kargo.io/)
 - [GitOps Working Group](https://github.com/gitops-working-group/gitops-working-group)
+- [Azure Arc GitOps with ArgoCD](https://learn.microsoft.com/en-us/azure/azure-arc/kubernetes/tutorial-use-gitops-argocd)
+- [Azure Arc-enabled Kubernetes](https://learn.microsoft.com/en-us/azure/azure-arc/kubernetes/)

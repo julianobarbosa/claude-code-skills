@@ -106,10 +106,36 @@ spec:
 
 ### Installation
 
+**Standard Installation:**
+
 ```bash
 kubectl create namespace argocd
 kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
 ```
+
+**Azure Arc / AKS Managed Extension:**
+
+```bash
+# Register providers
+az provider register --namespace Microsoft.KubernetesConfiguration
+az extension add -n k8s-extension
+
+# Install ArgoCD as managed extension
+az k8s-extension create \
+  --resource-group <rg> --cluster-name <cluster> \
+  --cluster-type managedClusters \
+  --name argocd \
+  --extension-type Microsoft.ArgoCD \
+  --release-train preview \
+  --config deployWithHighAvailability=false
+```
+
+Benefits of Azure managed extension:
+
+- Managed upgrades and maintenance
+- Native Azure AD workload identity integration
+- Consistent multi-cluster management via Azure Arc
+- See `azure-arc-integration.md` for complete guide
 
 ---
 
