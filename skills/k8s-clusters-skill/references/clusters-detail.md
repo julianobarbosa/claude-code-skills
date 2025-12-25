@@ -2,12 +2,18 @@
 
 Extended information not in SKILL.md. Use grep patterns: `## <cluster-name>` to find specific cluster.
 
+> **Cross-Reference**: See also:
+>
+> - [Cluster-specific docs](../../../docs/clusters/) - Detailed cluster documentation
+> - [Operations guides](../../../docs/operations/) - Access, authentication, troubleshooting
+> - [Storage configuration](../../../docs/storage/) - managed-premium-zrs details
+
 ## cafehyna-dev
 
 - **API Server**: `aks-cafehyna-dev-hlg-q3oga63c.30041054-9b14-4852-9bd5-114d2fac4590.privatelink.eastus.azmk8s.io`
 - **API Alias**: `cafehyna-dev-aks.eastus.cloudapp.azure.com`
 - **Key Vault**: `kv-cafehyna-dev-hlg`
-- **Managed Identity**: `f1a14a8f-6d38-40a0-a935-3cdd91a25f47`
+- **Managed Identity (SystemAssigned)**: `fdc5f44a-6fba-498d-88dc-5c824e5b4e06`
 - **Nodepools**:
   - `cafedev` (System nodepool - has `CriticalAddonsOnly` taint, NOT for workloads)
   - `cafedevspot` (User nodepool - spot instances, use this for workloads)
@@ -19,7 +25,7 @@ Extended information not in SKILL.md. Use grep patterns: `## <cluster-name>` to 
 - **API Server**: `aks-cafehyna-default-b2ie56p8.5bbf1042-d320-432c-bd11-cea99f009c29.privatelink.eastus.azmk8s.io`
 - **API Alias**: `cafehyna-hub-aks.eastus.cloudapp.azure.com`
 - **Key Vault**: `kv-cafehyna-default`
-- **Managed Identity**: `f1a14a8f-6d38-40a0-a935-3cdd91a25f47`
+- **Managed Identity (SystemAssigned)**: `e6c34ed5-9403-49eb-8fe6-299e4222a42f`
 - **Nodepools**: `hub`
 - **Region**: East US
 - **Services**: ArgoCD, Prometheus, Grafana, Loki, cert-manager, External-DNS, Ingress-NGINX
@@ -29,19 +35,21 @@ Extended information not in SKILL.md. Use grep patterns: `## <cluster-name>` to 
 - **API Server**: `aks-cafehyna-prd-hsr83z2k.c7d864af-cbd7-481b-866b-8559e0d1c1ea.privatelink.eastus.azmk8s.io`
 - **API Alias**: `cafehyna-aks-.eastus.cloudapp.azure.com`
 - **Key Vault**: `kv-cafehyna-prd`
-- **Managed Identity**: `f1a14a8f-6d38-40a0-a935-3cdd91a25f47`
+- **Managed Identity (SystemAssigned)**: `abfac3eb-b0bc-4b9c-8511-210ee38df3d9`
 - **Nodepools**: `cafehynaprd`
 - **Region**: East US
 
 ## loyalty-dev
 
 - **API Server**: `loyaltyaks-qas-dns-d330cafe.hcp.eastus.azmk8s.io`
+- **Managed Identity (SystemAssigned)**: `b4e0d374-cf2b-41ba-a303-3ef54c3f2483`
 - **Nodepools**: `agentpoolqas`
 - **Region**: East US
 
 ## loyalty-prd
 
 - **API Server**: `loyaltyaks-prd-dns-4d88035e.hcp.eastus.azmk8s.io`
+- **Managed Identity (SystemAssigned)**: `52a80b08-d429-43a5-8385-e774b391458a`
 - **Nodepools**: `agentprdpool`
 - **Region**: East US
 
@@ -50,7 +58,7 @@ Extended information not in SKILL.md. Use grep patterns: `## <cluster-name>` to 
 - **API Server**: `aks-hypera-sonora-dev-hlg-yz9t4ou8.d9f58524-b5b3-4fa9-af7d-cd5007447dea.privatelink.eastus.azmk8s.io`
 - **API Alias**: `sonora-dev-aks.eastus.cloudapp.azure.com`
 - **Key Vault**: `kv-sonora-dev`
-- **Managed Identity**: `92f03776-76e1-450c-b7f8-5e9dc22e5573`
+- **Managed Identity (SystemAssigned)**: `92f03776-76e1-450c-b7f8-5e9dc22e5573`
 - **Nodepools**: `agentpoolqas`
 - **Region**: East US
 
@@ -59,7 +67,7 @@ Extended information not in SKILL.md. Use grep patterns: `## <cluster-name>` to 
 - **API Server**: `aks-hypera-sonora-prod-2xiqgc37.84a80cec-6ef2-41fd-b6f7-2b6b934f8fb3.privatelink.eastus.azmk8s.io`
 - **API Alias**: `sonora-prd-aks.eastus.cloudapp.azure.com`
 - **Key Vault**: `kv-sonora-prd`
-- **Managed Identity**: `0bdae9cc-1fac-45e0-a2f7-8c6b792cdb58`
+- **Managed Identity (SystemAssigned)**: `0bdae9cc-1fac-45e0-a2f7-8c6b792cdb58`
 - **Nodepools**: `agentpoolprd`
 - **Region**: East US
 
@@ -68,7 +76,14 @@ Extended information not in SKILL.md. Use grep patterns: `## <cluster-name>` to 
 - **API Server**: `akspainelclientedev-dns-vjs3nd48.hcp.eastus2.azmk8s.io`
 - **Subscription**: `operation-dev` (56bb103c-1075-4536-b6fc-abf6df80b15c)
 - **Key Vault**: `painel-clientes-dev`
-- **Managed Identity**: `ec7174fd-dc97-46fe-a255-75943580c685`
+- **Managed Identity (SystemAssigned)**: `6880b420-3247-4b84-8ead-b771945aec77`
+- **Mimir Workload Identity**:
+  - **Name**: `mimir-workload-identity`
+  - **Client ID**: `bd4f29e5-ffc9-4a93-8f13-b985655afee3`
+  - **Principal ID**: `e6221624-fe02-47bf-8f43-1bb6668cd1b1`
+  - **Federated Credential**: `mimir-federated-credential`
+  - **Subject**: `system:serviceaccount:monitoring:mimir`
+  - **Role**: Storage Blob Data Contributor on `stgpainelclienteslokidev`
 - **Nodepools**: `pcdev` (System), `pcdevspot` (Spot)
 - **Region**: East US2
 - **Policy**: AMD-only compute (Dasv5, Easv5 series)
@@ -81,6 +96,13 @@ Extended information not in SKILL.md. Use grep patterns: `## <cluster-name>` to 
 - **Managed Identity (SystemAssigned)**: `94634d77-06cd-40ca-87c2-300d1352522f`
 - **Managed Identity (KV Secrets Provider)**: `18a14a67-899c-45a1-aa84-c9b4813aa8d7`
 - **Managed Identity (Agentpool)**: `542b4bcd-811b-4f69-9d96-f2e52055f186`
+- **Mimir Workload Identity**:
+  - **Name**: `mimir-workload-identity`
+  - **Client ID**: `af2b6eb9-a929-43e0-97cd-ad7762417442`
+  - **Principal ID**: `e04cbb56-d33b-480f-8edf-68162caa28dd`
+  - **Federated Credential**: `mimir-federated-credential`
+  - **Subject**: `system:serviceaccount:monitoring:mimir`
+  - **Role**: Storage Blob Data Contributor on `stgpainelclienteslokiprd`
 - **Nodepools**: `pcprd`
 - **Region**: East US2
 

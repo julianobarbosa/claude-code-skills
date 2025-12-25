@@ -380,15 +380,67 @@ spec:
 - [ArgoCD Issue #18778](https://github.com/argoproj/argo-cd/issues/18778)
 - [ArgoCD Diff Strategies](https://argo-cd.readthedocs.io/en/stable/user-guide/diff-strategies/)
 
-## Scripts
+## Quick Commands
 
-- `scripts/patch-tolerations.sh <cluster> <deployment> <namespace>` - Add spot tolerations
-- `scripts/diagnose.sh <cluster>` - Connection diagnostics
-- `scripts/get-creds.sh <cluster>` - Refresh kubeconfig
-- `scripts/create-storageclass.sh <cluster>` - Create managed-premium-zrs StorageClass
+### Get Cluster Credentials
+
+```bash
+# cafehyna clusters (hypera-pharma subscription)
+az aks get-credentials --resource-group RS_Hypera_Cafehyna_Dev --name aks-cafehyna-dev-hlg --file ~/.kube/aks-rg-hypera-cafehyna-dev-config --overwrite-existing
+az aks get-credentials --resource-group rs_hypera_cafehyna --name aks-cafehyna-default --file ~/.kube/aks-rg-hypera-cafehyna-hub-config --overwrite-existing
+az aks get-credentials --resource-group rs_hypera_cafehyna_prd --name aks-cafehyna-prd --file ~/.kube/aks-rg-hypera-cafehyna-prd-config --overwrite-existing
+
+# painelclientes (requires subscription switch)
+az account set --subscription "56bb103c-1075-4536-b6fc-abf6df80b15c"  # operation-dev
+az aks get-credentials --resource-group rg-hypera-painelclientes-dev --name akspainelclientedev --file ~/.kube/aks-rg-hypera-painelclientes-dev-config --overwrite-existing
+
+az account set --subscription "1e705d23-900f-471e-b18d-7e0eb94d8c7a"  # operation
+az aks get-credentials --resource-group rg-hypera-painelclientes-prd --name akspainelclientesprd --file ~/.kube/aks-rg-hypera-painelclientes-prd-config --overwrite-existing
+```
+
+### Create StorageClass (if missing)
+
+```bash
+KUBECONFIG=~/.kube/<config> kubectl apply -f - <<EOF
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: managed-premium-zrs
+provisioner: disk.csi.azure.com
+parameters:
+  skuName: Premium_ZRS
+  kind: Managed
+reclaimPolicy: Delete
+volumeBindingMode: WaitForFirstConsumer
+allowVolumeExpansion: true
+EOF
+```
+
+### Diagnose Connection
+
+```bash
+# Check Azure login
+az account show
+
+# Test DNS resolution (for private clusters)
+nslookup <api-server-fqdn>
+
+# Test connectivity
+nc -zv <api-server-fqdn> 443
+
+# Check RBAC
+kubectl --kubeconfig ~/.kube/<config> auth can-i --list
+```
 
 ## Detailed Reference
 
 For API endpoints, Key Vaults, nodepool details, and extended troubleshooting:
 
-- **[references/clusters-detail.md](references/clusters-detail.md)**
+- **[references/clusters-detail.md](references/clusters-detail.md)** - Extended cluster info, resource templates
+
+### Related Documentation
+
+- **[docs/clusters/](../../../docs/clusters/)** - Detailed per-cluster documentation
+- **[docs/operations/access-authentication.md](../../../docs/operations/access-authentication.md)** - Full access guide
+- **[docs/operations/troubleshooting.md](../../../docs/operations/troubleshooting.md)** - Troubleshooting guide
+- **[docs/storage/managed-premium-zrs.md](../../../docs/storage/managed-premium-zrs.md)** - Storage class details
