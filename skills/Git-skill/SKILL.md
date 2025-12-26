@@ -29,6 +29,7 @@ Running the **WorkflowName** workflow from the **Git** skill...
 | **Undo** | "undo commit", "reset", "revert" | `workflows/Undo.md` |
 | **Log** | "git log", "commit history", "show commits" | `workflows/Log.md` |
 | **Diff** | "show diff", "what changed", "compare" | `workflows/Diff.md` |
+| **Worktree** | "worktree", "add worktree", "list worktrees", "remove worktree" | `workflows/Worktree.md` |
 
 ## Examples
 
@@ -69,6 +70,16 @@ User: "What's the git status?"
 → Shows staged/unstaged/untracked files
 → Displays current branch info
 → Shows ahead/behind remote status
+```
+
+**Example 5: Create worktree for parallel development**
+```
+User: "Create a worktree for the hotfix"
+→ Invokes Worktree workflow
+→ Creates new worktree directory
+→ Checks out branch in isolated directory
+→ Returns worktree path and branch info
+→ Preserves current work context
 ```
 
 ## Security Protocols
@@ -143,4 +154,5 @@ This skill uses standard git commands and optionally:
 
 - `references/ConventionalCommits.md` - Detailed conventional commits guide
 - `references/GitBestPractices.md` - Git workflow best practices
+- `references/GitWorktree.md` - Git worktree concepts and command reference
 - `references/SecurityChecklist.md` - Pre-commit security checklist
