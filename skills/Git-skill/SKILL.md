@@ -34,6 +34,7 @@ Running the **WorkflowName** workflow from the **Git** skill...
 ## Examples
 
 **Example 1: Stage and commit changes locally**
+
 ```
 User: "Commit these changes"
 → Invokes Commit workflow
@@ -44,6 +45,7 @@ User: "Commit these changes"
 ```
 
 **Example 2: Full commit and push workflow**
+
 ```
 User: "Push my changes"
 → Invokes CommitPush workflow
@@ -54,6 +56,7 @@ User: "Push my changes"
 ```
 
 **Example 3: Create a pull request**
+
 ```
 User: "Create a PR to main"
 → Invokes PullRequest workflow
@@ -64,6 +67,7 @@ User: "Create a PR to main"
 ```
 
 **Example 4: Check repository status**
+
 ```
 User: "What's the git status?"
 → Invokes Status workflow
@@ -73,6 +77,7 @@ User: "What's the git status?"
 ```
 
 **Example 5: Create worktree for parallel development**
+
 ```
 User: "Create a worktree for the hotfix"
 → Invokes Worktree workflow
@@ -113,6 +118,7 @@ All commits follow [Conventional Commits](https://www.conventionalcommits.org/):
 | `revert` | Reverting previous commits |
 
 **Commit Message Format:**
+
 ```
 <type>(<scope>): <description>
 
@@ -122,6 +128,7 @@ All commits follow [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 
 **Rules:**
+
 - Title under 70 characters
 - Use imperative mood ("add" not "added")
 - No period at end of title
@@ -139,6 +146,7 @@ All commits follow [Conventional Commits](https://www.conventionalcommits.org/):
 ## AI Attribution Policy
 
 **DO NOT include AI attribution in commits:**
+
 - No "Generated with [Claude Code]" signatures
 - No "Co-Authored-By: Claude" attributions
 - No AI tool references in commit messages
@@ -147,6 +155,7 @@ All commits follow [Conventional Commits](https://www.conventionalcommits.org/):
 ## Tools
 
 This skill uses standard git commands and optionally:
+
 - **GitHub CLI (`gh`)**: For PR creation and GitHub operations
 - **pre-commit**: For validation hooks before commits
 

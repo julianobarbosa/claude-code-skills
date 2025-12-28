@@ -22,6 +22,7 @@ git diff --cached | grep -iE '(api[_-]?key|secret|password|token|credential).*=.
 ```
 
 **If sensitive data found:**
+
 1. STOP immediately
 2. Report findings to user
 3. Suggest using `.gitignore` or removing secrets
@@ -39,6 +40,7 @@ git diff --cached
 ```
 
 **Review checklist:**
+
 - [ ] No sensitive data (credentials, API keys, tokens)
 - [ ] No `.env` files or variants
 - [ ] No private keys or certificates
@@ -71,6 +73,7 @@ git diff --cached
 | Maintenance/chores | `chore` |
 
 **Rules:**
+
 - Title: Max 70 characters, imperative mood, no period
 - Scope: Optional, describes affected area (e.g., `api`, `ui`, `auth`)
 - Body: Explain what and why, not how
@@ -89,6 +92,7 @@ git commit -m "<type>(<scope>): <description>"
 ```
 
 **For multi-line commit messages:**
+
 ```bash
 git commit -m "<title>" -m "<body paragraph>"
 ```
@@ -155,6 +159,7 @@ git commit --amend -m "new message"
 **This workflow does NOT push to remote.**
 
 To push after committing, use the `CommitPush` workflow or run:
+
 ```bash
 git push origin <branch>
 ```

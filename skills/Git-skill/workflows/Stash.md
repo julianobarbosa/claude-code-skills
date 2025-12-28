@@ -9,9 +9,11 @@ Temporarily save uncommitted changes.
 
 ## Understanding Stash
 
-Stash saves your working directory and index state without committing, letting you switch context and return later.
+Stash saves your working directory and index state without committing.
+This lets you switch context and return later.
 
 **Use cases:**
+
 - Switch branches with uncommitted work
 - Pull changes without committing WIP
 - Temporarily set aside experiments
@@ -246,6 +248,7 @@ git stash apply <commit-sha>
 | Stack based (LIFO) | Linear history |
 
 **Rule of thumb:**
+
 - Stash: "I need to do something else quickly"
 - Commit: "This is a meaningful unit of work"
 

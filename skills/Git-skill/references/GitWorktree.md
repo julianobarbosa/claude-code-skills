@@ -221,6 +221,7 @@ Error: '<branch>' is already checked out at '<path>'
 ```
 
 **Solutions:**
+
 1. Use a different branch name
 2. Remove existing worktree: `git worktree remove <path>`
 3. Force (dangerous): `git checkout --ignore-other-worktrees`
@@ -232,6 +233,7 @@ Error: '<path>' already exists
 ```
 
 **Solutions:**
+
 1. Remove directory: `rm -rf <path>`
 2. Choose different path
 3. If valid worktree: `git worktree repair <path>`
@@ -243,6 +245,7 @@ Error: '<path>' contains modified or untracked files
 ```
 
 **Solutions:**
+
 1. Commit or stash changes first
 2. Force remove: `git worktree remove --force <path>`
 
@@ -253,6 +256,7 @@ Warning: worktree at '<path>' is missing
 ```
 
 **Solution:**
+
 ```bash
 git worktree prune
 ```
@@ -264,6 +268,7 @@ Error: '<path>' is locked
 ```
 
 **Solutions:**
+
 1. Check reason: `git worktree list`
 2. Unlock: `git worktree unlock <path>`
 

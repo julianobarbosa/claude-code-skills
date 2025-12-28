@@ -275,6 +275,7 @@ trufflehog git file://./
    - Update all systems using it
 
 2. **Remove from history** (if not pushed)
+
    ```bash
    git reset --soft HEAD~1
    # Remove secret from files

@@ -26,6 +26,7 @@ git diff | grep -iE '(api[_-]?key|secret|password|token|credential).*=.*["\047][
 ```
 
 **If sensitive data found:**
+
 1. STOP immediately
 2. Report all findings to user
 3. DO NOT proceed until resolved
@@ -55,6 +56,7 @@ git diff --cached
 ```
 
 **Review checklist:**
+
 - [ ] No credentials or API keys
 - [ ] No `.env` files
 - [ ] No private keys or certificates
@@ -72,6 +74,7 @@ git diff --cached
 ```
 
 **Type selection:**
+
 - `feat`: New feature
 - `fix`: Bug fix
 - `docs`: Documentation only
@@ -84,6 +87,7 @@ git diff --cached
 - `chore`: Maintenance
 
 **Rules:**
+
 - Title max 70 characters
 - Imperative mood ("add" not "added")
 - No period at end
@@ -106,6 +110,7 @@ git push origin $(git branch --show-current)
 ```
 
 **If branch doesn't exist on remote:**
+
 ```bash
 git push -u origin $(git branch --show-current)
 ```

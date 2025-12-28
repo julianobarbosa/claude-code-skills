@@ -127,6 +127,7 @@ git pull --rebase origin main
 Replays your commits on top of remote. Linear history.
 
 **Set as default:**
+
 ```bash
 git config pull.rebase true
 ```

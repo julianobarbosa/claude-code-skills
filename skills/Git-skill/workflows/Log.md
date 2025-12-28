@@ -57,6 +57,7 @@ git log --format="%h %an %s"
 | `%d` | Ref names |
 
 **Example custom format:**
+
 ```bash
 git log --format="%h - %an, %ar : %s"
 # abc1234 - John Doe, 2 days ago : Add feature

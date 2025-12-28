@@ -113,6 +113,7 @@ git status
 ### Resolve Conflicts
 
 1. **Open conflicting files** - Look for conflict markers:
+
    ```
    <<<<<<< HEAD
    your changes
@@ -124,11 +125,13 @@ git status
 2. **Edit to resolve** - Keep desired code, remove markers
 
 3. **Mark as resolved**:
+
    ```bash
    git add <resolved-file>
    ```
 
 4. **Complete merge**:
+
    ```bash
    git commit
    ```

@@ -34,6 +34,7 @@ git branch --no-merged
 ### Create New Branch
 
 **From current HEAD:**
+
 ```bash
 # Create branch
 git branch <branch-name>
@@ -46,6 +47,7 @@ git switch -c <branch-name>
 ```
 
 **From specific commit/branch:**
+
 ```bash
 # Create from another branch
 git checkout -b <new-branch> <source-branch>
@@ -58,6 +60,7 @@ git checkout -b <new-branch> <tag-name>
 ```
 
 **From remote branch:**
+
 ```bash
 # Fetch first
 git fetch origin
@@ -84,6 +87,7 @@ git switch -
 ```
 
 **Before switching:**
+
 ```bash
 # Check for uncommitted changes
 git status
@@ -116,6 +120,7 @@ git push -u origin <new-name>
 ### Delete Branch
 
 **Local branch:**
+
 ```bash
 # Safe delete (only if merged)
 git branch -d <branch-name>
@@ -125,6 +130,7 @@ git branch -D <branch-name>
 ```
 
 **Remote branch:**
+
 ```bash
 # Delete remote branch
 git push origin --delete <branch-name>
@@ -157,6 +163,7 @@ git branch -vv
 | Chore | `chore/<description>` | `chore/update-deps` |
 
 **Rules:**
+
 - Use lowercase
 - Use hyphens, not underscores
 - Keep names concise but descriptive

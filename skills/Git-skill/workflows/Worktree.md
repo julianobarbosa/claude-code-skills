@@ -25,6 +25,7 @@ git worktree list --porcelain
 ```
 
 **Output example:**
+
 ```
 /path/to/main-repo      abc1234 [main]
 /path/to/feature-tree   def5678 [feature/auth]
@@ -34,6 +35,7 @@ git worktree list --porcelain
 ### Add New Worktree
 
 **From existing branch:**
+
 ```bash
 # Add worktree for existing branch
 git worktree add <path> <branch>
@@ -43,6 +45,7 @@ git worktree add ../feature-auth feature/user-authentication
 ```
 
 **Create new branch in worktree:**
+
 ```bash
 # Add worktree with new branch
 git worktree add -b <new-branch> <path> [<start-point>]
@@ -55,6 +58,7 @@ git worktree add -b hotfix/urgent ../hotfix-urgent
 ```
 
 **From detached HEAD:**
+
 ```bash
 # Checkout specific commit without branch
 git worktree add --detach <path> <commit>
@@ -64,6 +68,7 @@ git worktree add --detach ../investigate abc1234
 ```
 
 **From remote branch:**
+
 ```bash
 # Fetch first
 git fetch origin
@@ -78,6 +83,7 @@ git worktree add --track -b feature/x ../feature-x origin/feature/x
 ### Remove Worktree
 
 **Standard removal:**
+
 ```bash
 # Remove worktree (after it's clean)
 git worktree remove <path>
@@ -87,6 +93,7 @@ git worktree remove ../feature-auth
 ```
 
 **Force removal:**
+
 ```bash
 # Force remove (discards changes)
 git worktree remove --force <path>
@@ -228,6 +235,7 @@ cd ../build-prod && npm run build &
 ## Directory Structure Best Practices
 
 **Recommended layout:**
+
 ```
 ~/projects/
 ├── my-project/              # Main worktree (bare or with main branch)
@@ -237,6 +245,7 @@ cd ../build-prod && npm run build &
 ```
 
 **Or nested approach:**
+
 ```
 ~/projects/
 └── my-project/

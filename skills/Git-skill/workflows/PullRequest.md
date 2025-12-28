@@ -32,6 +32,7 @@ git branch --show-current
 ```
 
 **If `gh` not available:**
+
 ```
 GitHub CLI is required for this workflow.
 
@@ -73,11 +74,13 @@ git diff origin/main
 ### Step 4: Generate PR Content
 
 **Title format:**
+
 ```
 <type>(<scope>): <concise description>
 ```
 
 **Description template:**
+
 ```markdown
 ## Summary
 
@@ -125,6 +128,7 @@ EOF
 ```
 
 **With reviewers:**
+
 ```bash
 gh pr create \
   --title "<title>" \
@@ -134,6 +138,7 @@ gh pr create \
 ```
 
 **As draft:**
+
 ```bash
 gh pr create \
   --title "<title>" \

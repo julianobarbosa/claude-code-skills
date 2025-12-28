@@ -11,6 +11,7 @@ Reapply commits on top of another base.
 ## Understanding Rebase
 
 Rebase rewrites commit history by:
+
 1. Taking your commits
 2. Temporarily removing them
 3. Applying target branch commits
@@ -79,6 +80,7 @@ git rebase --abort
 ### Step 4: Force Push (if already pushed)
 
 **DANGER: Only do this on YOUR branch:**
+
 ```bash
 # Force push rebased branch
 git push --force-with-lease origin feature/my-feature
@@ -112,6 +114,7 @@ drop   - Remove commit
 ### Common Interactive Operations
 
 **Squash multiple commits:**
+
 ```bash
 git rebase -i HEAD~3
 
@@ -124,6 +127,7 @@ squash ghi9012 Third commit
 ```
 
 **Reword commit message:**
+
 ```bash
 git rebase -i HEAD~2
 
@@ -134,6 +138,7 @@ reword abc1234 Old message
 ```
 
 **Reorder commits:**
+
 ```bash
 git rebase -i HEAD~3
 
@@ -144,6 +149,7 @@ pick def5678 Second commit
 ```
 
 **Drop a commit:**
+
 ```bash
 git rebase -i HEAD~3
 

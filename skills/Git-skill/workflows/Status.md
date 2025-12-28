@@ -23,7 +23,7 @@ git status -sb
 
 ### Full Status Format
 
-```
+```text
 On branch main
 Your branch is ahead of 'origin/main' by 2 commits.
 
@@ -44,7 +44,7 @@ Untracked files:
 
 ### Short Status Format
 
-```
+```text
  M file1.js    # Modified (unstaged)
 M  file2.js    # Modified (staged)
 MM file3.js    # Modified (staged + unstaged)
@@ -56,6 +56,7 @@ D  file6.js    # Deleted (staged)
 ```
 
 **Position meanings:**
+
 - First column: Staged changes
 - Second column: Unstaged changes
 
@@ -169,7 +170,7 @@ git rev-parse --show-prefix
 
 ### Clean Working Directory
 
-```
+```text
 On branch main
 Your branch is up to date with 'origin/main'.
 
@@ -178,7 +179,7 @@ nothing to commit, working tree clean
 
 ### Ready to Commit
 
-```
+```text
 On branch feature/xyz
 Changes to be committed:
         modified:   src/app.js
@@ -189,7 +190,7 @@ All staged - ready for: git commit
 
 ### Need to Stage
 
-```
+```text
 On branch feature/xyz
 Changes not staged for commit:
         modified:   src/app.js
@@ -199,7 +200,7 @@ Stage with: git add src/app.js
 
 ### Ahead of Remote
 
-```
+```text
 Your branch is ahead of 'origin/main' by 3 commits.
 
 Push with: git push origin main
@@ -207,7 +208,7 @@ Push with: git push origin main
 
 ### Behind Remote
 
-```
+```text
 Your branch is behind 'origin/main' by 2 commits.
 
 Pull with: git pull origin main
@@ -215,7 +216,7 @@ Pull with: git pull origin main
 
 ### Diverged
 
-```
+```text
 Your branch and 'origin/main' have diverged,
 and have 2 and 3 different commits each.
 
@@ -228,7 +229,7 @@ Options:
 
 Provide status in this structured format:
 
-```
+```text
 Repository Status
 ─────────────────
 

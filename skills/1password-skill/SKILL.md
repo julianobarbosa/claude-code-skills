@@ -645,6 +645,7 @@ git config --list | grep credential
 ```
 
 Should show:
+
 ```
 credential.https://github.com.helper=!/opt/homebrew/bin/gh auth git-credential
 ```

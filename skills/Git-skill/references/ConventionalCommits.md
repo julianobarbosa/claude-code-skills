@@ -31,6 +31,7 @@ A specification for adding human and machine-readable meaning to commit messages
 ## Breaking Changes
 
 Indicate breaking changes with:
+
 - `!` after type/scope: `feat!: remove deprecated API`
 - `BREAKING CHANGE:` in footer
 
@@ -83,7 +84,7 @@ the timeout timer.
 Fixes #256
 ```
 
-### Breaking Changes
+### Breaking Change Examples
 
 ```
 feat(api)!: change authentication to JWT
