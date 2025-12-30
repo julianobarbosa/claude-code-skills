@@ -1,0 +1,92 @@
+# Multi-Image Application Configuration
+# Handle applications with multiple container images
+---
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: multi-image-updater
+  namespace: argocd
+spec:
+  namespace: argocd
+  interval: 5m
+
+  # Global settings applied to all images unless overridden
+  commonUpdateSettings:
+    updateStrategy: semver
+
+  # Multiple registries configuration
+  registries:
+    - name: production-registry
+      prefix: prod.registry.io
+      apiUrl: https://prod.registry.io
+      credentials:
+        pullSecretRef:
+          name: prod-registry-creds
+          namespace: argocd
+    - name: development-registry
+      prefix: dev.registry.io
+      apiUrl: https://dev.registry.io
+      credentials:
+        pullSecretRef:
+          name: dev-registry-creds
+          namespace: argocd
+
+  writeBackConfig:
+    method: git
+    gitConfig:
+      repository: git@github.com:myorg/app-configs.git
+      branch: main
+      writeBackTarget: helmvalues:./values.yaml
+      credentials:
+        sshPrivateKeySecret:
+          name: git-ssh-key
+          key: sshPrivateKey
+
+  applicationRefs:
+    - namePattern: microservices-*
+      images:
+        # Backend API - uses semver (from global)
+        - alias: backend
+          imageName: prod.registry.io/backend
+          tagMatch:
+            pattern: "^v[0-9]+\\.[0-9]+\\.[0-9]+$"
+          manifestTargets:
+            helm:
+              name: "backend.image.repository"
+              tag: "backend.image.tag"
+
+        # Frontend - also semver with specific constraint
+        - alias: frontend
+          imageName: prod.registry.io/frontend:1.x
+          manifestTargets:
+            helm:
+              name: "frontend.image.repository"
+              tag: "frontend.image.tag"
+
+        # Worker - tracks latest digest
+        - alias: worker
+          imageName: prod.registry.io/worker:main
+          commonUpdateSettings:
+            updateStrategy: digest  # Override global
+          manifestTargets:
+            helm:
+              name: "worker.image.repository"
+              tag: "worker.image.tag"
+
+        # Sidecar - newest build by timestamp
+        - alias: sidecar
+          imageName: prod.registry.io/sidecar
+          commonUpdateSettings:
+            updateStrategy: newest-build
+          tagMatch:
+            pattern: "^main-[a-f0-9]{7}$"  # main-<short-sha>
+          manifestTargets:
+            helm:
+              name: "sidecar.image.repository"
+              tag: "sidecar.image.tag"
+---
+# Strategy Per Image Summary:
+# - backend:  semver (stable releases only)
+# - frontend: semver with 1.x constraint
+# - worker:   digest (track mutable :main tag)
+# - sidecar:  newest-build (CI/CD pipeline tags)

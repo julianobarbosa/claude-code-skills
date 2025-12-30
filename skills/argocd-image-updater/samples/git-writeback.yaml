@@ -1,0 +1,105 @@
+# Git Write-Back Configuration Examples
+# Commit image updates directly to Git repositories
+---
+# Example 1: SSH Key Authentication with .argocd-source file (default)
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: git-writeback-ssh
+  namespace: argocd
+spec:
+  namespace: argocd
+  interval: 5m
+
+  writeBackConfig:
+    method: git
+    gitConfig:
+      repository: git@github.com:myorg/myrepo.git
+      branch: main
+      credentials:
+        sshPrivateKeySecret:
+          name: git-ssh-key
+          key: sshPrivateKey
+      commitMessage: |
+        chore: update {{ .ImageAlias }} to {{ .NewTag }}
+
+        Application: {{ .AppName }}
+        Previous: {{ .OldTag }}
+        Strategy: {{ .UpdateStrategy }}
+      commitAuthor:
+        name: ArgoCD Image Updater
+        email: image-updater@example.com
+
+  applicationRefs:
+    - namePattern: my-app
+      images:
+        - alias: app
+          imageName: myregistry/app
+          commonUpdateSettings:
+            updateStrategy: semver
+---
+# Example 2: HTTPS Token Authentication with Helm values target
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: git-writeback-https
+  namespace: argocd
+spec:
+  namespace: argocd
+
+  writeBackConfig:
+    method: git
+    gitConfig:
+      repository: https://github.com/myorg/helm-values.git
+      branch: main
+      # writeBackTarget format: "<type>:<path>"
+      # Supported types: helmvalues, kustomization
+      # Path is RELATIVE TO THE REPOSITORY ROOT (not the Application path)
+      # Example: "helmvalues:./production/values.yaml" writes to <repo-root>/production/values.yaml
+      writeBackTarget: helmvalues:./production/values.yaml
+      credentials:
+        usernamePasswordSecret:
+          name: github-token
+          usernameKey: username
+          passwordKey: password
+      commitMessage: "chore(prod): bump {{ .ImageAlias }} to {{ .NewTag }}"
+
+  applicationRefs:
+    - namePattern: production-*
+      images:
+        - alias: backend
+          imageName: myregistry/backend
+          manifestTargets:
+            helm:
+              name: "backend.image.repository"
+              tag: "backend.image.tag"
+---
+# Example 3: Using ArgoCD Repository Credentials
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: git-writeback-argocd-creds
+  namespace: argocd
+spec:
+  writeBackConfig:
+    method: git
+    gitConfig:
+      repository: git@github.com:myorg/myrepo.git
+      branch: main
+      writeBackTarget: kustomization
+      credentials:
+        argocdRepoServer: true  # Use credentials from ArgoCD
+
+  applicationRefs:
+    - namePattern: kustomize-app
+      images:
+        - alias: app
+          imageName: myregistry/app
+---
+# Commit Message Template Variables:
+# {{ .AppName }}        - Argo CD application name
+# {{ .ImageName }}      - Full image name
+# {{ .ImageAlias }}     - Image alias
+# {{ .NewTag }}         - New image tag
+# {{ .OldTag }}         - Previous image tag
+# {{ .UpdateStrategy }} - Strategy used

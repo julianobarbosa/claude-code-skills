@@ -1,0 +1,23 @@
+# Basic ImageUpdater CR Example
+# Minimal configuration to get started with ArgoCD Image Updater
+---
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: basic-updater
+  namespace: argocd
+spec:
+  # Default namespace for applications (optional)
+  namespace: argocd
+
+  # Check interval (default: 2m)
+  interval: 2m
+
+  # Applications to monitor
+  applicationRefs:
+    - namePattern: "my-app"  # Exact match
+      images:
+        - alias: "app"
+          imageName: "myregistry.example.com/myapp"
+          commonUpdateSettings:
+            updateStrategy: "semver"  # Use semantic versioning

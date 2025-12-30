@@ -1,0 +1,52 @@
+# Semver Update Strategy Examples
+# Various configurations for semantic versioning
+---
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: semver-updater
+  namespace: argocd
+spec:
+  namespace: argocd
+  interval: 5m
+
+  applicationRefs:
+    - namePattern: "production-*"  # Wildcard pattern
+      images:
+        # Example 1: Any 1.x.x version
+        - alias: "backend"
+          imageName: "myregistry/backend:1.x"
+          commonUpdateSettings:
+            updateStrategy: "semver"
+          tagMatch:
+            pattern: "^v?[0-9]+\\.[0-9]+\\.[0-9]+$"  # Only stable releases
+
+        # Example 2: Patch updates only (1.2.x)
+        - alias: "api"
+          imageName: "myregistry/api:~1.2.0"
+          commonUpdateSettings:
+            updateStrategy: "semver"
+
+        # Example 3: Minor updates (^1.2.0 -> 1.x.x)
+        - alias: "frontend"
+          imageName: "myregistry/frontend:^1.2.0"
+          commonUpdateSettings:
+            updateStrategy: "semver"
+
+        # Example 4: Include pre-releases
+        - alias: "staging-app"
+          imageName: "myregistry/app"
+          commonUpdateSettings:
+            updateStrategy: "semver"
+            allowPreRelease: true
+          tagIgnore:
+            pattern: ".*-alpha.*"  # But exclude alpha releases
+---
+# Constraint Reference:
+# 1.x or 1.*     -> Any 1.x.x (1.0.0 to 1.99.99)
+# 1.2.x          -> Any 1.2.x (1.2.0 to 1.2.99)
+# >=1.0.0        -> Greater or equal to 1.0.0
+# <2.0.0         -> Less than 2.0.0
+# >=1.0.0 <2.0.0 -> Range between 1.0.0 and 1.99.99
+# ~1.2.3         -> Patch updates only (1.2.3 to 1.2.99)
+# ^1.2.3         -> Minor updates (1.2.3 to 1.99.99)
