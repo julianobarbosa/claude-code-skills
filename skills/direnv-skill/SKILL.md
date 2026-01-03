@@ -5,103 +5,154 @@ description: Guide for using direnv - a shell extension for loading directory-sp
 
 # direnv Skill
 
-Shell extension for loading and unloading environment variables based on the current directory.
+This skill provides comprehensive guidance for working with direnv, covering installation, configuration, stdlib functions, and best practices for per-project environment management.
 
-## Overview
+## When to Use This Skill
 
-direnv enables:
+Use this skill when:
+- Installing and configuring direnv on macOS or Linux
+- Creating or modifying `.envrc` files for projects
+- Setting up per-project environment variables
+- Configuring language-specific layouts (Python, Node.js, Ruby, Go, Perl)
+- Integrating direnv with Nix or Nix Flakes
+- Managing secrets and environment configuration for teams
+- Troubleshooting environment loading issues
+- Creating custom direnv extensions
 
-- Per-project environment configurations
-- Automatic loading of 12-factor app environment variables
-- Isolated development environments with language-specific layouts
-- Secure allowlist-based security model
-- Integration with Nix, asdf, and version managers
+## Core Concepts
 
-## Quick Start
+### What is direnv?
+direnv is a shell extension that loads and unloads environment variables based on the current directory. When you `cd` into a directory with a `.envrc` file, direnv automatically loads the environment. When you leave, it unloads the changes.
 
-### Installation
+### Security Model
+direnv uses an allowlist-based security approach:
+- New or modified `.envrc` files must be explicitly allowed with `direnv allow`
+- Prevents automatic execution of untrusted scripts
+- Use `direnv deny` to revoke access
+
+### How It Works
+1. Shell hook intercepts directory changes
+2. Checks for `.envrc` file in current or parent directories
+3. If allowed, executes `.envrc` in a bash subshell
+4. Captures exported variables and applies them to current shell
+
+## Installation
+
+### macOS (Homebrew - Recommended)
 
 ```bash
-# macOS
 brew install direnv
+```
 
-# Linux (Debian/Ubuntu)
+### Linux
+
+```bash
+# Ubuntu/Debian
 sudo apt install direnv
 
-# Linux (binary)
-curl -sfL https://direnv.net/install.sh | bash
+# Fedora
+sudo dnf install direnv
 
-# Verify
+# Arch
+sudo pacman -S direnv
+
+# Binary installer (any system)
+curl -sfL https://direnv.net/install.sh | bash
+```
+
+### Verify Installation
+
+```bash
 direnv version
 ```
 
-### Shell Hook Configuration
+## Shell Configuration
 
-**Zsh** (`~/.zshrc`):
+Add the hook to your shell's config file. **This is required for direnv to function.**
+
+### Zsh (~/.zshrc)
 
 ```bash
 eval "$(direnv hook zsh)"
 ```
 
-**Bash** (`~/.bashrc`):
+**With Oh My Zsh:**
+```bash
+plugins=(... direnv)
+```
+
+### Bash (~/.bashrc)
 
 ```bash
 eval "$(direnv hook bash)"
 ```
 
-**Fish** (`~/.config/fish/config.fish`):
+**Important:** Place after rvm, git-prompt, and other prompt-modifying extensions.
+
+### Fish (~/.config/fish/config.fish)
 
 ```fish
 direnv hook fish | source
 ```
 
-> Place hook at end of file, after other shell extensions.
+### After Configuration
 
-### Basic Usage
-
+Restart your shell:
 ```bash
-# Create .envrc
-echo 'export MY_VAR=value' > .envrc
-
-# Allow the .envrc (required for security)
-direnv allow
-
-# Block an .envrc
-direnv deny
-
-# Force reload
-direnv reload
-
-# Check status
-direnv status
+exec $SHELL
 ```
 
-## Essential Commands
+## .envrc File Basics
 
-| Command | Description |
-|---------|-------------|
-| `direnv allow [path]` | Allow/trust an .envrc file |
-| `direnv deny [path]` | Revoke trust from .envrc |
-| `direnv reload` | Force reload current .envrc |
-| `direnv status` | Show current direnv state |
-| `direnv edit` | Open .envrc in $EDITOR |
-| `direnv prune` | Remove expired/revoked .envrc |
-| `direnv version` | Show installed version |
+### Creating an .envrc
 
-## Standard Library (stdlib)
+```bash
+# In your project directory
+touch .envrc
 
-direnv includes a powerful stdlib. Use these functions instead of raw exports.
+# Edit with your preferred editor
+vim .envrc
+```
+
+### Basic Syntax
+
+```bash
+# Export environment variables
+export NODE_ENV=development
+export API_URL=http://localhost:3000
+export DATABASE_URL=postgres://localhost/myapp
+
+# The export keyword is required for direnv to capture variables
+```
+
+### Allowing the .envrc
+
+```bash
+# Allow current directory
+direnv allow
+
+# Allow specific path
+direnv allow /path/to/project
+
+# Deny/revoke access
+direnv deny
+```
+
+## Standard Library Functions
+
+direnv includes a powerful stdlib. Always prefer stdlib functions over manual exports.
 
 ### PATH Management
 
 ```bash
-# Add to PATH (prepends safely)
+# Prepend to PATH (safer than manual export)
 PATH_add bin
 PATH_add node_modules/.bin
 PATH_add scripts
 
-# Add multiple paths
-PATH_add bin scripts tools
+# Add to arbitrary path-like variable
+path_add PYTHONPATH lib
+path_add LD_LIBRARY_PATH /opt/lib
 
 # Remove from PATH
 PATH_rm "*/.git/bin"
@@ -110,47 +161,66 @@ PATH_rm "*/.git/bin"
 ### Environment File Loading
 
 ```bash
-# Load .env file
+# Load .env file (current directory)
 dotenv
 
 # Load specific file
 dotenv .env.local
 
-# Load if exists (no error if missing)
+# Load only if exists (no error)
 dotenv_if_exists .env.local
+dotenv_if_exists .env.${USER}
 
-# Load parent .envrc
+# Source another .envrc
+source_env ../.envrc
+source_env /path/to/.envrc
+
+# Search upward and source parent .envrc
 source_up
 
-# Load specific .envrc
-source_env ../.envrc
-
-# Load if exists
+# Source if exists
 source_env_if_exists .envrc.local
 ```
 
 ### Language Layouts
 
+**Node.js:**
 ```bash
-# Python - creates virtualenv in .direnv/
+# Adds node_modules/.bin to PATH
+layout node
+```
+
+**Python:**
+```bash
+# Creates virtualenv in .direnv/python-X.X/
 layout python
-layout python3
+
+# Use specific Python version
 layout python python3.11
 
-# Node.js - adds node_modules/.bin to PATH
-layout node
+# Shortcut for Python 3
+layout python3
 
-# Ruby - sets GEM_HOME
-layout ruby
-
-# Go - configures GOPATH
-layout go
-
-# Perl - local::lib
-layout perl
-
-# Pipenv
+# Use Pipenv (reads from Pipfile)
 layout pipenv
+```
+
+**Ruby:**
+```bash
+# Sets GEM_HOME to project directory
+layout ruby
+```
+
+**Go:**
+```bash
+# Modifies GOPATH and adds bin to PATH
+layout go
+```
+
+**Perl:**
+```bash
+# Configures local::lib environment
+layout perl
 ```
 
 ### Nix Integration
@@ -159,14 +229,22 @@ layout pipenv
 # Load nix-shell environment
 use nix
 
-# Load Nix flake
+# With specific file
+use nix shell.nix
+
+# Load from Nix flake
 use flake
 
-# Specific flake
+# Load specific flake
 use flake "nixpkgs#hello"
+use flake ".#devShell"
 ```
 
-> For better flakes support: [nix-direnv](https://github.com/nix-community/nix-direnv)
+**For better Nix Flakes support, install nix-direnv:**
+```bash
+# Provides faster, cached use_flake implementation
+# https://github.com/nix-community/nix-direnv
+```
 
 ### Version Managers
 
@@ -174,119 +252,175 @@ use flake "nixpkgs#hello"
 # rbenv
 use rbenv
 
-# Node.js (fuzzy matching)
+# Node.js (with fuzzy version matching)
 use node 18
 use node 18.17.0
 
-# From .nvmrc
+# Reads from .nvmrc if version not specified
 use node
+
+# Julia
+use julia 1.9
 ```
 
 ### Validation
 
 ```bash
-# Require variables
-env_vars_required API_KEY DATABASE_URL
+# Require environment variables (errors if missing)
+env_vars_required API_KEY DATABASE_URL SECRET_KEY
 
-# Watch for file changes
-watch_file package.json
-watch_file config/*.yaml
-watch_dir config
+# Enforce minimum direnv version
+direnv_version 2.32.0
 
 # Check git branch
 if on_git_branch main; then
   export DEPLOY_ENV=production
 fi
-
-# Minimum version
-direnv_version 2.32.0
-
-# Strict mode (exit on errors)
-strict_env
+if on_git_branch develop; then
+  export DEPLOY_ENV=staging
+fi
 ```
 
-## Recommended .envrc Template
+### File Watching
+
+```bash
+# Reload when files change
+watch_file package.json
+watch_file requirements.txt
+watch_file .tool-versions
+watch_file config/*.yaml
+
+# Watch entire directory
+watch_dir config
+watch_dir migrations
+```
+
+### Utility Functions
+
+```bash
+# Check if command exists
+if has docker; then
+  export DOCKER_HOST=unix:///var/run/docker.sock
+fi
+
+# Expand relative path to absolute
+expand_path ./bin
+
+# Find file searching upward
+find_up package.json
+
+# Enable strict mode (exit on errors)
+strict_env
+
+# Load prefix (configures CPATH, LD_LIBRARY_PATH, etc.)
+load_prefix /usr/local/custom
+
+# Load remote script with integrity verification
+source_url https://example.com/script.sh "sha256-HASH..."
+```
+
+## Best Practices
+
+### Recommended .envrc Template
 
 ```bash
 #!/usr/bin/env bash
 # .envrc - Project environment configuration
 
-# Enforce direnv version
+# Enforce direnv version for team consistency
 direnv_version 2.32.0
 
-# Load .env file if exists
+# Load .env if exists
 dotenv_if_exists
 
-# Load local overrides (not committed)
+# Load local overrides (not committed to git)
 source_env_if_exists .envrc.local
 
 # Language-specific layout
-layout node
-# or: layout python3
+layout node  # or: layout python3
 
-# Add project paths
+# Add project bin directories
 PATH_add bin
 PATH_add scripts
 
-# Development settings
-export NODE_ENV=development
-export LOG_LEVEL=debug
+# Development defaults
+export NODE_ENV="${NODE_ENV:-development}"
+export LOG_LEVEL="${LOG_LEVEL:-debug}"
 
-# Watch configuration files
+# Watch for dependency changes
 watch_file package.json
-watch_file .tool-versions
+watch_file .nvmrc
 ```
 
-## Project Structure Best Practice
+### Git Configuration
 
-```
-my-project/
-├── .envrc           # Development environment (committed)
-├── .envrc.local     # Local overrides (gitignored)
-├── .env             # Environment variables (gitignored)
-├── .env.example     # Template for team members (committed)
-└── .direnv/         # Cache directory (gitignored)
-```
-
-### .gitignore
-
+**.gitignore:**
 ```gitignore
 # Environment files with secrets
 .env
 .env.local
 .envrc.local
 
-# direnv cache
+# direnv virtualenv/cache
 .direnv/
 ```
 
-## Layered Configuration
+**Commit to repository:**
+- `.envrc` (base configuration, no secrets)
+- `.env.example` (template for team members)
 
-Use parent directory inheritance:
+### Secrets Management
+
+**Never commit secrets.** Use environment variable fallbacks:
+
+```bash
+# .envrc (committed)
+export DATABASE_URL="${DATABASE_URL:-postgres://localhost/dev}"
+export API_KEY="${API_KEY:-}"
+
+# Validate required secrets
+env_vars_required API_KEY
+
+# .envrc.local (gitignored)
+export DATABASE_URL="postgres://user:secret@prod/app"
+export API_KEY="actual-secret-key"
+```
+
+### Layered Configuration
 
 ```bash
 # ~/projects/.envrc (global dev settings)
 export EDITOR=vim
-export PAGER=less
 
 # ~/projects/api/.envrc
-source_up  # Inherit from parent
+source_up
 export API_PORT=3000
-layout node
 
-# ~/projects/api/feature-x/.envrc
-source_up  # Inherit from api
+# ~/projects/api/feature/.envrc
+source_up
 export FEATURE_FLAG=true
+```
+
+### Project Structure
+
+```
+my-project/
+├── .envrc           # Base environment (committed)
+├── .envrc.local     # Local overrides (gitignored)
+├── .env             # Environment variables (gitignored)
+├── .env.example     # Template for team (committed)
+└── .direnv/         # direnv cache (gitignored)
 ```
 
 ## Custom Extensions
 
-Create at `~/.config/direnv/direnvrc`:
+Create `~/.config/direnv/direnvrc` for custom functions:
 
 ```bash
+#!/usr/bin/env bash
 # ~/.config/direnv/direnvrc
 
-# Kubernetes context switcher
+# Custom function: Use specific Kubernetes context
 use_kubernetes() {
   local context="${1:-default}"
   export KUBECONFIG="${HOME}/.kube/config"
@@ -294,120 +428,47 @@ use_kubernetes() {
   log_status "kubernetes context: $context"
 }
 
-# AWS profile switcher
-use_aws() {
-  local profile="${1:-default}"
-  export AWS_PROFILE="$profile"
-  log_status "aws profile: $profile"
+# Custom function: Load from AWS Secrets Manager
+use_aws_secrets() {
+  local secret_name="$1"
+  local region="${2:-us-east-1}"
+  eval "$(aws secretsmanager get-secret-value \
+    --secret-id "$secret_name" \
+    --region "$region" \
+    --query SecretString \
+    --output text | jq -r 'to_entries | .[] | "export \(.key)=\"\(.value)\""')"
+  log_status "loaded secrets from: $secret_name"
 }
 
-# Azure subscription
-use_azure() {
-  local subscription="$1"
-  export AZURE_SUBSCRIPTION="$subscription"
-  az account set --subscription "$subscription" >/dev/null 2>&1
-  log_status "azure subscription: $subscription"
-}
-
-# uv Python layout (modern alternative)
-layout_uv() {
-  if ! has uv; then
-    log_error "uv not found. Install: curl -LsSf https://astral.sh/uv/install.sh | sh"
-    return 1
-  fi
-
-  VIRTUAL_ENV="$(pwd)/.venv"
-  if [[ ! -d "$VIRTUAL_ENV" ]]; then
-    uv venv
-  fi
-
-  PATH_add "$VIRTUAL_ENV/bin"
-  export VIRTUAL_ENV
+# Custom function: Use asdf versions from .tool-versions
+use_asdf() {
+  watch_file .tool-versions
+  source_env "$(asdf direnv local)"
 }
 ```
 
-Usage in .envrc:
-
+Usage in `.envrc`:
 ```bash
 use kubernetes dev-cluster
-use aws production
-layout uv
+use aws_secrets myapp/dev
+use asdf
 ```
 
-## Common Patterns
+## Commands Reference
 
-### Python with uv
+| Command | Description |
+|---------|-------------|
+| `direnv allow` | Allow the current .envrc |
+| `direnv deny` | Revoke .envrc access |
+| `direnv reload` | Force reload environment |
+| `direnv status` | Show current status |
+| `direnv dump` | Dump current environment |
+| `direnv edit` | Open .envrc in editor |
+| `direnv version` | Show direnv version |
 
-```bash
-# .envrc
-direnv_version 2.32.0
-dotenv_if_exists
+## Troubleshooting
 
-# Use uv for Python
-if has uv; then
-  layout_uv
-else
-  layout python3
-fi
-
-export PYTHONDONTWRITEBYTECODE=1
-```
-
-### Node.js Project
-
-```bash
-# .envrc
-direnv_version 2.32.0
-dotenv_if_exists
-source_env_if_exists .envrc.local
-
-layout node
-
-export NODE_ENV=development
-export PORT=3000
-
-watch_file package.json
-```
-
-### Kubernetes Development
-
-```bash
-# .envrc
-dotenv_if_exists
-
-use_kubernetes dev-cluster
-
-export KUBECONFIG="${HOME}/.kube/config"
-export KUBE_NAMESPACE=my-app
-
-PATH_add bin
-```
-
-### Multi-Environment Support
-
-```bash
-# .envrc
-direnv_version 2.32.0
-
-# Determine environment
-if on_git_branch main; then
-  ENV=production
-elif on_git_branch staging; then
-  ENV=staging
-else
-  ENV=development
-fi
-
-export APP_ENV="$ENV"
-
-# Load environment-specific config
-dotenv_if_exists ".env.$ENV"
-source_env_if_exists ".envrc.$ENV"
-
-log_status "environment: $ENV"
-```
-
-## Troubleshooting Quick Reference
+### Environment Not Loading
 
 ```bash
 # Check status
@@ -419,59 +480,106 @@ direnv reload
 # Re-allow .envrc
 direnv allow
 
-# Debug environment
-direnv dump
-direnv show_dump
-
-# Export for debugging
-direnv export bash
+# Check if hook is installed
+echo $DIRENV_DIR
 ```
 
-### Common Issues
+### Shell Hook Issues
 
-| Issue | Solution |
-|-------|----------|
-| Environment not loading | Run `direnv allow` |
-| Hook not working | Verify hook in shell config, restart shell |
-| Slow loading | Use nix-direnv for Nix; reduce watch_file calls |
-| Variables not unloading | Check for `export -f` functions; restart shell |
+1. Verify hook is in shell config file
+2. Ensure it's at the END of the file
+3. Restart shell completely: `exec $SHELL`
+4. Check for errors: `direnv hook zsh`
+
+### Performance Issues
+
+```bash
+# Show what's being evaluated
+direnv show_dump
+
+# For Nix, use nix-direnv for caching
+# https://github.com/nix-community/nix-direnv
+```
+
+### Debugging
+
+```bash
+# Verbose output
+export DIRENV_LOG_FORMAT='%s'
+
+# Show exported variables
+direnv dump | jq
+
+# Test .envrc syntax
+bash -n .envrc
+```
 
 ## IDE Integration
 
 ### VS Code
+Install [direnv extension](https://marketplace.visualstudio.com/items?itemName=mkhl.direnv) for automatic environment loading in integrated terminal.
 
-Install [direnv extension](https://marketplace.visualstudio.com/items?itemName=mkhl.direnv).
-
-### JetBrains IDEs
-
+### JetBrains
 Install [direnv integration plugin](https://plugins.jetbrains.com/plugin/15285-direnv-integration).
 
-### Emacs
+### Neovim
+Use [direnv.vim](https://github.com/direnv/direnv.vim) or configure with lua.
 
-```elisp
-(use-package envrc
-  :hook (after-init . envrc-global-mode))
+## Common Patterns
+
+### Development vs Production
+
+```bash
+# .envrc
+export NODE_ENV="${NODE_ENV:-development}"
+
+if [[ "$NODE_ENV" == "development" ]]; then
+  export DEBUG=true
+  export LOG_LEVEL=debug
+else
+  export DEBUG=false
+  export LOG_LEVEL=info
+fi
 ```
 
-### Vim/Neovim
+### Multi-Service Projects (Monorepo)
 
-```vim
-" Use direnv.vim plugin
-Plug 'direnv/direnv.vim'
+```bash
+# root/.envrc
+export PROJECT_ROOT="$(pwd)"
+export COMPOSE_PROJECT_NAME=myapp
+
+# services/api/.envrc
+source_up
+export SERVICE_NAME=api
+export SERVICE_PORT=3000
+
+# services/web/.envrc
+source_up
+export SERVICE_NAME=web
+export SERVICE_PORT=8080
 ```
 
-## Security Notes
+### Docker Integration
 
-1. **Always review .envrc before allowing** - direnv executes arbitrary code
-2. **Never commit secrets** - Use .env files in .gitignore
-3. **Use .envrc.local for sensitive overrides** - Keep local, never commit
-4. **Trust hierarchy** - Parent directories can override child settings
+```bash
+# .envrc
+export COMPOSE_FILE=docker-compose.yml
+export COMPOSE_PROJECT_NAME="${PWD##*/}"
+
+if has docker-compose; then
+  export DOCKER_HOST="${DOCKER_HOST:-unix:///var/run/docker.sock}"
+fi
+
+# Add Docker bin for containers that install CLI tools
+PATH_add .docker/bin
+```
 
 ## References
 
-- `references/installation.md` - Complete installation guide
-- `references/stdlib-functions.md` - Full stdlib reference
-- `references/troubleshooting.md` - Extended troubleshooting
-- Official docs: <https://direnv.net/>
-- Stdlib reference: <https://direnv.net/man/direnv-stdlib.1.html>
-- nix-direnv: <https://github.com/nix-community/nix-direnv>
+- [Official Documentation](https://direnv.net/)
+- [Installation Guide](https://direnv.net/docs/installation.html)
+- [Shell Hook Setup](https://direnv.net/docs/hook.html)
+- [Standard Library Reference](https://direnv.net/man/direnv-stdlib.1.html)
+- [nix-direnv](https://github.com/nix-community/nix-direnv)
+- [Homebrew Formula](https://formulae.brew.sh/formula/direnv)
