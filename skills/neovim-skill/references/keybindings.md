@@ -205,19 +205,21 @@ Complete reference for all keybindings in this Neovim configuration.
 | `R` | Refresh |
 | `H` | Toggle hidden files |
 
-## Completion
+## Completion (blink.cmp with super-tab preset)
+
+Using `super-tab` preset - Tab/S-Tab for menu navigation and snippet jumping.
 
 | Key | Action | Mode |
 |-----|--------|------|
-| `<C-n>` | Select next item | Insert |
-| `<C-p>` | Select previous item | Insert |
+| `<Tab>` | Next item / Jump to next snippet placeholder | Insert, Select |
+| `<S-Tab>` | Previous item / Jump to previous snippet placeholder | Insert, Select |
+| `<CR>` | Confirm selection | Insert |
+| `<C-Space>` | Show/toggle completion menu | Insert |
+| `<C-e>` | Close completion | Insert |
 | `<C-b>` | Scroll docs up | Insert |
 | `<C-f>` | Scroll docs down | Insert |
-| `<C-Space>` | Trigger completion | Insert |
-| `<C-e>` | Close completion | Insert |
-| `<CR>` | Confirm selection | Insert |
-| `<Tab>` | Next item/snippet | Insert, Select |
-| `<S-Tab>` | Previous item/snippet | Insert, Select |
+
+**Note:** When no completion menu is visible, Tab inserts a normal tab character.
 
 ## Debugging (DAP)
 

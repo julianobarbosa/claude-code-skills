@@ -173,6 +173,18 @@ local servers = {
 
 ## Completion (blink.cmp)
 
+### Keymap Presets
+
+blink.cmp provides keymap presets for common configurations:
+
+| Preset | Navigation | Description |
+|--------|------------|-------------|
+| `default` | `<C-n>`/`<C-p>` | Classic Vim-style navigation |
+| `super-tab` | `<Tab>`/`<S-Tab>` | Tab navigates items and snippet placeholders |
+| `enter` | `<C-n>`/`<C-p>` | Enter confirms, Tab for snippets only |
+
+### Current Configuration (super-tab)
+
 ```lua
 {
   "saghen/blink.cmp",
@@ -180,21 +192,44 @@ local servers = {
   event = "InsertEnter",
   dependencies = { "rafamadriz/friendly-snippets" },
   opts = {
-    keymap = {
-      ["<C-space>"] = { "show", "show_documentation", "hide_documentation" },
-      ["<C-e>"] = { "hide" },
-      ["<CR>"] = { "accept", "fallback" },
-      ["<Tab>"] = { "select_next", "snippet_forward", "fallback" },
-      ["<S-Tab>"] = { "select_prev", "snippet_backward", "fallback" },
-      ["<C-b>"] = { "scroll_documentation_up", "fallback" },
-      ["<C-f>"] = { "scroll_documentation_down", "fallback" },
-    },
+    keymap = { preset = "super-tab" },  -- Tab/S-Tab navigation
     sources = {
       default = { "lsp", "path", "snippets", "buffer" },
     },
     completion = {
+      menu = { auto_show = true },
       documentation = { auto_show = true },
     },
+  },
+}
+```
+
+### super-tab Preset Keybindings
+
+| Key | Action |
+|-----|--------|
+| `<Tab>` | Select next item / Jump to next snippet placeholder |
+| `<S-Tab>` | Select previous item / Jump to previous snippet placeholder |
+| `<CR>` | Accept completion |
+| `<C-Space>` | Show/toggle completion menu |
+| `<C-e>` | Hide completion menu |
+| `<C-b>` | Scroll documentation up |
+| `<C-f>` | Scroll documentation down |
+
+### Custom Keymap Configuration
+
+For custom keymaps instead of a preset:
+
+```lua
+opts = {
+  keymap = {
+    ["<C-space>"] = { "show", "show_documentation", "hide_documentation" },
+    ["<C-e>"] = { "hide" },
+    ["<CR>"] = { "accept", "fallback" },
+    ["<Tab>"] = { "select_next", "snippet_forward", "fallback" },
+    ["<S-Tab>"] = { "select_prev", "snippet_backward", "fallback" },
+    ["<C-b>"] = { "scroll_documentation_up", "fallback" },
+    ["<C-f>"] = { "scroll_documentation_down", "fallback" },
   },
 }
 ```
