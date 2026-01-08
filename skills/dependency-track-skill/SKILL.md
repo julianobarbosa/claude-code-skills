@@ -23,6 +23,7 @@ triggers:
 Comprehensive guide for implementing, deploying, and operating **Dependency-Track** - an intelligent Software Composition Analysis (SCA) platform that identifies and reduces risk in the software supply chain through SBOM management.
 
 **Current Versions:**
+
 - Helm Chart: `0.40.0`
 - App Version: `4.13.6`
 - Helm Repository: `https://dependencytrack.github.io/helm-charts`
@@ -30,6 +31,7 @@ Comprehensive guide for implementing, deploying, and operating **Dependency-Trac
 ## Overview
 
 Dependency-Track is an API-first platform that:
+
 - Consumes and produces CycloneDX SBOMs and VEX documents
 - Monitors components for known vulnerabilities across the entire portfolio
 - Integrates with NVD, GitHub Advisories, OSS Index, Snyk, Trivy, OSV, and VulnDB
@@ -66,10 +68,12 @@ docker compose up -d
 ```
 
 **Minimum Requirements:**
+
 - API Server: 4.5GB RAM, 2 CPU cores
 - Frontend: 512MB RAM, 1 CPU core
 
 **Recommended Requirements:**
+
 - API Server: 16GB RAM, 4 CPU cores
 - Frontend: 1GB RAM, 2 CPU cores
 
@@ -96,6 +100,7 @@ helm upgrade dtrack dependency-track/dependency-track \
 ```
 
 **Available Charts:**
+
 | Chart | Description | Status |
 |-------|-------------|--------|
 | `dependency-track/dependency-track` | Monolithic deployment (v4.x) | Production Ready |
@@ -103,11 +108,101 @@ helm upgrade dtrack dependency-track/dependency-track \
 
 See `references/deployment/` for complete manifests and Helm values.
 
+### Kubernetes Ingress Configuration (CRITICAL)
+
+> **IMPORTANT**: The dependency-track Helm chart expects `ingress:` at the
+> **ROOT level**, NOT under `frontend.ingress:`. This is a common mistake
+> that causes the Ingress resource to not be created.
+
+**Correct Structure:**
+
+```yaml
+# CORRECT - Ingress at root level
+ingress:
+  enabled: true
+  hostname: dtrack.example.com
+  ingressClassName: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    external-dns.alpha.kubernetes.io/hostname: dtrack.example.com
+  tls:
+    - secretName: dtrack-tls
+      hosts:
+        - dtrack.example.com
+
+# Frontend config (NO ingress here!)
+frontend:
+  enabled: true
+  apiBaseUrl: https://dtrack.example.com
+  # ...
+```
+
+**Common Mistakes:**
+
+```yaml
+# WRONG - This will NOT create an Ingress resource!
+frontend:
+  ingress:  # <-- WRONG LOCATION
+    enabled: true
+    className: nginx
+    hosts:
+      - host: dtrack.example.com
+```
+
+**Key Differences from Standard Ingress:**
+
+| Chart Expects | Standard nginx-ingress |
+|--------------|------------------------|
+| `hostname` (string) | `hosts` (array) |
+| `ingressClassName` | `className` or `class` |
+| Root level `ingress:` | Component level `frontend.ingress:` |
+
+**Integration with cert-manager and external-dns:**
+
+```yaml
+ingress:
+  enabled: true
+  hostname: dtrack.dev.cafehyna.com.br
+  ingressClassName: nginx
+  annotations:
+    # cert-manager for TLS certificates
+    cert-manager.io/cluster-issuer: letsencrypt-staging-cloudflare  # dev
+    # cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare   # prod
+
+    # external-dns for automatic DNS record creation
+    external-dns.alpha.kubernetes.io/hostname: dtrack.dev.cafehyna.com.br
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+    external-dns.alpha.kubernetes.io/ttl: "300"
+
+    # nginx-ingress proxy settings (for large SBOM uploads)
+    nginx.ingress.kubernetes.io/proxy-body-size: 100m
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+
+    # NOTE: configuration-snippet may be DISABLED by nginx-ingress admin
+    # If you get "Snippet directives are disabled" error, remove it
+    # Configure security headers at controller level via ConfigMap instead
+  tls:
+    - secretName: dtrack-tls
+      hosts:
+        - dtrack.dev.cafehyna.com.br
+```
+
+**Ingress Routes Created by Chart:**
+
+The Helm chart automatically creates routing rules:
+
+- `/api` → `dependency-track-api-server:web`
+- `/health` → `dependency-track-api-server:web`
+- `/` → `dependency-track-frontend:web`
+
 ### Hyades (Next-Generation Architecture)
 
 Hyades is the incubating project for Dependency-Track v5, decoupling the monolithic API server into separate, scalable microservices.
 
 **Components:**
+
 - `hyades-apiserver` - Core API server
 - `hyades-frontend` - Web UI
 - `hyades-notification-publisher` - Notification handling
@@ -115,6 +210,7 @@ Hyades is the incubating project for Dependency-Track v5, decoupling the monolit
 - `hyades-vulnerability-analyzer` - Vulnerability scanning
 
 **Requirements:**
+
 - External PostgreSQL database
 - Apache Kafka cluster
 - Kubernetes 1.19+
@@ -130,7 +226,7 @@ helm install hyades dependency-track/hyades \
     --set common.kafka.bootstrapServers="kafka:9092"
 ```
 
-> **Warning:** Hyades is NOT generally available. Breaking changes may occur without notice. Use only in test environments. GA roadmap: https://github.com/DependencyTrack/hyades/issues/860
+> **Warning:** Hyades is NOT generally available. Breaking changes may occur without notice. Use only in test environments. GA roadmap: <https://github.com/DependencyTrack/hyades/issues/860>
 
 ---
 
@@ -192,13 +288,59 @@ ALPINE_OIDC_USER_PROVISIONING=true
 ALPINE_OIDC_TEAM_SYNCHRONIZATION=true
 ```
 
+### Azure AD App Registration (CRITICAL)
+
+> **IMPORTANT**: The Azure AD App Registration **MUST** have the correct
+> redirect URI configured, or you will get error `AADSTS50011`.
+
+**Required Redirect URI:**
+
+```text
+https://<your-dtrack-hostname>/static/oidc-callback.html
+```
+
+**Example for dev environment:**
+
+```text
+https://dtrack.dev.cafehyna.com.br/static/oidc-callback.html
+```
+
+**Configure via Azure CLI:**
+
+```bash
+# Add redirect URI to existing App Registration
+az ad app update \
+  --id <app-registration-id> \
+  --web-redirect-uris "https://dtrack.example.com/static/oidc-callback.html"
+
+# Verify the redirect URI was added
+az ad app show --id <app-registration-id> --query "web.redirectUris" -o tsv
+```
+
+**Configure via Azure Portal:**
+
+1. Go to **Azure AD** → **App registrations**
+2. Select your Dependency-Track application
+3. Click **Authentication** (left menu)
+4. Under **Platform configurations** → **Web** → **Redirect URIs**
+5. Add: `https://<your-hostname>/static/oidc-callback.html`
+6. Click **Save**
+
+**Common OIDC Errors:**
+
+| Error Code | Cause | Solution |
+|------------|-------|----------|
+| AADSTS50011 | Redirect URI mismatch | Add correct URI to App Registration |
+| AADSTS700016 | App not found in tenant | Verify app ID and tenant |
+| AADSTS65001 | User consent required | Grant admin consent in portal |
+
 ---
 
 ## 3. CI/CD Integration
 
 ### Workflow: BOM Upload Pipeline
 
-```
+```text
 ┌─────────────┐     ┌─────────────┐     ┌──────────────────┐
 │   Build     │────▶│ Generate    │────▶│    Upload to     │
 │   Project   │     │ CycloneDX   │     │ Dependency-Track │
@@ -284,6 +426,7 @@ jobs:
 ```
 
 **Official GitHub Action Options (`DependencyTrack/gh-upload-sbom@v3`):**
+
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
 | `serverHostname` | Yes | - | Dependency-Track server URL |
@@ -377,6 +520,7 @@ curl -H "X-Api-Key: YOUR_API_KEY" \
 ### OpenAPI Specification
 
 Access at:
+
 - JSON: `http://localhost:8081/api/openapi.json`
 - YAML: `http://localhost:8081/api/openapi.yaml`
 
@@ -690,27 +834,32 @@ environment:
 Additional templates and examples are in the `references/` directory:
 
 **Deployment:**
+
 - `references/deployment/docker-compose-production.yaml` - Docker Compose for production
 - `references/deployment/helm-values.yaml` - Helm values for v4.x (Chart v0.40.0)
 - `references/deployment/helm-values-hyades.yaml` - Helm values for Hyades v5.x (Chart v0.10.0)
 - `references/deployment/kubernetes-manifests/` - Raw Kubernetes manifests
 
 **CI/CD Integration:**
+
 - `references/cicd/jenkinsfile` - Jenkins Pipeline example
 - `references/cicd/github-action.yaml` - GitHub Actions workflow
 - `references/cicd/gitlab-ci.yaml` - GitLab CI/CD pipeline
 - `references/cicd/azure-pipeline.yaml` - Azure DevOps Pipeline
 
 **API & Scripts:**
+
 - `references/api/python-client.py` - Python client library example
 - `references/api/bash-scripts/` - Shell scripts for common operations
 
 **Policies:**
+
 - `references/policies/security-policies.json` - Security policy templates
 - `references/policies/license-policies.json` - License policy templates
 - `references/policies/operational-policies.json` - Operational policy templates
 
 **Troubleshooting:**
+
 - `references/troubleshooting.md` - Common issues and solutions
 
 ---
