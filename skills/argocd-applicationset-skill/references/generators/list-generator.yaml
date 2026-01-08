@@ -1,0 +1,133 @@
+# =============================================================================
+# List Generator Examples
+# =============================================================================
+# The List generator generates Applications based on a fixed list of
+# cluster/URL values. Most straightforward generator - explicitly define
+# what Applications to generate.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Basic List Generator - Multi-Cluster Deployment
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: list-basic-example
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          # Development cluster
+          - cluster: dev
+            url: https://kubernetes.default.svc
+            environment: development
+            region: eastus
+          # Staging cluster
+          - cluster: staging
+            url: https://staging.example.com:6443
+            environment: staging
+            region: eastus
+          # Production cluster
+          - cluster: production
+            url: https://prod.example.com:6443
+            environment: production
+            region: westus
+  template:
+    metadata:
+      name: '{{cluster}}-myapp'
+      labels:
+        environment: '{{environment}}'
+        region: '{{region}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/example/app.git
+        targetRevision: HEAD
+        path: 'environments/{{environment}}'
+      destination:
+        server: '{{url}}'
+        namespace: myapp
+
+---
+# -----------------------------------------------------------------------------
+# List Generator - Multi-Source with Helm Values
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: list-multi-source-example
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - cluster: cafehyna-dev
+            url: https://aks-cafehyna-dev.privatelink.eastus.azmk8s.io:443
+            project: kube-addons
+            branch: main
+            environment: development
+            urlSuffix: dev
+          - cluster: cafehyna-prd
+            url: https://aks-cafehyna-prd.privatelink.eastus.azmk8s.io:443
+            project: kube-addons
+            branch: main
+            environment: production
+            urlSuffix: prd
+  template:
+    metadata:
+      name: '{{cluster}}-app'
+      labels:
+        environment: '{{environment}}'
+      annotations:
+        notifications.argoproj.io/subscribe.on-sync-failed.slack: argocd-alerts
+    spec:
+      project: '{{project}}'
+      sources:
+        # Helm chart from public repository
+        - chart: myapp
+          repoURL: https://charts.example.com
+          targetRevision: 1.0.0
+          helm:
+            releaseName: myapp
+            valueFiles:
+              - $values/helm-values/myapp/{{cluster}}/values.yaml
+        # Values repository reference
+        - repoURL: https://github.com/org/argocd-values.git
+          targetRevision: '{{branch}}'
+          ref: values
+      destination:
+        server: '{{url}}'
+        namespace: myapp
+
+---
+# -----------------------------------------------------------------------------
+# List Generator - Dynamic Element Embedding (elementsYaml)
+# -----------------------------------------------------------------------------
+# Note: elementsYaml allows referencing elements from ConfigMaps/Secrets
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: list-elements-yaml-example
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        # Reference elements from a ConfigMap
+        elementsYaml: "{{ .clusters | toYaml }}"
+        # The ConfigMap 'cluster-config' should have key 'clusters' with YAML array
+  template:
+    metadata:
+      name: '{{ .name }}-app'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/example/app.git
+        targetRevision: HEAD
+        path: deploy
+      destination:
+        server: '{{ .url }}'
+        namespace: '{{ .namespace }}'

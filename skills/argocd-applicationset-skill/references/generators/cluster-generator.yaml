@@ -1,0 +1,170 @@
+# =============================================================================
+# Cluster Generator Examples
+# =============================================================================
+# The Cluster generator automatically discovers clusters registered in ArgoCD
+# and generates Applications for each. Uses cluster secrets in argocd namespace.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Basic Cluster Generator - Deploy to All Clusters
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-all-example
+  namespace: argocd
+spec:
+  generators:
+    - clusters: {}  # Empty selector = all clusters including in-cluster
+  template:
+    metadata:
+      name: '{{name}}-monitoring'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/monitoring.git
+        targetRevision: HEAD
+        path: base
+      destination:
+        # Use the 'server' parameter from cluster secret
+        server: '{{server}}'
+        namespace: monitoring
+
+---
+# -----------------------------------------------------------------------------
+# Cluster Generator - Label Selector
+# -----------------------------------------------------------------------------
+# Only target clusters with specific labels (set on cluster secrets)
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-selector-example
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            # Only clusters labeled as production
+            environment: production
+            # With specific cloud provider
+            cloud: azure
+        # Optional: Additional values to include from cluster secret annotations
+        values:
+          clusterType: aks
+  template:
+    metadata:
+      name: '{{name}}-security-tools'
+      labels:
+        cluster: '{{name}}'
+        environment: '{{metadata.labels.environment}}'
+    spec:
+      project: production
+      source:
+        repoURL: https://github.com/org/security.git
+        targetRevision: HEAD
+        path: overlays/production
+      destination:
+        server: '{{server}}'
+        namespace: security
+
+---
+# -----------------------------------------------------------------------------
+# Cluster Generator - Match Expressions
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-match-expressions-example
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        selector:
+          matchExpressions:
+            # Clusters in dev OR staging environments
+            - key: environment
+              operator: In
+              values:
+                - dev
+                - staging
+            # Exclude deprecated clusters
+            - key: status
+              operator: NotIn
+              values:
+                - deprecated
+                - decommissioning
+  template:
+    metadata:
+      name: '{{name}}-feature-flags'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/feature-flags.git
+        targetRevision: HEAD
+        path: 'clusters/{{metadata.labels.environment}}'
+      destination:
+        server: '{{server}}'
+        namespace: feature-flags
+
+---
+# -----------------------------------------------------------------------------
+# Cluster Generator - With Values Override
+# -----------------------------------------------------------------------------
+# Add custom values that can be used in templates
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-values-example
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            tier: critical
+        # Custom values to add to each cluster's parameters
+        values:
+          alertChannel: critical-alerts
+          retentionDays: "90"
+          replicaCount: "3"
+  template:
+    metadata:
+      name: '{{ .name }}-logging'
+      annotations:
+        alert-channel: '{{ .values.alertChannel }}'
+    spec:
+      project: infrastructure
+      source:
+        repoURL: https://github.com/org/logging.git
+        targetRevision: HEAD
+        path: base
+        helm:
+          parameters:
+            - name: retention.days
+              value: '{{ .values.retentionDays }}'
+            - name: replicas
+              value: '{{ .values.replicaCount }}'
+      destination:
+        server: '{{ .server }}'
+        namespace: logging
+
+---
+# -----------------------------------------------------------------------------
+# Cluster Generator - Available Parameters
+# -----------------------------------------------------------------------------
+# Parameters available from cluster secrets:
+#
+# {{name}}                          - Cluster name (from secret name)
+# {{nameNormalized}}                - RFC 1123 compliant name
+# {{server}}                        - Cluster API server URL
+# {{metadata.labels.<key>}}         - Labels from cluster secret
+# {{metadata.annotations.<key>}}    - Annotations from cluster secret
+#
+# Special cluster name:
+# - 'in-cluster' refers to the cluster where ArgoCD is installed
+# =============================================================================

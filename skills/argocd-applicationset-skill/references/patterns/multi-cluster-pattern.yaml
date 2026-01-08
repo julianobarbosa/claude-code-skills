@@ -1,0 +1,301 @@
+# =============================================================================
+# Multi-Cluster Deployment Pattern
+# =============================================================================
+# Deploy applications across multiple Kubernetes clusters with environment-
+# specific configurations. Uses Cluster generator with label selectors.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Pattern 1: Environment-Based Multi-Cluster
+# -----------------------------------------------------------------------------
+# Deploy same app to dev/staging/production clusters
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: multi-cluster-by-environment
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            argocd.argoproj.io/secret-type: cluster
+        # Add custom values per cluster via labels
+        values:
+          helmValuesRepo: https://github.com/org/helm-values.git
+  template:
+    metadata:
+      name: '{{ .name }}-nginx'
+      labels:
+        app.kubernetes.io/name: nginx
+        cluster: '{{ .name }}'
+        environment: '{{ index .metadata.labels "environment" }}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: '{{ index .metadata.labels "environment" | default "default" }}'
+      sources:
+        # Helm chart from public repo
+        - chart: nginx
+          repoURL: https://charts.bitnami.com/bitnami
+          targetRevision: 15.0.0
+          helm:
+            releaseName: nginx
+            valueFiles:
+              # Base values
+              - $values/nginx/base/values.yaml
+              # Environment-specific values
+              - $values/nginx/{{ index .metadata.labels "environment" }}/values.yaml
+              # Cluster-specific values
+              - $values/nginx/clusters/{{ .name }}/values.yaml
+        # Values repository
+        - repoURL: '{{ .values.helmValuesRepo }}'
+          targetRevision: main
+          ref: values
+      destination:
+        server: '{{ .server }}'
+        namespace: nginx
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 2: Regional Multi-Cluster with Matrix
+# -----------------------------------------------------------------------------
+# Deploy apps to clusters organized by region and environment
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: regional-multi-cluster
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          # Clusters by region
+          - clusters:
+              selector:
+                matchExpressions:
+                  - key: region
+                    operator: In
+                    values:
+                      - us-east
+                      - us-west
+                      - eu-west
+          # Applications to deploy
+          - list:
+              elements:
+                - app: api-gateway
+                  namespace: gateway
+                  chart: kong
+                  repoURL: https://charts.konghq.com
+                  version: "2.26.0"
+                - app: cert-manager
+                  namespace: cert-manager
+                  chart: cert-manager
+                  repoURL: https://charts.jetstack.io
+                  version: "1.13.0"
+  template:
+    metadata:
+      name: '{{ .name }}-{{ .app }}'
+      labels:
+        cluster: '{{ .name }}'
+        region: '{{ index .metadata.labels "region" }}'
+        app: '{{ .app }}'
+    spec:
+      project: infrastructure
+      source:
+        chart: '{{ .chart }}'
+        repoURL: '{{ .repoURL }}'
+        targetRevision: '{{ .version }}'
+        helm:
+          releaseName: '{{ .app }}'
+      destination:
+        server: '{{ .server }}'
+        namespace: '{{ .namespace }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 3: Cluster Groups with Merge Override
+# -----------------------------------------------------------------------------
+# Base config for all clusters with overrides for specific groups
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-groups-merge
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - merge:
+        mergeKeys:
+          - name
+        generators:
+          # Base configuration for all production clusters
+          - clusters:
+              selector:
+                matchLabels:
+                  environment: production
+              values:
+                replicas: "3"
+                resources: standard
+                monitoring: enabled
+                logLevel: info
+          # Override for high-traffic clusters
+          - clusters:
+              selector:
+                matchLabels:
+                  environment: production
+                  tier: high-traffic
+              values:
+                replicas: "10"
+                resources: large
+                autoscaling: enabled
+          # Override for compliance clusters (PCI, HIPAA, etc.)
+          - clusters:
+              selector:
+                matchLabels:
+                  environment: production
+                  compliance: required
+              values:
+                logLevel: debug
+                auditLogging: enabled
+                encryptionAtRest: enabled
+  template:
+    metadata:
+      name: '{{ .name }}-workload'
+      annotations:
+        replicas: '{{ .values.replicas }}'
+        monitoring: '{{ .values.monitoring }}'
+    spec:
+      project: production
+      source:
+        repoURL: https://github.com/org/workloads.git
+        targetRevision: HEAD
+        path: workload
+        helm:
+          parameters:
+            - name: replicas
+              value: '{{ .values.replicas }}'
+            - name: resources.preset
+              value: '{{ .values.resources }}'
+            - name: logging.level
+              value: '{{ .values.logLevel }}'
+      destination:
+        server: '{{ .server }}'
+        namespace: workload
+
+---
+# -----------------------------------------------------------------------------
+# Cluster Registration (Secret Format)
+# -----------------------------------------------------------------------------
+# Clusters must be registered as Secrets in ArgoCD namespace
+# =============================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-cafehyna-dev
+  namespace: argocd
+  labels:
+    # Required label for cluster discovery
+    argocd.argoproj.io/secret-type: cluster
+    # Custom labels for selection
+    environment: development
+    region: us-east
+    tier: standard
+    team: platform
+type: Opaque
+stringData:
+  name: cafehyna-dev
+  server: https://aks-dev.privatelink.eastus.azmk8s.io:443
+  # For clusters with bearer token auth
+  config: |
+    {
+      "bearerToken": "<token>",
+      "tlsClientConfig": {
+        "insecure": false,
+        "caData": "<base64-ca-cert>"
+      }
+    }
+
+---
+# Production cluster with compliance labels
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cluster-cafehyna-prd
+  namespace: argocd
+  labels:
+    argocd.argoproj.io/secret-type: cluster
+    environment: production
+    region: us-east
+    tier: high-traffic
+    compliance: required
+    team: platform
+type: Opaque
+stringData:
+  name: cafehyna-prd
+  server: https://aks-prd.privatelink.eastus.azmk8s.io:443
+  config: |
+    {
+      "bearerToken": "<token>",
+      "tlsClientConfig": {
+        "insecure": false,
+        "caData": "<base64-ca-cert>"
+      }
+    }
+
+---
+# -----------------------------------------------------------------------------
+# Best Practices for Multi-Cluster
+# -----------------------------------------------------------------------------
+# 1. Use meaningful cluster labels:
+#    - environment: dev/staging/production
+#    - region: us-east/us-west/eu-west
+#    - tier: standard/high-traffic/critical
+#    - compliance: pci/hipaa/sox (if applicable)
+#    - team: platform/application/security
+#
+# 2. Organize values files hierarchically:
+#    helm-values/
+#    ├── base/
+#    │   └── values.yaml           # Shared across all
+#    ├── dev/
+#    │   └── values.yaml           # Dev environment
+#    ├── staging/
+#    │   └── values.yaml           # Staging environment
+#    ├── production/
+#    │   └── values.yaml           # Production environment
+#    └── clusters/
+#        ├── cafehyna-dev/
+#        │   └── values.yaml       # Cluster-specific
+#        └── cafehyna-prd/
+#            └── values.yaml       # Cluster-specific
+#
+# 3. Use projects for access control:
+#    - Different projects per environment
+#    - Restrict which clusters each project can deploy to
+#
+# 4. Progressive rollout:
+#    - Deploy to dev first, then staging, then production
+#    - Use Progressive Syncs (rollingSync) for safer deployments
+# =============================================================================

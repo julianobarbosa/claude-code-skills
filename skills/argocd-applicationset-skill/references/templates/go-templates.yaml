@@ -1,0 +1,308 @@
+# =============================================================================
+# Go Template Examples for ApplicationSet
+# =============================================================================
+# Go templates provide more powerful templating than fasttemplate.
+# Enable with: goTemplate: true
+# Recommended: goTemplateOptions: ["missingkey=error"]
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Basic Go Template Syntax
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: go-template-basic
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - name: my-app
+            team: platform
+            replicas: 3
+  template:
+    metadata:
+      # Go template uses {{ .fieldName }} instead of {{fieldName}}
+      name: '{{ .name }}'
+      labels:
+        team: '{{ .team }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/apps.git
+        targetRevision: HEAD
+        path: 'apps/{{ .name }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .name }}'
+
+---
+# -----------------------------------------------------------------------------
+# String Functions (Sprig Library)
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: go-template-string-functions
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - name: My Application Name
+            branch: feature/new-feature
+            version: v1.2.3
+  template:
+    metadata:
+      # normalize: RFC 1123 compliant name (lowercase, replace invalid chars)
+      name: '{{ .name | normalize }}'
+      labels:
+        # lower/upper: Case conversion
+        name-lower: '{{ .name | lower }}'
+        name-upper: '{{ .name | upper }}'
+        # replace: String replacement
+        branch: '{{ .branch | replace "/" "-" }}'
+        # trimPrefix/trimSuffix: Remove prefix/suffix
+        version: '{{ .version | trimPrefix "v" }}'
+        # slugify: URL-safe slug (custom ArgoCD function)
+        slug: '{{ .name | slugify }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/apps.git
+        targetRevision: HEAD
+        path: apps
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .name | normalize }}'
+
+---
+# -----------------------------------------------------------------------------
+# Conditionals
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: go-template-conditionals
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - name: app1
+            env: production
+            ha: "true"
+          - name: app2
+            env: development
+            ha: "false"
+  template:
+    metadata:
+      name: '{{ .name }}'
+      labels:
+        # Simple conditional
+        environment: '{{ .env }}'
+    spec:
+      # Conditional project based on environment
+      project: '{{ if eq .env "production" }}production{{ else }}default{{ end }}'
+      source:
+        repoURL: https://github.com/org/apps.git
+        targetRevision: HEAD
+        # Conditional path based on HA setting
+        path: '{{ if eq .ha "true" }}apps/{{ .name }}/ha{{ else }}apps/{{ .name }}/standalone{{ end }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .name }}'
+
+---
+# -----------------------------------------------------------------------------
+# Default Values
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: go-template-defaults
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          # Full config
+          - name: app1
+            namespace: custom-ns
+            project: my-project
+          # Minimal config (uses defaults)
+          - name: app2
+  template:
+    metadata:
+      name: '{{ .name }}'
+    spec:
+      # default function: use default if value is empty
+      project: '{{ .project | default "default" }}'
+      source:
+        repoURL: https://github.com/org/apps.git
+        targetRevision: HEAD
+        path: 'apps/{{ .name }}'
+      destination:
+        server: https://kubernetes.default.svc
+        # Coalesce: returns first non-empty value
+        namespace: '{{ coalesce .namespace .name "default" }}'
+
+---
+# -----------------------------------------------------------------------------
+# Path Segment Access (Git Generator)
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: go-template-path-segments
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/monorepo.git
+        revision: HEAD
+        directories:
+          # Pattern: environments/{env}/apps/{app}
+          - path: environments/*/apps/*
+  template:
+    metadata:
+      # Access path segments by index
+      # segments[0]=environments, [1]=env, [2]=apps, [3]=app
+      name: '{{ index .path.segments 1 }}-{{ index .path.segments 3 }}'
+      labels:
+        environment: '{{ index .path.segments 1 }}'
+        app: '{{ index .path.segments 3 }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/monorepo.git
+        targetRevision: HEAD
+        path: '{{ .path.path }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ index .path.segments 3 }}'
+
+---
+# -----------------------------------------------------------------------------
+# YAML Functions (toYaml, fromYaml)
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: go-template-yaml-functions
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/config.git
+        revision: HEAD
+        files:
+          - path: "apps/*/config.yaml"
+  template:
+    metadata:
+      name: '{{ .name }}'
+      labels:
+        # Access nested YAML structures
+        tier: '{{ .metadata.tier }}'
+    spec:
+      project: default
+      source:
+        repoURL: '{{ .source.repoURL }}'
+        targetRevision: '{{ .source.revision }}'
+        path: '{{ .source.path }}'
+        helm:
+          # Convert map to YAML for inline values
+          values: |
+            {{ .helmValues | toYaml | nindent 12 }}
+      destination:
+        server: '{{ .destination.server }}'
+        namespace: '{{ .destination.namespace }}'
+
+---
+# -----------------------------------------------------------------------------
+# List/Range Operations
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: go-template-range
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/config.git
+        revision: HEAD
+        files:
+          - path: "clusters/*/apps.yaml"
+  template:
+    metadata:
+      name: '{{ .cluster }}-{{ .name }}'
+      labels:
+        cluster: '{{ .cluster }}'
+        # Join list with separator
+        # tags: '{{ .tags | join "," }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/apps.git
+        targetRevision: HEAD
+        path: 'apps/{{ .name }}'
+      destination:
+        server: '{{ .server }}'
+        namespace: '{{ .namespace }}'
+
+---
+# -----------------------------------------------------------------------------
+# Useful Sprig Functions Reference
+# -----------------------------------------------------------------------------
+# String Functions:
+#   lower, upper        - Case conversion
+#   trim, trimAll       - Whitespace trimming
+#   trimPrefix/Suffix   - Remove prefix/suffix
+#   replace             - String replacement
+#   substr              - Substring extraction
+#   quote, squote       - Add quotes
+#   indent, nindent     - Indentation
+#   split, splitList    - String to list
+#   join                - List to string
+#
+# List Functions:
+#   first, last         - Get first/last element
+#   rest, initial       - All but first/last
+#   index               - Access by index
+#   append, prepend     - Add elements
+#   concat              - Combine lists
+#   uniq                - Remove duplicates
+#   sortAlpha           - Alphabetical sort
+#
+# Type Conversion:
+#   toString, toJson    - Convert to string/JSON
+#   toYaml, fromYaml    - YAML conversion
+#   atoi, int64         - String to number
+#
+# Conditionals:
+#   default             - Default if empty
+#   coalesce            - First non-empty value
+#   empty               - Check if empty
+#   ternary             - Ternary operator
+#
+# ArgoCD Custom Functions:
+#   normalize           - RFC 1123 compliant name
+#   slugify             - URL-safe slug
+#   toYaml, fromYaml    - Enhanced YAML handling
+# =============================================================================

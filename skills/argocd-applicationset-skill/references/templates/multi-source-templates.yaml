@@ -1,0 +1,274 @@
+# =============================================================================
+# Multi-Source Template Examples
+# =============================================================================
+# Multi-source Applications combine Helm charts with external values files.
+# Uses $ref syntax to reference values from separate repositories.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Basic Multi-Source - Helm + Values Repo
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: multi-source-basic
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - cluster: dev
+            url: https://dev.example.com:6443
+            branch: develop
+          - cluster: prod
+            url: https://prod.example.com:6443
+            branch: main
+  template:
+    metadata:
+      name: '{{cluster}}-nginx'
+    spec:
+      project: default
+      sources:
+        # Source 1: Helm chart from public repository
+        - chart: nginx
+          repoURL: https://charts.bitnami.com/bitnami
+          targetRevision: 15.0.0
+          helm:
+            releaseName: nginx
+            valueFiles:
+              # Reference values from the 'values' source
+              - $values/nginx/{{cluster}}/values.yaml
+        # Source 2: Values repository (referenced as $values)
+        - repoURL: https://github.com/org/helm-values.git
+          targetRevision: '{{branch}}'
+          ref: values
+      destination:
+        server: '{{url}}'
+        namespace: nginx
+
+---
+# -----------------------------------------------------------------------------
+# Multi-Source - Multiple Value Files
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: multi-source-multiple-values
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - cluster: cafehyna-dev
+            url: https://aks-dev.privatelink.eastus.azmk8s.io:443
+            environment: dev
+            region: eastus
+  template:
+    metadata:
+      name: '{{cluster}}-app'
+    spec:
+      project: default
+      sources:
+        # Helm chart
+        - chart: my-app
+          repoURL: https://charts.example.com
+          targetRevision: 2.0.0
+          helm:
+            releaseName: my-app
+            valueFiles:
+              # Base values (shared across all environments)
+              - $values/my-app/base/values.yaml
+              # Environment-specific values
+              - $values/my-app/{{environment}}/values.yaml
+              # Region-specific values
+              - $values/my-app/{{environment}}/{{region}}/values.yaml
+              # Cluster-specific values (highest precedence)
+              - $values/my-app/clusters/{{cluster}}/values.yaml
+        # Values repository
+        - repoURL: https://github.com/org/helm-values.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: '{{url}}'
+        namespace: my-app
+
+---
+# -----------------------------------------------------------------------------
+# Multi-Source - Chart + Values + Raw Manifests
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: multi-source-with-manifests
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - cluster: cafehyna-dev
+            url: https://aks-dev.privatelink.eastus.azmk8s.io:443
+            project: kube-addons
+            branch: main
+  template:
+    metadata:
+      name: '{{cluster}}-dependency-track'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: '{{project}}'
+      sources:
+        # Source 1: Helm chart
+        - chart: dependency-track
+          repoURL: https://dependencytrack.github.io/helm-charts
+          targetRevision: 0.40.0
+          helm:
+            releaseName: dependency-track
+            valueFiles:
+              - $values/kube-addons/dependency-track/{{cluster}}/values.yaml
+        # Source 2: Values reference
+        - repoURL: https://github.com/org/argocd.git
+          targetRevision: '{{branch}}'
+          ref: values
+        # Source 3: Additional manifests (SecretProviderClass, NetworkPolicy, etc.)
+        - repoURL: https://github.com/org/argocd.git
+          targetRevision: '{{branch}}'
+          path: kube-addons/dependency-track/{{cluster}}
+          directory:
+            # Exclude the values.yaml (it's used by Helm)
+            exclude: values.yaml
+      destination:
+        server: '{{url}}'
+        namespace: dependency-track
+
+---
+# -----------------------------------------------------------------------------
+# Multi-Source - Multiple Helm Charts
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: multi-source-multi-chart
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - cluster: production
+            url: https://prod.example.com:6443
+  template:
+    metadata:
+      name: '{{cluster}}-monitoring-stack'
+    spec:
+      project: monitoring
+      sources:
+        # Prometheus
+        - chart: kube-prometheus-stack
+          repoURL: https://prometheus-community.github.io/helm-charts
+          targetRevision: 55.0.0
+          helm:
+            releaseName: prometheus
+            valueFiles:
+              - $values/monitoring/prometheus/{{cluster}}/values.yaml
+        # Loki
+        - chart: loki
+          repoURL: https://grafana.github.io/helm-charts
+          targetRevision: 5.42.0
+          helm:
+            releaseName: loki
+            valueFiles:
+              - $values/monitoring/loki/{{cluster}}/values.yaml
+        # Tempo
+        - chart: tempo
+          repoURL: https://grafana.github.io/helm-charts
+          targetRevision: 1.7.0
+          helm:
+            releaseName: tempo
+            valueFiles:
+              - $values/monitoring/tempo/{{cluster}}/values.yaml
+        # Values repository
+        - repoURL: https://github.com/org/helm-values.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: '{{url}}'
+        namespace: monitoring
+
+---
+# -----------------------------------------------------------------------------
+# Multi-Source - Helm Parameters + Values
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: multi-source-with-params
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - list:
+        elements:
+          - cluster: dev
+            url: https://dev.example.com:6443
+            imageTag: develop
+            replicas: "1"
+          - cluster: prod
+            url: https://prod.example.com:6443
+            imageTag: latest
+            replicas: "3"
+  template:
+    metadata:
+      name: '{{ .cluster }}-app'
+    spec:
+      project: default
+      sources:
+        - chart: my-app
+          repoURL: https://charts.example.com
+          targetRevision: 1.0.0
+          helm:
+            releaseName: my-app
+            # Inline parameters (override values files)
+            parameters:
+              - name: image.tag
+                value: '{{ .imageTag }}'
+              - name: replicaCount
+                value: '{{ .replicas }}'
+            # Values files from ref
+            valueFiles:
+              - $values/my-app/{{ .cluster }}/values.yaml
+            # Inline values (lowest precedence)
+            values: |
+              env:
+                CLUSTER: {{ .cluster }}
+        - repoURL: https://github.com/org/helm-values.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: '{{ .url }}'
+        namespace: my-app
+
+---
+# -----------------------------------------------------------------------------
+# Multi-Source Reference Resolution
+# -----------------------------------------------------------------------------
+# How $ref works:
+#
+# 1. Define a source with 'ref: <name>'
+# 2. Reference files from that source as '$<name>/path/to/file.yaml'
+# 3. ArgoCD clones the ref source and resolves the path
+#
+# Example hierarchy:
+#   helm-values repo structure:
+#   ├── my-app/
+#   │   ├── base/
+#   │   │   └── values.yaml       <- $values/my-app/base/values.yaml
+#   │   ├── dev/
+#   │   │   └── values.yaml       <- $values/my-app/dev/values.yaml
+#   │   └── prod/
+#   │       └── values.yaml       <- $values/my-app/prod/values.yaml
+#
+# Value precedence (lowest to highest):
+# 1. Chart's default values.yaml
+# 2. values: | (inline YAML)
+# 3. valueFiles (in order listed)
+# 4. parameters (override everything)
+# =============================================================================
