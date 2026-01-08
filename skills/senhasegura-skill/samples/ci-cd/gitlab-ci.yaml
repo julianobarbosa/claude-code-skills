@@ -1,0 +1,154 @@
+# GitLab CI Pipeline with Senhasegura DSM Integration
+# Fetches secrets from Senhasegura and injects them into the pipeline
+
+stages:
+  - build
+  - test
+  - deploy
+
+variables:
+  APPLICATION_NAME: my-application
+  SYSTEM_NAME: production
+  # SENHASEGURA_URL, SENHASEGURA_CLIENT_ID, SENHASEGURA_CLIENT_SECRET
+  # should be defined in GitLab CI/CD Variables (Settings > CI/CD > Variables)
+
+# Cache DSM CLI between jobs
+.dsm_setup: &dsm_setup
+  before_script:
+    - |
+      if [ ! -f /usr/local/bin/dsm ]; then
+        curl -LO https://github.com/senhasegura/dsmcli/releases/latest/download/dsm-linux-amd64
+        chmod +x dsm-linux-amd64
+        mv dsm-linux-amd64 /usr/local/bin/dsm
+      fi
+      dsm --version
+
+build:
+  stage: build
+  image: node:20-alpine
+  <<: *dsm_setup
+  script:
+    # Fetch secrets
+    - |
+      dsm runb \
+        --tool-name gitlab \
+        --application "$APPLICATION_NAME" \
+        --system "$SYSTEM_NAME" \
+        --environment "$CI_ENVIRONMENT_NAME"
+    # Load secrets
+    - source .runb.vars
+    # Build
+    - npm ci
+    - npm run build
+  after_script:
+    - rm -f .runb.vars
+  artifacts:
+    paths:
+      - dist/
+    expire_in: 1 hour
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+test:
+  stage: test
+  image: node:20-alpine
+  <<: *dsm_setup
+  script:
+    # Fetch test secrets
+    - |
+      dsm runb \
+        --tool-name gitlab \
+        --application "$APPLICATION_NAME" \
+        --system "$SYSTEM_NAME" \
+        --environment "test"
+    - source .runb.vars
+    - npm ci
+    - npm test
+  after_script:
+    - rm -f .runb.vars
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Deploy to staging
+deploy_staging:
+  stage: deploy
+  image: alpine:latest
+  environment:
+    name: staging
+    url: https://staging.example.com
+  <<: *dsm_setup
+  script:
+    - apk add --no-cache curl kubectl
+    # Fetch staging secrets
+    - |
+      dsm runb \
+        --tool-name gitlab \
+        --application "$APPLICATION_NAME" \
+        --system "$SYSTEM_NAME" \
+        --environment "staging"
+    - source .runb.vars
+    # Deploy
+    - kubectl config use-context staging
+    - kubectl apply -f k8s/
+    - kubectl rollout status deployment/myapp
+  after_script:
+    - rm -f .runb.vars
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Deploy to production
+deploy_production:
+  stage: deploy
+  image: alpine:latest
+  environment:
+    name: production
+    url: https://app.example.com
+  <<: *dsm_setup
+  script:
+    - apk add --no-cache curl kubectl
+    # Fetch production secrets
+    - |
+      dsm runb \
+        --tool-name gitlab \
+        --application "$APPLICATION_NAME" \
+        --system "$SYSTEM_NAME" \
+        --environment "prod"
+    - source .runb.vars
+    # Deploy with approval
+    - kubectl config use-context production
+    - kubectl apply -f k8s/
+    - kubectl rollout status deployment/myapp
+  after_script:
+    - rm -f .runb.vars
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+  needs:
+    - deploy_staging
+
+# Secret rotation job - runs weekly
+rotate_secrets:
+  stage: deploy
+  image: alpine:latest
+  <<: *dsm_setup
+  script:
+    - apk add --no-cache curl jq
+    # Get OAuth token
+    - |
+      TOKEN=$(curl -s -X POST "$SENHASEGURA_URL/iso/oauth2/token" \
+        -d "grant_type=client_credentials" \
+        -d "client_id=$SENHASEGURA_CLIENT_ID" \
+        -d "client_secret=$SENHASEGURA_CLIENT_SECRET" | jq -r '.access_token')
+    # Trigger rotation for specific credentials
+    - |
+      curl -X POST "$SENHASEGURA_URL/api/pam/credential/123/rotate" \
+        -H "Authorization: Bearer $TOKEN"
+    - echo "Credentials rotated successfully"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  only:
+    refs:
+      - schedules
