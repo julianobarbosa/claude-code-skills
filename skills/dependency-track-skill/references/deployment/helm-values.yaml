@@ -1,0 +1,318 @@
+# Dependency-Track Helm Values for Production
+# Chart: dependency-track/dependency-track (v0.40.0)
+# App Version: 4.13.6
+# Repository: https://dependencytrack.github.io/helm-charts
+
+---
+# Common settings shared across components
+common:
+  nameOverride: ""
+  fullnameOverride: ""
+  image:
+    registry: docker.io
+    pullSecrets: []
+  secretKey:
+    # Generate a secret key upon deployment (recommended for new installations)
+    createSecret: true
+    # Or use an existing secret
+    # existingSecretName: "dtrack-secret-key"
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: ""
+    automount: false
+  # Whether service links should be added to the Pods
+  enableServiceLinks: true
+
+# API Server Configuration
+apiServer:
+  # Deployment type: StatefulSet recommended for production
+  deploymentType: StatefulSet
+  annotations: {}
+
+  # Prometheus metrics
+  metrics:
+    enabled: true
+
+  image:
+    registry: ""  # Uses common.image.registry if empty
+    repository: dependencytrack/apiserver
+    tag: ""  # Defaults to chart AppVersion (4.13.6)
+    pullPolicy: IfNotPresent
+
+  command: []
+  args: []
+
+  # Resource requirements - production sizing
+  resources:
+    requests:
+      cpu: "2"
+      memory: 5Gi
+    limits:
+      cpu: "4"
+      memory: 5Gi
+
+  # Security context for Pod
+  podSecurityContext:
+    fsGroup: 1000
+
+  # Container security context
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  # Persistent volume for data directory
+  persistentVolume:
+    enabled: true
+    className: ""  # Uses default storage class
+    size: 10Gi
+
+  # Environment variables
+  extraEnv:
+    # External PostgreSQL database configuration
+    - name: ALPINE_DATABASE_MODE
+      value: "external"
+    - name: ALPINE_DATABASE_URL
+      valueFrom:
+        secretKeyRef:
+          name: dtrack-database-credentials
+          key: ALPINE_DATABASE_URL
+    - name: ALPINE_DATABASE_DRIVER
+      value: "org.postgresql.Driver"
+    - name: ALPINE_DATABASE_USERNAME
+      valueFrom:
+        secretKeyRef:
+          name: dtrack-database-credentials
+          key: ALPINE_DATABASE_USERNAME
+    - name: ALPINE_DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: dtrack-database-credentials
+          key: ALPINE_DATABASE_PASSWORD
+    # JVM tuning for production
+    - name: JAVA_OPTIONS
+      value: >-
+        -Xms4g
+        -Xmx4g
+        -XX:+UseG1GC
+        -XX:MaxGCPauseMillis=200
+        -XX:+ParallelRefProcEnabled
+    # Enable metrics
+    - name: ALPINE_METRICS_ENABLED
+      value: "true"
+    # Logging
+    - name: LOGGING_LEVEL
+      value: "INFO"
+
+  extraEnvFrom: []
+
+  # Additional containers (sidecars)
+  extraContainers: []
+  extraPodLabels: {}
+
+  # Node scheduling
+  tolerations: []
+  # Example for Azure spot instances:
+  # tolerations:
+  #   - key: "kubernetes.azure.com/scalesetpriority"
+  #     operator: "Equal"
+  #     value: "spot"
+  #     effect: "NoSchedule"
+
+  nodeSelector: {}
+
+  # Health probes
+  probes:
+    startup:
+      path: "/health/started"
+      failureThreshold: 30
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 5
+    liveness:
+      path: "/health/live"
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+    readiness:
+      path: "/health/ready"
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+
+  additionalVolumeMounts: []
+  additionalVolumes: []
+
+  service:
+    type: ClusterIP
+    nodePort: ~
+    annotations: {}
+
+  # Prometheus ServiceMonitor
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    scrapeInterval: 60s
+    scrapeTimeout: 30s
+    labels:
+      release: prometheus
+
+  # Init containers for permissions fix (OpenShift)
+  initContainers: []
+  # initContainers:
+  # - name: fix-permissions
+  #   image: docker.io/library/busybox
+  #   command:
+  #   - sh
+  #   - -c
+  #   - |
+  #     chown -R 1000:1000 /data
+  #   volumeMounts:
+  #   - name: data
+  #     mountPath: /data
+  #   securityContext:
+  #     capabilities:
+  #       add:
+  #       - CHOWN
+  #     runAsNonRoot: false
+  #     runAsUser: 0
+  #     seccompProfile:
+  #       type: RuntimeDefault
+
+# Frontend Configuration
+frontend:
+  replicaCount: 2
+  annotations: {}
+
+  image:
+    registry: ""
+    repository: dependencytrack/frontend
+    tag: ""  # Defaults to chart AppVersion
+    pullPolicy: IfNotPresent
+
+  command: []
+  args: []
+
+  resources:
+    requests:
+      cpu: 150m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+  podSecurityContext:
+    fsGroup: 1000
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    # RO filesystems are not supported by the frontend
+    readOnlyRootFilesystem: false
+    seccompProfile:
+      type: RuntimeDefault
+
+  extraEnv: []
+  extraEnvFrom: []
+  extraContainers: []
+  extraPodLabels: {}
+  tolerations: []
+  nodeSelector: {}
+
+  probes:
+    liveness:
+      failureThreshold: 3
+      initialDelaySeconds: 5
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+    readiness:
+      failureThreshold: 3
+      initialDelaySeconds: 5
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+
+  additionalVolumeMounts: []
+  additionalVolumes: []
+
+  service:
+    type: ClusterIP
+    nodePort: ~
+    annotations: {}
+
+  # API base URL (leave empty for relative path)
+  apiBaseUrl: ""
+
+  initContainers: []
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  labels: {}
+  hostname: "dtrack.example.com"
+  ingressClassName: nginx
+  tls:
+    - secretName: dtrack-tls
+      hosts:
+        - dtrack.example.com
+
+# Extra Kubernetes objects to create
+extraObjects:
+  []
+  # Example: External secret for database credentials
+  # - apiVersion: external-secrets.io/v1beta1
+  #   kind: ExternalSecret
+  #   metadata:
+  #     name: dtrack-database-credentials
+  #   spec:
+  #     refreshInterval: 1h
+  #     secretStoreRef:
+  #       kind: ClusterSecretStore
+  #       name: azure-keyvault
+  #     target:
+  #       name: dtrack-database-credentials
+  #     data:
+  #       - secretKey: ALPINE_DATABASE_URL
+  #         remoteRef:
+  #           key: dtrack-database-url
+  #       - secretKey: ALPINE_DATABASE_USERNAME
+  #         remoteRef:
+  #           key: dtrack-database-username
+  #       - secretKey: ALPINE_DATABASE_PASSWORD
+  #         remoteRef:
+  #           key: dtrack-database-password
+
+---
+# Database credentials secret (create separately or via extraObjects)
+# Apply with: kubectl apply -f - <<EOF
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: dtrack-database-credentials
+#   namespace: dtrack
+# type: Opaque
+# stringData:
+#   ALPINE_DATABASE_URL: "jdbc:postgresql://postgres-host:5432/dtrack"
+#   ALPINE_DATABASE_USERNAME: "dtrack"
+#   ALPINE_DATABASE_PASSWORD: "your-secure-password"
+# EOF

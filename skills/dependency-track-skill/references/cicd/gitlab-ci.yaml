@@ -1,0 +1,243 @@
+# GitLab CI - Dependency-Track Integration
+# Full pipeline with SBOM generation, upload, and security gates
+
+stages:
+  - build
+  - sbom
+  - security
+  - test
+  - deploy
+
+variables:
+  DTRACK_URL: ${DTRACK_URL}
+  # Store API key in GitLab CI/CD variables (masked)
+  # DTRACK_API_KEY: defined in CI/CD settings
+
+  # Project configuration
+  PROJECT_NAME: ${CI_PROJECT_PATH}
+  PROJECT_VERSION: ${CI_COMMIT_REF_NAME}
+
+# Cache dependencies
+cache:
+  paths:
+    - node_modules/
+    - .m2/repository/
+    - .gradle/
+
+# ============================================
+# Build Stage
+# ============================================
+build:
+  stage: build
+  image: node:20-alpine
+  script:
+    - npm ci
+    - npm run build
+  artifacts:
+    paths:
+      - dist/
+      - node_modules/
+    expire_in: 1 hour
+
+# Maven build alternative
+build:maven:
+  stage: build
+  image: maven:3.9-eclipse-temurin-21
+  script:
+    - mvn clean package -DskipTests -B
+  artifacts:
+    paths:
+      - target/
+    expire_in: 1 hour
+  only:
+    changes:
+      - pom.xml
+      - src/**/*
+
+# ============================================
+# SBOM Generation Stage
+# ============================================
+generate-sbom:npm:
+  stage: sbom
+  image: node:20-alpine
+  needs: ["build"]
+  script:
+    - npx @cyclonedx/cyclonedx-npm --output-file bom.json
+  artifacts:
+    paths:
+      - bom.json
+    reports:
+      cyclonedx: bom.json
+    expire_in: 30 days
+
+generate-sbom:maven:
+  stage: sbom
+  image: maven:3.9-eclipse-temurin-21
+  needs: ["build:maven"]
+  script:
+    - mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom -DoutputFormat=json -DoutputName=bom -B
+    - mv target/bom.json .
+  artifacts:
+    paths:
+      - bom.json
+    reports:
+      cyclonedx: bom.json
+    expire_in: 30 days
+  only:
+    changes:
+      - pom.xml
+      - src/**/*
+
+# Universal SBOM with Syft
+generate-sbom:syft:
+  stage: sbom
+  image: anchore/syft:latest
+  script:
+    - syft packages dir:. -o cyclonedx-json > bom.json
+  artifacts:
+    paths:
+      - bom.json
+    reports:
+      cyclonedx: bom.json
+    expire_in: 30 days
+  when: manual
+
+# ============================================
+# Security Stage - Upload and Analyze
+# ============================================
+upload-sbom:
+  stage: security
+  image: curlimages/curl:latest
+  needs: ["generate-sbom:npm"]
+  script:
+    - |
+      # Upload SBOM to Dependency-Track
+      RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "${DTRACK_URL}/api/v1/bom" \
+        -H "X-Api-Key: ${DTRACK_API_KEY}" \
+        -H "Content-Type: application/json" \
+        -d "{
+          \"projectName\": \"${PROJECT_NAME}\",
+          \"projectVersion\": \"${PROJECT_VERSION}\",
+          \"autoCreate\": true,
+          \"bom\": \"$(base64 -w0 bom.json)\"
+        }")
+
+      HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+      BODY=$(echo "$RESPONSE" | head -n-1)
+
+      if [ "$HTTP_CODE" -ne 200 ]; then
+        echo "Failed to upload SBOM. HTTP $HTTP_CODE"
+        echo "$BODY"
+        exit 1
+      fi
+
+      echo "SBOM uploaded successfully"
+      echo "$BODY" | jq .
+
+security-gate:
+  stage: security
+  image: curlimages/curl:latest
+  needs: ["upload-sbom"]
+  script:
+    - |
+      # Wait for async processing
+      sleep 30
+
+      # Get project UUID
+      PROJECT=$(curl -s -H "X-Api-Key: ${DTRACK_API_KEY}" \
+        "${DTRACK_URL}/api/v1/project/lookup?name=${PROJECT_NAME}&version=${PROJECT_VERSION}")
+
+      PROJECT_UUID=$(echo $PROJECT | jq -r '.uuid')
+
+      if [ "$PROJECT_UUID" = "null" ]; then
+        echo "Project not found"
+        exit 1
+      fi
+
+      # Get metrics
+      METRICS=$(curl -s -H "X-Api-Key: ${DTRACK_API_KEY}" \
+        "${DTRACK_URL}/api/v1/metrics/project/${PROJECT_UUID}/current")
+
+      CRITICAL=$(echo $METRICS | jq -r '.critical // 0')
+      HIGH=$(echo $METRICS | jq -r '.high // 0')
+      MEDIUM=$(echo $METRICS | jq -r '.medium // 0')
+      LOW=$(echo $METRICS | jq -r '.low // 0')
+
+      echo "======================================"
+      echo "Vulnerability Summary"
+      echo "======================================"
+      echo "Critical: $CRITICAL"
+      echo "High:     $HIGH"
+      echo "Medium:   $MEDIUM"
+      echo "Low:      $LOW"
+      echo "======================================"
+
+      # Fail on critical vulnerabilities
+      if [ "$CRITICAL" -gt 0 ]; then
+        echo "FAILED: Critical vulnerabilities found!"
+        exit 1
+      fi
+
+      # Warn on high vulnerabilities (configurable threshold)
+      if [ "$HIGH" -gt 5 ]; then
+        echo "WARNING: High vulnerability count exceeds threshold"
+      fi
+
+      echo "Security gate passed!"
+  allow_failure: false
+
+policy-check:
+  stage: security
+  image: curlimages/curl:latest
+  needs: ["upload-sbom"]
+  script:
+    - |
+      sleep 30
+
+      PROJECT=$(curl -s -H "X-Api-Key: ${DTRACK_API_KEY}" \
+        "${DTRACK_URL}/api/v1/project/lookup?name=${PROJECT_NAME}&version=${PROJECT_VERSION}")
+
+      PROJECT_UUID=$(echo $PROJECT | jq -r '.uuid')
+
+      # Get policy violations
+      VIOLATIONS=$(curl -s -H "X-Api-Key: ${DTRACK_API_KEY}" \
+        "${DTRACK_URL}/api/v1/violation/project/${PROJECT_UUID}")
+
+      FAIL_COUNT=$(echo $VIOLATIONS | jq '[.[] | select(.policyViolation.violationState == "FAIL")] | length')
+
+      echo "Policy violations (FAIL): $FAIL_COUNT"
+
+      if [ "$FAIL_COUNT" -gt 0 ]; then
+        echo "Policy violations found:"
+        echo $VIOLATIONS | jq -r '.[] | select(.policyViolation.violationState == "FAIL") | "\(.component.name):\(.component.version) - \(.policyViolation.policy.name)"'
+        exit 1
+      fi
+  allow_failure: false
+
+# ============================================
+# Test Stage
+# ============================================
+test:
+  stage: test
+  image: node:20-alpine
+  needs: ["security-gate"]
+  script:
+    - npm test
+  coverage: '/All files[^|]*\|[^|]*\s+([\d\.]+)/'
+
+# ============================================
+# Deploy Stage
+# ============================================
+deploy:production:
+  stage: deploy
+  image: alpine:latest
+  needs: ["test", "policy-check"]
+  script:
+    - echo "Deploying to production..."
+    # Add deployment commands
+  environment:
+    name: production
+    url: https://app.example.com
+  only:
+    - main
+  when: manual

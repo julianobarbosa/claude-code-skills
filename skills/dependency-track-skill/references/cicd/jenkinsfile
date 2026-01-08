@@ -1,0 +1,162 @@
+// Jenkinsfile - Dependency-Track Integration
+// Requires: Dependency-Track Jenkins Plugin
+// https://plugins.jenkins.io/dependency-track/
+
+pipeline {
+    agent any
+
+    environment {
+        // Dependency-Track configuration
+        DTRACK_URL = 'https://dtrack.example.com'
+        DTRACK_API_KEY = credentials('dependency-track-api-key')
+
+        // Project identifiers (can use PROJECT_UUID or name/version)
+        PROJECT_NAME = "${env.JOB_NAME}"
+        PROJECT_VERSION = "${env.GIT_BRANCH ?: 'main'}"
+    }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '10'))
+        timeout(time: 30, unit: 'MINUTES')
+        disableConcurrentBuilds()
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build') {
+            steps {
+                script {
+                    // Maven example
+                    sh 'mvn clean package -DskipTests'
+
+                    // Or Gradle
+                    // sh './gradlew build -x test'
+
+                    // Or npm
+                    // sh 'npm ci && npm run build'
+                }
+            }
+        }
+
+        stage('Generate SBOM') {
+            steps {
+                script {
+                    // Maven CycloneDX plugin
+                    sh '''
+                        mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom \
+                            -DoutputFormat=json \
+                            -DoutputName=bom
+                    '''
+
+                    // Alternative: Use Syft for universal SBOM generation
+                    // sh 'syft packages dir:. -o cyclonedx-json > target/bom.json'
+
+                    // Alternative: npm
+                    // sh 'npx @cyclonedx/cyclonedx-npm --output-file target/bom.json'
+                }
+            }
+        }
+
+        stage('Upload SBOM to Dependency-Track') {
+            steps {
+                // Using Dependency-Track Jenkins Plugin
+                dependencyTrackPublisher(
+                    artifact: 'target/bom.json',
+                    projectName: env.PROJECT_NAME,
+                    projectVersion: env.PROJECT_VERSION,
+                    synchronous: true,  // Wait for processing
+                    autoCreateProjects: true,
+                    dependencyTrackUrl: env.DTRACK_URL,
+                    dependencyTrackApiKey: env.DTRACK_API_KEY,
+
+                    // Policy violation thresholds (fail build if exceeded)
+                    failedTotalCritical: 0,
+                    failedTotalHigh: 5,
+                    failedTotalMedium: 20,
+                    failedTotalLow: 50,
+                    failedTotalUnassigned: 10,
+
+                    // New vulnerabilities thresholds
+                    failedNewCritical: 0,
+                    failedNewHigh: 0,
+
+                    // Policy violation thresholds
+                    failedTotalPolicyViolationsFail: 0,
+                    failedTotalPolicyViolationsWarn: 5,
+                    failedTotalPolicyViolationsInfo: 10
+                )
+            }
+        }
+
+        stage('Security Gate') {
+            steps {
+                script {
+                    // Additional manual check via API if needed
+                    def response = httpRequest(
+                        httpMode: 'GET',
+                        url: "${DTRACK_URL}/api/v1/metrics/project/${env.PROJECT_UUID}/current",
+                        customHeaders: [[name: 'X-Api-Key', value: env.DTRACK_API_KEY]],
+                        validResponseCodes: '200'
+                    )
+
+                    def metrics = readJSON text: response.content
+
+                    echo "Vulnerabilities - Critical: ${metrics.critical}, High: ${metrics.high}, Medium: ${metrics.medium}, Low: ${metrics.low}"
+
+                    if (metrics.critical > 0) {
+                        error("Critical vulnerabilities found! Failing build.")
+                    }
+                }
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                sh 'mvn test'
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                branch 'main'
+            }
+            steps {
+                echo 'Deploying to production...'
+                // Your deployment steps
+            }
+        }
+    }
+
+    post {
+        always {
+            // Archive SBOM as artifact
+            archiveArtifacts artifacts: 'target/bom.json', fingerprint: true
+
+            // Clean workspace
+            cleanWs()
+        }
+
+        failure {
+            // Notify on failure
+            emailext(
+                subject: "Pipeline Failed: ${currentBuild.fullDisplayName}",
+                body: "Security scan failed. Check Dependency-Track for details: ${DTRACK_URL}",
+                recipientProviders: [developers(), requestor()]
+            )
+        }
+    }
+}
+
+// Alternative: Declarative Pipeline with Shared Library
+// @Library('my-shared-library') _
+//
+// dependencyTrackScan(
+//     projectName: 'my-project',
+//     bomPath: 'target/bom.json',
+//     failOnCritical: true
+// )

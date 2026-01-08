@@ -1,0 +1,138 @@
+# Dependency-Track Production Docker Compose
+# Features: PostgreSQL, external volumes, proper resource limits, health checks
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: dtrack-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dtrack
+      POSTGRES_USER: dtrack
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dtrack -d dtrack"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dtrack-net
+
+  # API Server (Backend)
+  apiserver:
+    image: dependencytrack/apiserver:latest
+    container_name: dtrack-apiserver
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # Database Configuration
+      ALPINE_DATABASE_MODE: external
+      ALPINE_DATABASE_URL: jdbc:postgresql://postgres:5432/dtrack
+      ALPINE_DATABASE_DRIVER: org.postgresql.Driver
+      ALPINE_DATABASE_USERNAME: dtrack
+      ALPINE_DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+
+      # JVM Settings (16GB heap for production)
+      JAVA_OPTIONS: >-
+        -Xms4g
+        -Xmx16g
+        -XX:+UseG1GC
+        -XX:MaxGCPauseMillis=200
+        -XX:+ParallelRefProcEnabled
+        -Djava.io.tmpdir=/data/tmp
+
+      # Authentication (uncomment as needed)
+      # ALPINE_LDAP_ENABLED: "true"
+      # ALPINE_LDAP_SERVER_URL: ldap://ldap.example.com:389
+      # ALPINE_LDAP_BASEDN: dc=example,dc=com
+
+      # ALPINE_OIDC_ENABLED: "true"
+      # ALPINE_OIDC_ISSUER: https://auth.example.com
+      # ALPINE_OIDC_CLIENT_ID: dependency-track
+
+      # Metrics & Monitoring
+      ALPINE_METRICS_ENABLED: "true"
+
+      # Logging
+      LOGGING_LEVEL: INFO
+
+      # System Requirement Check (disable if needed)
+      SYSTEM_REQUIREMENT_CHECK_ENABLED: "true"
+
+      # Secret Key (generate with: openssl rand -base64 32)
+      ALPINE_SECRET_KEY_PATH: /data/.secret.key
+
+    volumes:
+      - dtrack-data:/data
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/version"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    deploy:
+      resources:
+        limits:
+          memory: 18G
+          cpus: '4'
+        reservations:
+          memory: 8G
+          cpus: '2'
+    networks:
+      - dtrack-net
+
+  # Frontend (UI)
+  frontend:
+    image: dependencytrack/frontend:latest
+    container_name: dtrack-frontend
+    restart: unless-stopped
+    depends_on:
+      apiserver:
+        condition: service_healthy
+    environment:
+      API_BASE_URL: http://apiserver:8080
+      # For OIDC, configure the following:
+      # OIDC_ISSUER: https://auth.example.com
+      # OIDC_CLIENT_ID: dependency-track-frontend
+      # OIDC_SCOPE: openid profile email
+      # OIDC_FLOW: code
+    ports:
+      - "8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2'
+        reservations:
+          memory: 512M
+          cpus: '1'
+    networks:
+      - dtrack-net
+
+volumes:
+  postgres-data:
+    driver: local
+  dtrack-data:
+    driver: local
+
+networks:
+  dtrack-net:
+    driver: bridge
+
+# Usage:
+# 1. Create .env file with POSTGRES_PASSWORD
+# 2. docker compose -f docker-compose-production.yaml up -d
+# 3. Access UI at http://localhost:8080
+# 4. Default credentials: admin / admin (change immediately!)

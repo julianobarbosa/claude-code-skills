@@ -1,0 +1,314 @@
+# Azure DevOps Pipeline - Dependency-Track Integration
+# Complete CI/CD pipeline with SBOM generation and security gates
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - '*.md'
+      - 'docs/**'
+
+pr:
+  branches:
+    include:
+      - main
+  drafts: false
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: dependency-track-credentials  # Contains DTRACK_URL and DTRACK_API_KEY
+  - name: projectName
+    value: '$(Build.Repository.Name)'
+  - name: projectVersion
+    value: '$(Build.SourceBranchName)'
+
+stages:
+  # ============================================
+  # Stage 1: Build
+  # ============================================
+  - stage: Build
+    displayName: 'Build Application'
+    jobs:
+      - job: BuildJob
+        displayName: 'Build'
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          # Node.js build
+          - task: NodeTool@0
+            displayName: 'Install Node.js'
+            inputs:
+              versionSpec: '20.x'
+
+          - task: Npm@1
+            displayName: 'npm install'
+            inputs:
+              command: 'ci'
+
+          - task: Npm@1
+            displayName: 'npm build'
+            inputs:
+              command: 'custom'
+              customCommand: 'run build'
+
+          # Publish build artifacts
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Build Artifacts'
+            inputs:
+              targetPath: '$(Build.SourcesDirectory)/dist'
+              artifact: 'build'
+
+  # ============================================
+  # Stage 2: Security Scan
+  # ============================================
+  - stage: Security
+    displayName: 'Security Analysis'
+    dependsOn: Build
+    jobs:
+      - job: GenerateSBOM
+        displayName: 'Generate SBOM'
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            displayName: 'Install Node.js'
+            inputs:
+              versionSpec: '20.x'
+
+          - task: Npm@1
+            displayName: 'npm install'
+            inputs:
+              command: 'ci'
+
+          # Generate SBOM using CycloneDX
+          - task: Bash@3
+            displayName: 'Generate CycloneDX SBOM'
+            inputs:
+              targetType: 'inline'
+              script: |
+                npx @cyclonedx/cyclonedx-npm --output-file $(Build.ArtifactStagingDirectory)/bom.json
+                echo "SBOM generated successfully"
+                cat $(Build.ArtifactStagingDirectory)/bom.json | jq '.metadata'
+
+          # Alternative: Use Syft for container scanning
+          # - task: Bash@3
+          #   displayName: 'Generate SBOM with Syft'
+          #   inputs:
+          #     targetType: 'inline'
+          #     script: |
+          #       curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          #       syft packages dir:. -o cyclonedx-json > $(Build.ArtifactStagingDirectory)/bom.json
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish SBOM'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)/bom.json'
+              artifact: 'sbom'
+
+      - job: UploadSBOM
+        displayName: 'Upload SBOM to Dependency-Track'
+        dependsOn: GenerateSBOM
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download SBOM'
+            inputs:
+              artifact: 'sbom'
+              path: '$(Pipeline.Workspace)/sbom'
+
+          - task: Bash@3
+            displayName: 'Upload SBOM to Dependency-Track'
+            inputs:
+              targetType: 'inline'
+              script: |
+                set -e
+
+                BOM_FILE="$(Pipeline.Workspace)/sbom/bom.json"
+
+                # Base64 encode the SBOM
+                BOM_CONTENT=$(base64 -w0 "$BOM_FILE")
+
+                # Upload to Dependency-Track
+                RESPONSE=$(curl -s -w "\n%{http_code}" -X PUT "$(DTRACK_URL)/api/v1/bom" \
+                  -H "X-Api-Key: $(DTRACK_API_KEY)" \
+                  -H "Content-Type: application/json" \
+                  -d "{
+                    \"projectName\": \"$(projectName)\",
+                    \"projectVersion\": \"$(projectVersion)\",
+                    \"autoCreate\": true,
+                    \"bom\": \"${BOM_CONTENT}\"
+                  }")
+
+                HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+                BODY=$(echo "$RESPONSE" | head -n-1)
+
+                if [ "$HTTP_CODE" -ne 200 ]; then
+                  echo "##[error]Failed to upload SBOM. HTTP $HTTP_CODE"
+                  echo "$BODY"
+                  exit 1
+                fi
+
+                echo "##[section]SBOM uploaded successfully"
+                TOKEN=$(echo "$BODY" | jq -r '.token')
+                echo "##vso[task.setvariable variable=uploadToken;isOutput=true]$TOKEN"
+            name: upload
+
+      - job: SecurityGate
+        displayName: 'Security Gate'
+        dependsOn: UploadSBOM
+        steps:
+          - task: Bash@3
+            displayName: 'Wait for Analysis'
+            inputs:
+              targetType: 'inline'
+              script: |
+                echo "Waiting for Dependency-Track to process SBOM..."
+                sleep 45
+
+          - task: Bash@3
+            displayName: 'Check Vulnerabilities'
+            inputs:
+              targetType: 'inline'
+              script: |
+                set -e
+
+                # Get project UUID
+                PROJECT=$(curl -s -H "X-Api-Key: $(DTRACK_API_KEY)" \
+                  "$(DTRACK_URL)/api/v1/project/lookup?name=$(projectName)&version=$(projectVersion)")
+
+                PROJECT_UUID=$(echo $PROJECT | jq -r '.uuid')
+
+                if [ "$PROJECT_UUID" = "null" ] || [ -z "$PROJECT_UUID" ]; then
+                  echo "##[error]Project not found in Dependency-Track"
+                  exit 1
+                fi
+
+                echo "##[section]Project UUID: $PROJECT_UUID"
+
+                # Get metrics
+                METRICS=$(curl -s -H "X-Api-Key: $(DTRACK_API_KEY)" \
+                  "$(DTRACK_URL)/api/v1/metrics/project/${PROJECT_UUID}/current")
+
+                CRITICAL=$(echo $METRICS | jq -r '.critical // 0')
+                HIGH=$(echo $METRICS | jq -r '.high // 0')
+                MEDIUM=$(echo $METRICS | jq -r '.medium // 0')
+                LOW=$(echo $METRICS | jq -r '.low // 0')
+
+                echo "##[section]Vulnerability Summary"
+                echo "Critical: $CRITICAL"
+                echo "High: $HIGH"
+                echo "Medium: $MEDIUM"
+                echo "Low: $LOW"
+
+                # Set output variables for later stages
+                echo "##vso[task.setvariable variable=criticalCount;isOutput=true]$CRITICAL"
+                echo "##vso[task.setvariable variable=highCount;isOutput=true]$HIGH"
+
+                # Fail on critical vulnerabilities
+                if [ "$CRITICAL" -gt 0 ]; then
+                  echo "##[error]Critical vulnerabilities found: $CRITICAL"
+                  echo "##vso[task.logissue type=error]Security gate failed - critical vulnerabilities detected"
+                  exit 1
+                fi
+
+                # Warn on high vulnerabilities (configurable)
+                if [ "$HIGH" -gt 5 ]; then
+                  echo "##[warning]High vulnerability count ($HIGH) exceeds threshold"
+                  echo "##vso[task.logissue type=warning]High vulnerabilities exceed threshold"
+                fi
+
+                echo "##[section]Security gate passed!"
+            name: gate
+
+          - task: Bash@3
+            displayName: 'Check Policy Violations'
+            inputs:
+              targetType: 'inline'
+              script: |
+                set -e
+
+                PROJECT=$(curl -s -H "X-Api-Key: $(DTRACK_API_KEY)" \
+                  "$(DTRACK_URL)/api/v1/project/lookup?name=$(projectName)&version=$(projectVersion)")
+
+                PROJECT_UUID=$(echo $PROJECT | jq -r '.uuid')
+
+                # Get policy violations
+                VIOLATIONS=$(curl -s -H "X-Api-Key: $(DTRACK_API_KEY)" \
+                  "$(DTRACK_URL)/api/v1/violation/project/${PROJECT_UUID}")
+
+                FAIL_COUNT=$(echo $VIOLATIONS | jq '[.[] | select(.policyViolation.violationState == "FAIL")] | length')
+                WARN_COUNT=$(echo $VIOLATIONS | jq '[.[] | select(.policyViolation.violationState == "WARN")] | length')
+
+                echo "##[section]Policy Violations"
+                echo "FAIL: $FAIL_COUNT"
+                echo "WARN: $WARN_COUNT"
+
+                if [ "$FAIL_COUNT" -gt 0 ]; then
+                  echo "##[error]Policy violations found!"
+                  echo $VIOLATIONS | jq -r '.[] | select(.policyViolation.violationState == "FAIL") | "- \(.component.name):\(.component.version) - \(.policyViolation.policy.name)"'
+                  exit 1
+                fi
+
+  # ============================================
+  # Stage 3: Test
+  # ============================================
+  - stage: Test
+    displayName: 'Run Tests'
+    dependsOn: Security
+    jobs:
+      - job: UnitTests
+        displayName: 'Unit Tests'
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '20.x'
+
+          - task: Npm@1
+            inputs:
+              command: 'ci'
+
+          - task: Npm@1
+            displayName: 'Run Tests'
+            inputs:
+              command: 'custom'
+              customCommand: 'test -- --coverage'
+
+          - task: PublishCodeCoverageResults@2
+            displayName: 'Publish Coverage'
+            inputs:
+              summaryFileLocation: '$(Build.SourcesDirectory)/coverage/cobertura-coverage.xml'
+
+  # ============================================
+  # Stage 4: Deploy
+  # ============================================
+  - stage: Deploy
+    displayName: 'Deploy to Production'
+    dependsOn: Test
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: Production
+        displayName: 'Deploy to Production'
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: DownloadPipelineArtifact@2
+                  inputs:
+                    artifact: 'build'
+                    path: '$(Pipeline.Workspace)/build'
+
+                - task: Bash@3
+                  displayName: 'Deploy'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      echo "Deploying to production..."
+                      # Add deployment commands

@@ -1,0 +1,291 @@
+{
+  "_comment": "License Policy Templates for Dependency-Track",
+  "_description": "Policies for managing license compliance. Import via REST API or use as reference.",
+
+  "policies": [
+    {
+      "name": "No Copyleft Licenses",
+      "description": "Fails on components with copyleft licenses (GPL, AGPL, LGPL, etc.)",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "LICENSE_GROUP",
+          "operator": "IS",
+          "value": "Copyleft"
+        }
+      ],
+      "_note": "Uses built-in Copyleft license group"
+    },
+    {
+      "name": "Warn on LGPL",
+      "description": "Warns on LGPL licenses which require careful handling",
+      "operator": "ANY",
+      "violationState": "WARN",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "LGPL-2.0-only"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "LGPL-2.1-only"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "LGPL-3.0-only"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "LGPL-2.0-or-later"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "LGPL-2.1-or-later"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "LGPL-3.0-or-later"
+        }
+      ]
+    },
+    {
+      "name": "Forbidden GPL-3.0",
+      "description": "Fails on GPL-3.0 licensed components",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "GPL-3.0-only"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "GPL-3.0-or-later"
+        }
+      ]
+    },
+    {
+      "name": "Forbidden AGPL",
+      "description": "Fails on AGPL licensed components (network copyleft)",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "AGPL-3.0-only"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "AGPL-3.0-or-later"
+        }
+      ]
+    },
+    {
+      "name": "Unknown License Warning",
+      "description": "Warns when component has no recognized license",
+      "operator": "ANY",
+      "violationState": "WARN",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "unresolved"
+        }
+      ],
+      "_note": "Triggers when license cannot be determined from SBOM"
+    },
+    {
+      "name": "Approved Permissive Licenses Only",
+      "description": "Only allow MIT, Apache-2.0, BSD, ISC licenses (allowlist approach)",
+      "operator": "ALL",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": false,
+      "tags": ["strict-licensing"],
+      "policyConditions": [
+        {
+          "subject": "LICENSE",
+          "operator": "IS_NOT",
+          "value": "MIT"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS_NOT",
+          "value": "Apache-2.0"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS_NOT",
+          "value": "BSD-2-Clause"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS_NOT",
+          "value": "BSD-3-Clause"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS_NOT",
+          "value": "ISC"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS_NOT",
+          "value": "0BSD"
+        }
+      ],
+      "_note": "Operator=ALL means all conditions must match (i.e., license is none of the approved ones)"
+    },
+    {
+      "name": "CC-BY-NC License Warning",
+      "description": "Warns on Creative Commons Non-Commercial licenses",
+      "operator": "ANY",
+      "violationState": "WARN",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "LICENSE",
+          "operator": "MATCHES",
+          "value": "CC-BY-NC.*"
+        }
+      ]
+    },
+    {
+      "name": "Public Domain Info",
+      "description": "Informational flag for public domain dedications",
+      "operator": "ANY",
+      "violationState": "INFO",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "Unlicense"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "CC0-1.0"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "IS",
+          "value": "WTFPL"
+        }
+      ]
+    },
+    {
+      "name": "Commercial License Review",
+      "description": "Warns on common commercial/proprietary license indicators",
+      "operator": "ANY",
+      "violationState": "WARN",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "LICENSE",
+          "operator": "MATCHES",
+          "value": "(?i).*commercial.*"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "MATCHES",
+          "value": "(?i).*proprietary.*"
+        },
+        {
+          "subject": "LICENSE",
+          "operator": "MATCHES",
+          "value": "(?i).*enterprise.*"
+        }
+      ]
+    }
+  ],
+
+  "license_groups": {
+    "_note": "Reference of common license categories. Create custom groups in DT Admin.",
+
+    "permissive": [
+      "MIT",
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "ISC",
+      "0BSD",
+      "Zlib",
+      "Unlicense",
+      "CC0-1.0",
+      "WTFPL"
+    ],
+
+    "weak_copyleft": [
+      "LGPL-2.0-only",
+      "LGPL-2.1-only",
+      "LGPL-3.0-only",
+      "LGPL-2.0-or-later",
+      "LGPL-2.1-or-later",
+      "LGPL-3.0-or-later",
+      "MPL-2.0",
+      "EPL-1.0",
+      "EPL-2.0",
+      "CDDL-1.0",
+      "CDDL-1.1"
+    ],
+
+    "strong_copyleft": [
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-only",
+      "GPL-3.0-or-later",
+      "AGPL-3.0-only",
+      "AGPL-3.0-or-later",
+      "OSL-3.0",
+      "EUPL-1.2"
+    ],
+
+    "non_commercial": [
+      "CC-BY-NC-4.0",
+      "CC-BY-NC-SA-4.0",
+      "CC-BY-NC-ND-4.0"
+    ]
+  },
+
+  "_common_spdx_ids": {
+    "MIT": "MIT License",
+    "Apache-2.0": "Apache License 2.0",
+    "BSD-2-Clause": "BSD 2-Clause 'Simplified' License",
+    "BSD-3-Clause": "BSD 3-Clause 'New' or 'Revised' License",
+    "ISC": "ISC License",
+    "GPL-2.0-only": "GNU General Public License v2.0 only",
+    "GPL-3.0-only": "GNU General Public License v3.0 only",
+    "LGPL-2.1-only": "GNU Lesser General Public License v2.1 only",
+    "LGPL-3.0-only": "GNU Lesser General Public License v3.0 only",
+    "AGPL-3.0-only": "GNU Affero General Public License v3.0 only",
+    "MPL-2.0": "Mozilla Public License 2.0",
+    "EPL-2.0": "Eclipse Public License 2.0",
+    "CC0-1.0": "Creative Commons Zero v1.0 Universal",
+    "Unlicense": "The Unlicense"
+  }
+}

@@ -1,0 +1,222 @@
+# GitHub Actions - Dependency-Track SBOM Upload
+# Triggers on push to main and pull requests
+# Uses official DependencyTrack GitHub Action
+
+name: SBOM Security Scan
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  DTRACK_URL: ${{ secrets.DTRACK_URL }}
+  DTRACK_API_KEY: ${{ secrets.DTRACK_API_KEY }}
+
+jobs:
+  # Job 1: Build and Generate SBOM
+  generate-sbom:
+    name: Generate SBOM
+    runs-on: ubuntu-latest
+
+    outputs:
+      project-version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "version=PR-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+
+      # Node.js Example
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate SBOM (npm)
+        run: npx @cyclonedx/cyclonedx-npm --output-file bom.json
+
+      # Java/Maven Example (uncomment if needed)
+      # - name: Setup Java
+      #   uses: actions/setup-java@v4
+      #   with:
+      #     distribution: 'temurin'
+      #     java-version: '21'
+      #     cache: 'maven'
+      #
+      # - name: Build and Generate SBOM (Maven)
+      #   run: |
+      #     mvn clean package -DskipTests
+      #     mvn org.cyclonedx:cyclonedx-maven-plugin:makeAggregateBom -DoutputFormat=json
+
+      # Python Example (uncomment if needed)
+      # - name: Setup Python
+      #   uses: actions/setup-python@v5
+      #   with:
+      #     python-version: '3.12'
+      #
+      # - name: Generate SBOM (Python)
+      #   run: |
+      #     pip install cyclonedx-bom
+      #     cyclonedx-py -r requirements.txt -o bom.json
+
+      # Go Example (uncomment if needed)
+      # - name: Setup Go
+      #   uses: actions/setup-go@v5
+      #   with:
+      #     go-version: '1.22'
+      #
+      # - name: Generate SBOM (Go)
+      #   run: |
+      #     go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@latest
+      #     cyclonedx-gomod mod -json -output bom.json
+
+      # Universal SBOM with Syft
+      # - name: Generate SBOM (Syft)
+      #   uses: anchore/sbom-action@v0
+      #   with:
+      #     format: cyclonedx-json
+      #     output-file: bom.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: bom.json
+          retention-days: 30
+
+  # Job 2: Upload to Dependency-Track
+  upload-sbom:
+    name: Upload SBOM to Dependency-Track
+    needs: generate-sbom
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download SBOM artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: sbom
+
+      - name: Upload SBOM to Dependency-Track
+        uses: DependencyTrack/gh-upload-sbom@v3
+        with:
+          serverhostname: ${{ secrets.DTRACK_URL }}
+          apikey: ${{ secrets.DTRACK_API_KEY }}
+          projectname: ${{ github.repository }}
+          projectversion: ${{ needs.generate-sbom.outputs.project-version }}
+          bomfilename: bom.json
+          autocreate: true
+          # Parent project (optional)
+          # parentName: 'parent-project'
+          # parentVersion: 'main'
+
+  # Job 3: Security Gate (wait for analysis and check results)
+  security-gate:
+    name: Security Gate
+    needs: [generate-sbom, upload-sbom]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wait for Dependency-Track analysis
+        run: sleep 30  # Allow time for async processing
+
+      - name: Get project metrics
+        id: metrics
+        run: |
+          # Get project UUID
+          PROJECT=$(curl -s -H "X-Api-Key: ${{ secrets.DTRACK_API_KEY }}" \
+            "${{ secrets.DTRACK_URL }}/api/v1/project/lookup?name=${{ github.repository }}&version=${{ needs.generate-sbom.outputs.project-version }}")
+
+          PROJECT_UUID=$(echo $PROJECT | jq -r '.uuid')
+          echo "Project UUID: $PROJECT_UUID"
+
+          # Get current metrics
+          METRICS=$(curl -s -H "X-Api-Key: ${{ secrets.DTRACK_API_KEY }}" \
+            "${{ secrets.DTRACK_URL }}/api/v1/metrics/project/${PROJECT_UUID}/current")
+
+          echo "Metrics: $METRICS"
+
+          CRITICAL=$(echo $METRICS | jq -r '.critical // 0')
+          HIGH=$(echo $METRICS | jq -r '.high // 0')
+          MEDIUM=$(echo $METRICS | jq -r '.medium // 0')
+          LOW=$(echo $METRICS | jq -r '.low // 0')
+
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "medium=$MEDIUM" >> $GITHUB_OUTPUT
+          echo "low=$LOW" >> $GITHUB_OUTPUT
+
+      - name: Display vulnerability summary
+        run: |
+          echo "## Vulnerability Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Critical | ${{ steps.metrics.outputs.critical }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| High | ${{ steps.metrics.outputs.high }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Medium | ${{ steps.metrics.outputs.medium }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| Low | ${{ steps.metrics.outputs.low }} |" >> $GITHUB_STEP_SUMMARY
+
+      - name: Fail on critical vulnerabilities
+        if: steps.metrics.outputs.critical != '0'
+        run: |
+          echo "::error::Critical vulnerabilities found: ${{ steps.metrics.outputs.critical }}"
+          exit 1
+
+      - name: Warn on high vulnerabilities
+        if: steps.metrics.outputs.high > 5
+        run: |
+          echo "::warning::High vulnerabilities exceed threshold: ${{ steps.metrics.outputs.high }}"
+
+  # Job 4: Check policy violations
+  policy-check:
+    name: Policy Compliance Check
+    needs: [generate-sbom, upload-sbom]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wait for policy evaluation
+        run: sleep 30
+
+      - name: Check policy violations
+        run: |
+          # Get project UUID
+          PROJECT=$(curl -s -H "X-Api-Key: ${{ secrets.DTRACK_API_KEY }}" \
+            "${{ secrets.DTRACK_URL }}/api/v1/project/lookup?name=${{ github.repository }}&version=${{ needs.generate-sbom.outputs.project-version }}")
+
+          PROJECT_UUID=$(echo $PROJECT | jq -r '.uuid')
+
+          # Get policy violations
+          VIOLATIONS=$(curl -s -H "X-Api-Key: ${{ secrets.DTRACK_API_KEY }}" \
+            "${{ secrets.DTRACK_URL }}/api/v1/violation/project/${PROJECT_UUID}")
+
+          FAIL_COUNT=$(echo $VIOLATIONS | jq '[.[] | select(.type == "FAIL")] | length')
+          WARN_COUNT=$(echo $VIOLATIONS | jq '[.[] | select(.type == "WARN")] | length')
+          INFO_COUNT=$(echo $VIOLATIONS | jq '[.[] | select(.type == "INFO")] | length')
+
+          echo "## Policy Violations" >> $GITHUB_STEP_SUMMARY
+          echo "| Type | Count |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Fail | $FAIL_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Warn | $WARN_COUNT |" >> $GITHUB_STEP_SUMMARY
+          echo "| Info | $INFO_COUNT |" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$FAIL_COUNT" -gt 0 ]; then
+            echo "::error::Policy violations with FAIL state: $FAIL_COUNT"
+            exit 1
+          fi

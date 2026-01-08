@@ -1,0 +1,253 @@
+{
+  "_comment": "Operational Policy Templates for Dependency-Track",
+  "_description": "Policies for component governance - allowlists, denylists, and version control",
+
+  "policies": [
+    {
+      "name": "Block Known Malicious Packages",
+      "description": "Blocks packages known to be malicious (typosquatting, supply chain attacks)",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:npm/event-stream@3\\.3\\.6"
+        },
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:npm/ua-parser-js@0\\.7\\.29"
+        },
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:npm/node-ipc@10\\.(1\\.0|1\\.1|1\\.2)"
+        }
+      ],
+      "_note": "Add packages as they are discovered. Check advisories regularly."
+    },
+    {
+      "name": "Outdated Node.js Runtime",
+      "description": "Warns on Node.js versions that are end-of-life",
+      "operator": "ANY",
+      "violationState": "WARN",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:generic/node@([0-9]|1[0-7])\\."
+        }
+      ],
+      "_note": "Node 18 is current LTS as of 2024. Update regex as versions EOL."
+    },
+    {
+      "name": "Deprecated npm Packages",
+      "description": "Warns on commonly deprecated npm packages that should be replaced",
+      "operator": "ANY",
+      "violationState": "WARN",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:npm/request@.*"
+        },
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:npm/node-uuid@.*"
+        },
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:npm/querystring@.*"
+        }
+      ],
+      "_note": "request is deprecated in favor of got/axios, node-uuid in favor of uuid"
+    },
+    {
+      "name": "Internal Package Namespace",
+      "description": "Ensures internal packages follow naming convention",
+      "operator": "ANY",
+      "violationState": "INFO",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:npm/@mycompany/.*"
+        },
+        {
+          "subject": "COORDINATES",
+          "operator": "MATCHES",
+          "value": "{\"group\":\"com\\.mycompany\\..*\"}"
+        }
+      ],
+      "_note": "Customize regex to match your organization's namespace"
+    },
+    {
+      "name": "Require Specific Versions",
+      "description": "Ensure critical dependencies are pinned to specific approved versions",
+      "operator": "ALL",
+      "violationState": "WARN",
+      "includeChildren": true,
+      "global": false,
+      "tags": ["production"],
+      "policyConditions": [
+        {
+          "subject": "VERSION",
+          "operator": "MATCHES",
+          "value": ".*SNAPSHOT.*"
+        }
+      ],
+      "_note": "Warns on SNAPSHOT versions in production"
+    },
+    {
+      "name": "Block Snapshot Versions",
+      "description": "Fails on Maven SNAPSHOT dependencies in production",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": false,
+      "tags": ["production", "release"],
+      "policyConditions": [
+        {
+          "subject": "VERSION",
+          "operator": "MATCHES",
+          "value": ".*-SNAPSHOT$"
+        }
+      ]
+    },
+    {
+      "name": "Block Beta/RC Versions in Production",
+      "description": "Warns on pre-release versions",
+      "operator": "ANY",
+      "violationState": "WARN",
+      "includeChildren": true,
+      "global": false,
+      "tags": ["production"],
+      "policyConditions": [
+        {
+          "subject": "VERSION",
+          "operator": "MATCHES",
+          "value": ".*-(alpha|beta|rc|preview|dev).*"
+        }
+      ]
+    },
+    {
+      "name": "Approved Container Base Images",
+      "description": "Only allow specific approved base images",
+      "operator": "ALL",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": false,
+      "tags": ["containers"],
+      "policyConditions": [
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "NO_MATCH",
+          "value": "pkg:oci/.*@sha256:.*"
+        }
+      ],
+      "_note": "Customize to allow only verified images. Use with container SBOM tools."
+    },
+    {
+      "name": "Component Hash Mismatch",
+      "description": "Flags components where hash doesn't match known good value",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "COMPONENT_HASH",
+          "operator": "IS_NOT",
+          "value": ""
+        }
+      ],
+      "_note": "Configure with specific SHA-256 hashes for critical components"
+    },
+    {
+      "name": "Crypto Library Tracking",
+      "description": "Informational tracking of cryptographic libraries for compliance",
+      "operator": "ANY",
+      "violationState": "INFO",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:(npm|maven|pypi)/(crypto|bcrypt|openssl|sodium|tweetnacl|cryptography).*"
+        }
+      ],
+      "_note": "For export compliance and cryptographic inventory"
+    },
+    {
+      "name": "External Service SDKs",
+      "description": "Track usage of cloud provider SDKs",
+      "operator": "ANY",
+      "violationState": "INFO",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:npm/@aws-sdk/.*"
+        },
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:npm/@azure/.*"
+        },
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:npm/@google-cloud/.*"
+        },
+        {
+          "subject": "COORDINATES",
+          "operator": "MATCHES",
+          "value": "{\"group\":\"com\\.amazonaws\"}"
+        },
+        {
+          "subject": "COORDINATES",
+          "operator": "MATCHES",
+          "value": "{\"group\":\"com\\.azure\"}"
+        },
+        {
+          "subject": "COORDINATES",
+          "operator": "MATCHES",
+          "value": "{\"group\":\"com\\.google\\.cloud\"}"
+        }
+      ]
+    }
+  ],
+
+  "_package_url_examples": {
+    "npm": "pkg:npm/express@4.18.2",
+    "npm_scoped": "pkg:npm/@babel/core@7.23.0",
+    "maven": "pkg:maven/org.springframework/spring-core@5.3.30",
+    "pypi": "pkg:pypi/requests@2.31.0",
+    "golang": "pkg:golang/github.com/gin-gonic/gin@1.9.1",
+    "nuget": "pkg:nuget/Newtonsoft.Json@13.0.3",
+    "cargo": "pkg:cargo/serde@1.0.188",
+    "gem": "pkg:gem/rails@7.1.0",
+    "oci": "pkg:oci/nginx@sha256:abc123..."
+  },
+
+  "_coordinates_format": {
+    "description": "JSON format for COORDINATES subject",
+    "example": "{\"group\":\"org.apache.logging.log4j\",\"name\":\"log4j-core\",\"version\":\"2.17.1\"}",
+    "fields": ["group", "name", "version"],
+    "note": "Any field can use regex patterns"
+  }
+}

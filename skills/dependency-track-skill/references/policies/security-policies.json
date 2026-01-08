@@ -1,0 +1,231 @@
+{
+  "_comment": "Security Policy Templates for Dependency-Track",
+  "_description": "Import these policies via the REST API or use as reference for UI configuration",
+
+  "policies": [
+    {
+      "name": "No Critical Vulnerabilities",
+      "description": "Fails on any component with critical severity vulnerabilities",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "SEVERITY",
+          "operator": "IS",
+          "value": "CRITICAL"
+        }
+      ]
+    },
+    {
+      "name": "No High Vulnerabilities in Production",
+      "description": "Warns on high severity vulnerabilities (for production projects)",
+      "operator": "ANY",
+      "violationState": "WARN",
+      "includeChildren": true,
+      "global": false,
+      "tags": ["production"],
+      "policyConditions": [
+        {
+          "subject": "SEVERITY",
+          "operator": "IS",
+          "value": "HIGH"
+        }
+      ]
+    },
+    {
+      "name": "EPSS High Exploitability",
+      "description": "Fails on vulnerabilities with EPSS score > 0.5 (high exploitation probability)",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "EPSS",
+          "operator": "NUMERIC_GREATER_THAN",
+          "value": "0.5"
+        }
+      ]
+    },
+    {
+      "name": "Known Exploited Vulnerabilities",
+      "description": "Flags vulnerabilities in CISA KEV catalog",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "CWE",
+          "operator": "MATCHES",
+          "value": "CWE-.*"
+        }
+      ],
+      "_note": "Use in conjunction with CISA KEV data enrichment"
+    },
+    {
+      "name": "Block Log4j Vulnerable Versions",
+      "description": "Fails on any Log4j version prior to 2.17.1",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:maven/org.apache.logging.log4j/log4j-core@(2\\.([0-9]|1[0-6])\\..*)|(2\\.17\\.0)"
+        }
+      ]
+    },
+    {
+      "name": "Block Spring4Shell Vulnerable Versions",
+      "description": "Fails on Spring Framework versions affected by CVE-2022-22965",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "PACKAGE_URL",
+          "operator": "MATCHES",
+          "value": "pkg:maven/org.springframework/spring-beans@([0-4]\\..*|5\\.[0-2]\\..*|5\\.3\\.[0-9]$|5\\.3\\.1[0-7]$)"
+        }
+      ]
+    },
+    {
+      "name": "Old Component Age Warning",
+      "description": "Warns on components older than 3 years",
+      "operator": "ANY",
+      "violationState": "WARN",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "AGE",
+          "operator": "NUMERIC_GREATER_THAN",
+          "value": "1095"
+        }
+      ],
+      "_note": "Age is in days (1095 = 3 years)"
+    },
+    {
+      "name": "Very Old Component Fail",
+      "description": "Fails on components older than 5 years",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "AGE",
+          "operator": "NUMERIC_GREATER_THAN",
+          "value": "1825"
+        }
+      ],
+      "_note": "Age is in days (1825 = 5 years)"
+    },
+    {
+      "name": "Injection Vulnerabilities",
+      "description": "Flags common injection CWEs (SQL, Command, LDAP, XPath, etc.)",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "CWE",
+          "operator": "IS",
+          "value": "89"
+        },
+        {
+          "subject": "CWE",
+          "operator": "IS",
+          "value": "78"
+        },
+        {
+          "subject": "CWE",
+          "operator": "IS",
+          "value": "90"
+        },
+        {
+          "subject": "CWE",
+          "operator": "IS",
+          "value": "91"
+        }
+      ],
+      "_note": "CWE-89: SQL Injection, CWE-78: OS Command Injection, CWE-90: LDAP Injection, CWE-91: XML Injection"
+    },
+    {
+      "name": "Remote Code Execution CWEs",
+      "description": "Fails on components with RCE-related weaknesses",
+      "operator": "ANY",
+      "violationState": "FAIL",
+      "includeChildren": true,
+      "global": true,
+      "policyConditions": [
+        {
+          "subject": "CWE",
+          "operator": "IS",
+          "value": "94"
+        },
+        {
+          "subject": "CWE",
+          "operator": "IS",
+          "value": "95"
+        },
+        {
+          "subject": "CWE",
+          "operator": "IS",
+          "value": "502"
+        }
+      ],
+      "_note": "CWE-94: Code Injection, CWE-95: Eval Injection, CWE-502: Deserialization"
+    }
+  ],
+
+  "_api_examples": {
+    "create_policy": "PUT /api/v1/policy",
+    "add_condition": "PUT /api/v1/policy/{policyUuid}/condition",
+    "assign_to_project": "POST /api/v1/policy/{policyUuid}/project/{projectUuid}",
+    "assign_to_tag": "POST /api/v1/policy/{policyUuid}/tag/{tagName}"
+  },
+
+  "_condition_subjects": [
+    "AGE",
+    "COORDINATES",
+    "CPE",
+    "CWE",
+    "EPSS",
+    "LICENSE",
+    "LICENSE_GROUP",
+    "PACKAGE_URL",
+    "SEVERITY",
+    "SWID_TAGID",
+    "VERSION",
+    "COMPONENT_HASH"
+  ],
+
+  "_condition_operators": [
+    "IS",
+    "IS_NOT",
+    "MATCHES",
+    "NO_MATCH",
+    "NUMERIC_GREATER_THAN",
+    "NUMERIC_LESS_THAN",
+    "NUMERIC_EQUAL",
+    "NUMERIC_NOT_EQUAL",
+    "NUMERIC_GREATER_THAN_OR_EQUAL",
+    "NUMERIC_LESSER_THAN_OR_EQUAL",
+    "CONTAINS_ALL",
+    "CONTAINS_ANY"
+  ],
+
+  "_violation_states": [
+    "INFO",
+    "WARN",
+    "FAIL"
+  ]
+}
