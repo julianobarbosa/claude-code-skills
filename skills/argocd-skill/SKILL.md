@@ -1,6 +1,6 @@
 ---
-name: argocd
-description: Complete ArgoCD API and CLI skill for GitOps automation. Use when working with ArgoCD for: (1) Managing Applications - create, sync, delete, rollback, get status, (2) ApplicationSets - templated multi-cluster deployments, (3) Projects - RBAC, source/destination restrictions, sync windows, (4) Repositories - add/remove Git repos, Helm charts, OCI registries, (5) Clusters - register, rotate credentials, manage multi-cluster, (6) Accounts - generate tokens, manage users, check permissions, (7) Any ArgoCD REST API calls or argocd CLI commands. Supports both REST API (curl/HTTP) and CLI wrapper approaches with bearer token authentication.
+name: argocd-cli
+description: Complete ArgoCD CLI and REST API skill for GitOps automation. Use when working with ArgoCD for: (1) Managing Applications - create, sync, delete, rollback, get status, wait for health, view logs, (2) ApplicationSets - templated multi-cluster deployments with generators, (3) Projects - RBAC, source/destination restrictions, sync windows, roles, (4) Repositories - add/remove Git repos, Helm charts, OCI registries, credential templates, (5) Clusters - register, rotate credentials, manage multi-cluster, (6) Accounts - generate tokens, manage users, check permissions, (7) Admin operations - export/import, settings validation, RBAC testing, notifications, (8) Troubleshooting - sync issues, health problems, connection errors. Supports both REST API (curl/HTTP) and CLI approaches with bearer token authentication.
 ---
 
 # ArgoCD Skill
@@ -123,7 +123,8 @@ argocd proj role add-group myproject deployer my-sso-group
 argocd proj role create-token myproject deployer --expires-in 24h
 
 # Sync windows
-argocd proj windows add myproject --kind allow --schedule "0 22 * * *" --duration 2h
+argocd proj windows add myproject \
+  --kind allow --schedule "0 22 * * *" --duration 2h
 argocd proj windows list myproject
 ```
 
@@ -140,7 +141,8 @@ argocd repo add git@github.com:org/repo.git --ssh-private-key-path ~/.ssh/id_rsa
 argocd repo add https://charts.example.com --type helm --name myrepo
 
 # Add OCI registry
-argocd repo add registry.example.com --type helm --enable-oci --username user --password pass
+argocd repo add registry.example.com \
+  --type helm --enable-oci --username user --password pass
 
 # Credential template (applies to matching repos)
 argocd repocreds add https://github.com/myorg/ --username git --password $TOKEN
@@ -453,5 +455,62 @@ argocd cluster add prod-context --name prod
 # Use ApplicationSet with cluster generator
 ```
 
+## Admin Operations
+
+```bash
+# Get initial admin password
+argocd admin initial-password -n argocd
+
+# Export all resources for backup
+argocd admin export > backup.yaml
+
+# Import from backup
+argocd admin import < backup.yaml
+
+# Start local dashboard (core mode)
+argocd admin dashboard
+
+# Validate RBAC policy
+argocd admin settings rbac validate --policy-file policy.csv
+
+# Test RBAC permission
+argocd admin settings rbac can role:developer sync applications 'myproject/*'
+
+# Notification management
+argocd admin notifications template list
+argocd admin notifications trigger list
+```
+
+## Troubleshooting Quick Reference
+
+```bash
+# Check diff for out-of-sync apps
+argocd app diff myapp
+
+# Force refresh from Git
+argocd app get myapp --hard-refresh
+
+# View detailed sync operation
+argocd app get myapp --show-operation
+
+# Check application conditions
+argocd app get myapp -o json | jq '.status.conditions'
+
+# Terminate stuck sync
+argocd app terminate-op myapp
+
+# Check controller logs
+kubectl logs -n argocd -l app.kubernetes.io/name=argocd-application-controller --tail=100
+
+# Apps not healthy
+argocd app list -o json | \
+  jq -r '.items[] | select(.status.health.status != "Healthy") | .metadata.name'
+
+# Apps out of sync
+argocd app list -o json | \
+  jq -r '.items[] | select(.status.sync.status != "Synced") | .metadata.name'
+```
+
 For complete API endpoint documentation, see `references/api-reference.md`.
 For complete CLI command reference, see `references/cli-reference.md`.
+For troubleshooting guide, see `references/troubleshooting.md`.

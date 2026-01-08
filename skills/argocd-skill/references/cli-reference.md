@@ -580,7 +580,8 @@ argocd app terminate-op myapp
 argocd app actions list myapp --kind Deployment
 
 # Run action
-argocd app actions run myapp restart --kind Deployment --resource-name nginx --namespace default
+argocd app actions run myapp restart \
+  --kind Deployment --resource-name nginx --namespace default
 
 # Disable action
 argocd app actions run myapp disable --kind Rollout --resource-name canary
@@ -1204,56 +1205,6 @@ Flags:
 argocd gpg rm KEYID
 ```
 
-## Admin Commands
-
-### argocd admin initial-password
-
-```bash
-# Get initial admin password
-argocd admin initial-password -n argocd
-```
-
-### argocd admin settings
-
-```bash
-# Validate RBAC
-argocd admin settings rbac validate --policy-file policy.csv
-
-# Test RBAC
-argocd admin settings rbac can role:developer get applications '*/*'
-```
-
-### argocd admin cluster
-
-```bash
-# Generate cluster config
-argocd admin cluster generate-spec CONTEXT
-```
-
-### argocd admin export
-
-```bash
-# Export all resources
-argocd admin export > backup.yaml
-```
-
-### argocd admin import
-
-```bash
-# Import resources
-argocd admin import < backup.yaml
-```
-
-### argocd admin notifications
-
-```bash
-# Test notification template
-argocd admin notifications template get app-deployed
-
-# List triggers
-argocd admin notifications trigger list
-```
-
 ## Version Command
 
 ```bash
@@ -1266,3 +1217,191 @@ argocd version --client
 # JSON output
 argocd version -o json
 ```
+
+## Admin Commands
+
+### argocd admin initial-password
+
+```bash
+# Get initial admin password
+argocd admin initial-password -n argocd
+
+# Reset the password
+argocd admin initial-password reset -n argocd
+```
+
+### argocd admin dashboard
+
+```bash
+# Start local web UI (no server required)
+argocd admin dashboard
+
+# With custom port
+argocd admin dashboard --port 8080
+
+# With namespace
+argocd admin dashboard -n argocd
+```
+
+### argocd admin export/import
+
+```bash
+# Export all ArgoCD resources
+argocd admin export > backup.yaml
+
+# Export specific resource types
+argocd admin export --applications --projects > backup.yaml
+
+# Import from file
+argocd admin import < backup.yaml
+
+# Import with merge
+argocd admin import --merge < backup.yaml
+```
+
+### argocd admin settings
+
+```bash
+# Validate settings
+argocd admin settings validate -n argocd
+
+# Validate RBAC policy
+argocd admin settings rbac validate --policy-file policy.csv
+
+# Test RBAC permission
+argocd admin settings rbac can role:developer get applications '*/*'
+argocd admin settings rbac can role:developer sync applications 'myproject/*'
+
+# Get resource overrides
+argocd admin settings resource-overrides health Rollout
+
+# List all settings
+argocd admin settings -n argocd
+```
+
+### argocd admin cluster
+
+```bash
+# Generate cluster config
+argocd admin cluster generate-spec CONTEXT
+
+# Get cluster kubeconfig
+argocd admin cluster kubeconfig CONTEXT
+
+# Get cluster namespaces
+argocd admin cluster namespaces CONTEXT
+
+# Shards management
+argocd admin cluster shards
+```
+
+### argocd admin app
+
+```bash
+# Get app resources
+argocd admin app get-recurse myapp
+
+# Diff app manifests
+argocd admin app diff-reconcile-results myapp
+```
+
+### argocd admin repo
+
+```bash
+# Generate repo credentials
+argocd admin repo generate-spec
+
+# Update repo credentials
+argocd admin repo update-credentials
+```
+
+### argocd admin proj
+
+```bash
+# Generate project spec
+argocd admin proj generate-spec
+
+# Update project destinations
+argocd admin proj update-destinations
+```
+
+### argocd admin notifications
+
+```bash
+# List templates
+argocd admin notifications template list
+
+# Get template
+argocd admin notifications template get app-deployed
+
+# List triggers
+argocd admin notifications trigger list
+
+# Get trigger
+argocd admin notifications trigger get on-deployed
+
+# Test notification
+argocd admin notifications template notify app-deployed myapp
+```
+
+### argocd admin redis-initial-password
+
+```bash
+# Ensure Redis password exists
+argocd admin redis-initial-password -n argocd
+```
+
+## Completion Command
+
+```bash
+# Generate bash completion
+argocd completion bash > /etc/bash_completion.d/argocd
+
+# Generate zsh completion
+argocd completion zsh > "${fpath[1]}/_argocd"
+
+# Generate fish completion
+argocd completion fish > ~/.config/fish/completions/argocd.fish
+
+# Generate PowerShell completion
+argocd completion powershell > argocd.ps1
+```
+
+## Configure Command
+
+```bash
+# Configure local settings
+argocd configure set server argocd.example.com
+argocd configure set insecure true
+
+# View configuration
+argocd configure get
+
+# Unset configuration
+argocd configure unset insecure
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `ARGOCD_SERVER` | ArgoCD server address |
+| `ARGOCD_AUTH_TOKEN` | Bearer token for authentication |
+| `ARGOCD_OPTS` | Default CLI options |
+| `ARGOCD_GRPC_WEB` | Use gRPC-web (true/false) |
+| `ARGOCD_INSECURE` | Skip TLS verification |
+| `ARGOCD_PLAINTEXT` | Disable TLS |
+| `ARGOCD_CONFIG_DIR` | Config directory path |
+
+## Exit Codes
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | General error |
+| `2` | Invalid argument |
+| `3` | Not found |
+| `4` | Permission denied |
+| `5` | Timeout |
+| `20` | Sync failed |
+| `21` | Health check failed |
