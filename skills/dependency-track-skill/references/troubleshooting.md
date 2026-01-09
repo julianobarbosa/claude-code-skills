@@ -25,7 +25,6 @@ Comprehensive troubleshooting guide for common issues with Dependency-Track depl
 **Cause:** Insufficient memory allocated
 
 **Solution:**
-
 ```bash
 # Docker - allocate minimum 4.5GB (8GB+ recommended)
 docker run -d -m 8192m -p 8080:8080 dependencytrack/bundled
@@ -48,7 +47,6 @@ services:
 **Cause:** OS temp directory cleanup affecting embedded Jetty server
 
 **Solution:**
-
 ```yaml
 environment:
   JAVA_OPTIONS: >-
@@ -58,7 +56,6 @@ environment:
 ```
 
 Create persistent tmp directory:
-
 ```bash
 mkdir -p /data/tmp
 chown 1000:1000 /data/tmp
@@ -71,7 +68,6 @@ chown 1000:1000 /data/tmp
 **Cause:** Mirroring vulnerability databases (NVD, GitHub Advisories)
 
 **Solution:** This is expected behavior. Monitor progress:
-
 ```bash
 # Docker logs
 docker logs -f dependency-track-apiserver
@@ -87,7 +83,6 @@ Do NOT restart during initial sync.
 **Symptoms:** `Error: bind: address already in use`
 
 **Solution:**
-
 ```bash
 # Find process using port
 lsof -i :8080
@@ -106,7 +101,6 @@ docker run -p 9080:8080 dependencytrack/apiserver
 **Causes & Solutions:**
 
 1. **Insufficient heap memory:**
-
 ```yaml
 environment:
   JAVA_OPTIONS: >-
@@ -116,7 +110,6 @@ environment:
 ```
 
 2. **Database connection issues:**
-
 ```yaml
 # Add connection pool settings
 ALPINE_DATABASE_POOL_ENABLED: "true"
@@ -131,13 +124,11 @@ ALPINE_DATABASE_POOL_MIN_IDLE: "5"
 ### High CPU usage
 
 **Causes:**
-
 - Vulnerability analysis running
 - Multiple concurrent BOM uploads
 - Full portfolio re-analysis
 
 **Solutions:**
-
 ```yaml
 # Limit concurrent analysis
 ALPINE_VULN_ANALYSIS_CACHE_ENABLED: "true"
@@ -151,7 +142,6 @@ ALPINE_VULN_ANALYSIS_SCHEDULE_CRON: "0 0 3 * * ?"  # 3 AM daily
 ### Memory leak symptoms
 
 **Solution:** JVM tuning for long-running instances:
-
 ```yaml
 JAVA_OPTIONS: >-
   -Xms8g
@@ -172,7 +162,6 @@ JAVA_OPTIONS: >-
 **Cause 1:** Analyzers not enabled
 
 **Solution:**
-
 1. Go to Administration > Analyzers
 2. Enable:
    - Internal Analyzer (always enable)
@@ -183,11 +172,9 @@ JAVA_OPTIONS: >-
 **Cause 2:** OSS Index requires API token
 
 **Solution:**
-
-1. Register at <https://ossindex.sonatype.org/>
+1. Register at https://ossindex.sonatype.org/
 2. Get API token from account settings
 3. Configure in Dependency-Track:
-
 ```yaml
 ALPINE_OSS_INDEX_ENABLED: "true"
 ALPINE_OSS_INDEX_API_USERNAME: "your-email"
@@ -209,7 +196,6 @@ ALPINE_OSS_INDEX_API_TOKEN: "your-token"
 **Cause:** Missing or invalid Package URLs (PURLs) in SBOM
 
 **Solution:**
-
 1. Ensure SBOM generator includes PURLs
 2. Verify PURL format: `pkg:type/namespace/name@version`
 3. Check component has valid CPE for NVD correlation
@@ -224,10 +210,8 @@ cat bom.json | jq '.components[].purl'
 **Symptoms:** 429 Too Many Requests errors in logs
 
 **Solution:**
-
 1. Get paid tier or reduce scan frequency
 2. Enable caching:
-
 ```yaml
 ALPINE_OSS_INDEX_CACHE_VALIDITY_PERIOD: "43200"  # 12 hours
 ```
@@ -241,7 +225,6 @@ ALPINE_OSS_INDEX_CACHE_VALIDITY_PERIOD: "43200"  # 12 hours
 **Cause:** Auto-provisioned accounts sync via async job queue
 
 **Solution:**
-
 - Wait for background sync (can take minutes under load)
 - Create accounts manually for immediate sync
 - Check LDAP configuration syntax
@@ -249,7 +232,6 @@ ALPINE_OSS_INDEX_CACHE_VALIDITY_PERIOD: "43200"  # 12 hours
 ### LDAP connection failures
 
 **Debug steps:**
-
 ```bash
 # Test LDAP connectivity
 ldapsearch -x -H ldap://ldap.example.com:389 \
@@ -275,7 +257,6 @@ ALPINE_LDAP_AUTH_USERNAME_FORMAT=uid=%s,ou=users,dc=example,dc=com
 **Cause 1:** Incorrect issuer URL
 
 **Solution:**
-
 ```yaml
 # Include full path to .well-known/openid-configuration parent
 ALPINE_OIDC_ISSUER: "https://auth.example.com/realms/master"
@@ -284,7 +265,6 @@ ALPINE_OIDC_ISSUER: "https://auth.example.com/realms/master"
 **Cause 2:** Client ID mismatch
 
 **Solution:** Ensure frontend and API use same client ID:
-
 ```yaml
 # API Server
 ALPINE_OIDC_CLIENT_ID: "dependency-track"
@@ -293,12 +273,103 @@ ALPINE_OIDC_CLIENT_ID: "dependency-track"
 OIDC_CLIENT_ID: "dependency-track"
 ```
 
+### OIDC Groups not appearing in UI
+
+**Symptoms:** Configured Azure AD groups don't show in Administration > OpenID Connect Groups
+
+**Cause 1:** No users from those groups have authenticated yet
+
+**Solution:** Groups only appear after a user with that group membership logs in. To verify:
+1. Add a test user to the Azure AD group
+2. Have them login to Dependency-Track via OIDC
+3. Check if group appears in UI after login
+
+**Cause 2:** Groups claim not included in ID token
+
+**Solution:**
+```bash
+# Verify Azure AD App Registration configuration
+az ad app show --id $CLIENT_ID --query '{
+  groupMembershipClaims:groupMembershipClaims,
+  optionalClaims:optionalClaims.idToken[?name==`groups`]
+}'
+
+# Should show:
+# groupMembershipClaims: SecurityGroup
+# optionalClaims with groups
+```
+
+**Cause 3:** User not member of Azure AD group
+
+**Solution:**
+```bash
+# Check user's group memberships
+az ad user get-member-objects --id user@example.com
+
+# Add user to group
+az ad group member add \
+  --group "G-Usuarios-DependencyTrack-Admin" \
+  --member-id <user-object-id>
+```
+
+**Cause 4:** Azure AD returns group GUIDs that exceed token size limit
+
+**Solution:** For users in many groups, Azure AD may truncate the groups claim:
+1. Use application roles instead of groups
+2. Or enable "overage claim" to fetch groups separately via Graph API
+
+### OIDC team mapping not working
+
+**Symptoms:** User logs in but isn't assigned to expected Team
+
+**Debug Steps:**
+```bash
+# 1. Get user's teams via API
+curl -s -H "X-Api-Key: ${API_KEY}" \
+  "${DTRACK_URL}/api/v1/user/self" | jq '.teams'
+
+# 2. Verify group-to-team mapping exists
+curl -s -H "X-Api-Key: ${API_KEY}" \
+  "${DTRACK_URL}/api/v1/team" | jq '.[] | {name, mappedOidcGroups}'
+
+# 3. Check API server logs for OIDC processing
+kubectl logs -n dependency-track deployment/dependency-track-apiserver \
+  | grep -i "oidc\|group\|team"
+```
+
+**Solution:** Manually create group mapping via API:
+```bash
+# Azure AD Group Object ID to map
+AZURE_GROUP_ID="31d6daa5-5cc2-4e5f-9bf5-75ee8e09198c"
+
+# Get Team UUID
+TEAM_UUID=$(curl -s -H "X-Api-Key: ${API_KEY}" \
+  "${DTRACK_URL}/api/v1/team" | jq -r '.[] | select(.name=="Administrators") | .uuid')
+
+# Step 1: Create OIDC Group first (required before mapping)
+curl -X PUT "${DTRACK_URL}/api/v1/oidc/group" \
+  -H "X-Api-Key: ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d "{\"uuid\": \"${AZURE_GROUP_ID}\", \"name\": \"${AZURE_GROUP_ID}\"}"
+
+# Step 2: Get the created OIDC Group UUID
+OIDC_GROUP_UUID=$(curl -s -H "X-Api-Key: ${API_KEY}" \
+  "${DTRACK_URL}/api/v1/oidc/group" | jq -r ".[] | select(.name==\"${AZURE_GROUP_ID}\") | .uuid")
+
+# Step 3: Create mapping with UUID strings (NOT objects)
+curl -X PUT "${DTRACK_URL}/api/v1/oidc/mapping" \
+  -H "X-Api-Key: ${API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d "{\"team\": \"${TEAM_UUID}\", \"group\": \"${OIDC_GROUP_UUID}\"}"
+```
+
+> **Note:** The mapping endpoint expects UUID strings, not objects. Using `{"team": {"uuid": "..."}}` returns HTTP 400.
+
 ### API key not working
 
 **Symptoms:** 401 Unauthorized on API calls
 
 **Solutions:**
-
 1. Verify header name: `X-Api-Key` (case-sensitive)
 2. Check key hasn't expired
 3. Verify team has required permissions
@@ -319,9 +390,7 @@ curl -v -H "X-Api-Key: YOUR_KEY" \
 **Cause:** Self-signed or internal CA certificates
 
 **Solution:**
-
 1. Import certificate into Java truststore:
-
 ```bash
 keytool -import -alias dtrack-cert \
   -keystore /usr/lib/jvm/java-17/lib/security/cacerts \
@@ -329,7 +398,6 @@ keytool -import -alias dtrack-cert \
 ```
 
 2. Or use environment variable:
-
 ```yaml
 JAVA_OPTIONS: >-
   -Djavax.net.ssl.trustStore=/data/truststore.jks
@@ -341,7 +409,6 @@ JAVA_OPTIONS: >-
 **Cause:** Nginx/ingress body size limit
 
 **Solution for Kubernetes:**
-
 ```yaml
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -352,7 +419,6 @@ metadata:
 ```
 
 **Solution for nginx proxy:**
-
 ```nginx
 client_max_body_size 100M;
 proxy_read_timeout 600;
@@ -362,13 +428,11 @@ proxy_send_timeout 600;
 ### BOM upload returns 400 Bad Request
 
 **Causes:**
-
 1. Invalid JSON/XML format
 2. Base64 encoding issues
 3. Missing required fields
 
 **Debug:**
-
 ```bash
 # Validate JSON syntax
 cat bom.json | jq .
@@ -390,7 +454,6 @@ curl -X PUT "https://dtrack.example.com/api/v1/bom" \
 **Cause:** Pagination - default page size may not return all results
 
 **Solution:**
-
 ```bash
 # Specify page size
 curl -H "X-Api-Key: ${API_KEY}" \
@@ -404,7 +467,6 @@ curl -H "X-Api-Key: ${API_KEY}" \
 ### Jenkins plugin timeout errors
 
 **Solution:**
-
 ```groovy
 dependencyTrackPublisher(
     artifact: 'bom.json',
@@ -421,7 +483,6 @@ dependencyTrackPublisher(
 **Cause:** Firewall rules blocking GitHub runners
 
 **Solution:**
-
 1. Use self-hosted runners inside your network
 2. Or expose Dependency-Track via public URL with authentication
 3. Check security group / firewall rules
@@ -431,7 +492,6 @@ dependencyTrackPublisher(
 **Cause:** Async processing - analysis happens after upload
 
 **Solution:**
-
 ```bash
 # Wait for processing after upload
 TOKEN=$(upload_sbom_and_get_token)
@@ -458,7 +518,6 @@ done
 **Symptoms:** Application won't start, database errors in logs
 
 **Solution:** H2 is not recommended for production
-
 1. Backup `/data` directory
 2. Migrate to PostgreSQL
 3. Use external database for production
@@ -468,7 +527,6 @@ done
 **Symptoms:** "Cannot acquire connection from pool" errors
 
 **Solution:**
-
 ```yaml
 # Increase pool size
 ALPINE_DATABASE_POOL_MAX_SIZE: "30"
@@ -481,11 +539,9 @@ ALPINE_DATABASE_POOL_IDLE_TIMEOUT: "300000"
 **Symptoms:** Application fails on startup with Liquibase errors
 
 **Solution:**
-
 1. Check database connectivity
 2. Verify user has DDL permissions
 3. Review migration logs:
-
 ```bash
 docker logs dependency-track-apiserver | grep -i liquibase
 ```
@@ -497,14 +553,12 @@ docker logs dependency-track-apiserver | grep -i liquibase
 ### Pod stuck in CrashLoopBackOff
 
 **Debug:**
-
 ```bash
 kubectl describe pod -n dtrack dtrack-apiserver-xxx
 kubectl logs -n dtrack dtrack-apiserver-xxx --previous
 ```
 
 **Common causes:**
-
 - Insufficient resources (increase limits)
 - Database connection failure (check service/endpoint)
 - Secrets not mounted (verify secret exists)
@@ -512,7 +566,6 @@ kubectl logs -n dtrack dtrack-apiserver-xxx --previous
 ### PVC not binding
 
 **Solution:**
-
 ```bash
 # Check StorageClass
 kubectl get sc
@@ -524,7 +577,6 @@ kubectl describe pvc -n dtrack
 ### Service unreachable from ingress
 
 **Debug:**
-
 ```bash
 # Check service endpoints
 kubectl get endpoints -n dtrack
@@ -537,7 +589,6 @@ kubectl run test --rm -it --image=curlimages/curl -- \
 ### ConfigMap changes not applied
 
 **Solution:** Restart pods after ConfigMap update:
-
 ```bash
 kubectl rollout restart deployment -n dtrack dtrack-apiserver
 ```
@@ -590,7 +641,6 @@ curl -s https://dtrack.example.com/api/version | jq
 ```
 
 Expected response:
-
 ```json
 {
   "version": "4.10.0",
@@ -638,7 +688,7 @@ Expected response:
 
 ## Getting Help
 
-1. **Documentation:** <https://docs.dependencytrack.org/>
-2. **GitHub Issues:** <https://github.com/DependencyTrack/dependency-track/issues>
+1. **Documentation:** https://docs.dependencytrack.org/
+2. **GitHub Issues:** https://github.com/DependencyTrack/dependency-track/issues
 3. **Slack:** OWASP Slack #proj-dependency-track
-4. **GitHub Discussions:** <https://github.com/DependencyTrack/dependency-track/discussions>
+4. **GitHub Discussions:** https://github.com/DependencyTrack/dependency-track/discussions

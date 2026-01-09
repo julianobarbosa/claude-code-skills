@@ -23,7 +23,6 @@ triggers:
 Comprehensive guide for implementing, deploying, and operating **Dependency-Track** - an intelligent Software Composition Analysis (SCA) platform that identifies and reduces risk in the software supply chain through SBOM management.
 
 **Current Versions:**
-
 - Helm Chart: `0.40.0`
 - App Version: `4.13.6`
 - Helm Repository: `https://dependencytrack.github.io/helm-charts`
@@ -31,7 +30,6 @@ Comprehensive guide for implementing, deploying, and operating **Dependency-Trac
 ## Overview
 
 Dependency-Track is an API-first platform that:
-
 - Consumes and produces CycloneDX SBOMs and VEX documents
 - Monitors components for known vulnerabilities across the entire portfolio
 - Integrates with NVD, GitHub Advisories, OSS Index, Snyk, Trivy, OSV, and VulnDB
@@ -68,12 +66,10 @@ docker compose up -d
 ```
 
 **Minimum Requirements:**
-
 - API Server: 4.5GB RAM, 2 CPU cores
 - Frontend: 512MB RAM, 1 CPU core
 
 **Recommended Requirements:**
-
 - API Server: 16GB RAM, 4 CPU cores
 - Frontend: 1GB RAM, 2 CPU cores
 
@@ -100,7 +96,6 @@ helm upgrade dtrack dependency-track/dependency-track \
 ```
 
 **Available Charts:**
-
 | Chart | Description | Status |
 |-------|-------------|--------|
 | `dependency-track/dependency-track` | Monolithic deployment (v4.x) | Production Ready |
@@ -108,101 +103,165 @@ helm upgrade dtrack dependency-track/dependency-track \
 
 See `references/deployment/` for complete manifests and Helm values.
 
-### Kubernetes Ingress Configuration (CRITICAL)
+### ArgoCD GitOps Deployment (AKS)
 
-> **IMPORTANT**: The dependency-track Helm chart expects `ingress:` at the
-> **ROOT level**, NOT under `frontend.ingress:`. This is a common mistake
-> that causes the Ingress resource to not be created.
+For enterprise Kubernetes deployments using ArgoCD with multi-source ApplicationSets:
 
-**Correct Structure:**
-
-```yaml
-# CORRECT - Ingress at root level
-ingress:
-  enabled: true
-  hostname: dtrack.example.com
-  ingressClassName: nginx
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-prod
-    external-dns.alpha.kubernetes.io/hostname: dtrack.example.com
-  tls:
-    - secretName: dtrack-tls
-      hosts:
-        - dtrack.example.com
-
-# Frontend config (NO ingress here!)
-frontend:
-  enabled: true
-  apiBaseUrl: https://dtrack.example.com
-  # ...
+**Directory Structure:**
+```
+infra-team/
+  applicationset/
+    dependency-track.yaml       # ArgoCD ApplicationSet definition
+argo-cd-helm-values/
+  kube-addons/
+    dependency-track/
+      azure-ad-setup.sh         # Azure AD App Registration script
+      cafehyna-dev/
+        values.yaml             # Environment-specific Helm values
+        secretproviderclass.yaml # Azure Key Vault CSI integration
 ```
 
-**Common Mistakes:**
-
+**ApplicationSet Example (Multi-Source):**
 ```yaml
-# WRONG - This will NOT create an Ingress resource!
-frontend:
-  ingress:  # <-- WRONG LOCATION
-    enabled: true
-    className: nginx
-    hosts:
-      - host: dtrack.example.com
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: dependency-track
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - cluster: cafehyna-dev
+            url: https://aks-cluster-url:443
+            project: kube-addons
+            branch: main
+            environment: development
+            urlSuffix: ".dev"
+  template:
+    metadata:
+      name: "{{cluster}}-dependency-track"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: "{{project}}"
+      sources:
+        # Source 1: Helm chart from official repository
+        - chart: dependency-track
+          repoURL: https://dependencytrack.github.io/helm-charts
+          targetRevision: "0.40.0"
+          helm:
+            releaseName: dependency-track
+            valueFiles:
+              - $values/argo-cd-helm-values/kube-addons/dependency-track/{{cluster}}/values.yaml
+        # Source 2: Values repository reference
+        - repoURL: https://your-git-repo.git
+          targetRevision: "{{branch}}"
+          ref: values
+        # Source 3: Additional manifests (SecretProviderClass)
+        - repoURL: https://your-git-repo.git
+          targetRevision: "{{branch}}"
+          path: argo-cd-helm-values/kube-addons/dependency-track/{{cluster}}
+          directory:
+            exclude: values.yaml
+      destination:
+        server: "{{url}}"
+        namespace: dependency-track
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - ServerSideApply=true
+          - CreateNamespace=true
 ```
 
-**Key Differences from Standard Ingress:**
-
-| Chart Expects | Standard nginx-ingress |
-|--------------|------------------------|
-| `hostname` (string) | `hosts` (array) |
-| `ingressClassName` | `className` or `class` |
-| Root level `ingress:` | Component level `frontend.ingress:` |
-
-**Integration with cert-manager and external-dns:**
-
+**Azure Key Vault CSI Driver (SecretProviderClass):**
 ```yaml
-ingress:
-  enabled: true
-  hostname: dtrack.dev.cafehyna.com.br
-  ingressClassName: nginx
-  annotations:
-    # cert-manager for TLS certificates
-    cert-manager.io/cluster-issuer: letsencrypt-staging-cloudflare  # dev
-    # cert-manager.io/cluster-issuer: letsencrypt-prod-cloudflare   # prod
-
-    # external-dns for automatic DNS record creation
-    external-dns.alpha.kubernetes.io/hostname: dtrack.dev.cafehyna.com.br
-    external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
-    external-dns.alpha.kubernetes.io/ttl: "300"
-
-    # nginx-ingress proxy settings (for large SBOM uploads)
-    nginx.ingress.kubernetes.io/proxy-body-size: 100m
-    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
-
-    # NOTE: configuration-snippet may be DISABLED by nginx-ingress admin
-    # If you get "Snippet directives are disabled" error, remove it
-    # Configure security headers at controller level via ConfigMap instead
-  tls:
-    - secretName: dtrack-tls
-      hosts:
-        - dtrack.dev.cafehyna.com.br
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: dependency-track-secrets-kv
+  namespace: dependency-track
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    useVMManagedIdentity: "true"
+    userAssignedIdentityID: "<managed-identity-client-id>"
+    keyvaultName: "<key-vault-name>"
+    tenantId: "<tenant-id>"
+    objects: |
+      array:
+        - |
+          objectName: "dtrack-oidc-client-id"
+          objectType: "secret"
+          objectAlias: "oidc-client-id"
+        - |
+          objectName: "dtrack-oidc-client-secret"
+          objectType: "secret"
+          objectAlias: "oidc-client-secret"
+  secretObjects:
+    - secretName: dependency-track-secrets
+      type: Opaque
+      data:
+        - objectName: oidc-client-id
+          key: oidc-client-id
+        - objectName: oidc-client-secret
+          key: oidc-client-secret
 ```
 
-**Ingress Routes Created by Chart:**
+**AKS Spot Instance Tolerations (Cost Optimization):**
+```yaml
+apiServer:
+  tolerations:
+    - key: kubernetes.azure.com/scalesetpriority
+      operator: Equal
+      value: spot
+      effect: NoSchedule
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: kubernetes.azure.com/scalesetpriority
+                operator: In
+                values:
+                  - spot
+```
 
-The Helm chart automatically creates routing rules:
+**Key ignoreDifferences for ArgoCD:**
+```yaml
+ignoreDifferences:
+  # StatefulSet VolumeClaimTemplates (ServerSideApply drift)
+  - group: apps
+    kind: StatefulSet
+    jqPathExpressions:
+      - .spec.volumeClaimTemplates[]?.apiVersion
+      - .spec.volumeClaimTemplates[]?.kind
+      - .spec.volumeClaimTemplates[]?.status
+  # PVC dynamic fields
+  - group: ""
+    kind: PersistentVolumeClaim
+    jsonPointers:
+      - /status
+      - /spec/volumeName
+  # Azure Key Vault synced secrets
+  - group: ""
+    kind: Secret
+    name: dependency-track-secrets
+    jsonPointers:
+      - /data
+```
 
-- `/api` → `dependency-track-api-server:web`
-- `/health` → `dependency-track-api-server:web`
-- `/` → `dependency-track-frontend:web`
+See `references/deployment/argocd/` for complete ApplicationSet and values examples.
 
 ### Hyades (Next-Generation Architecture)
 
 Hyades is the incubating project for Dependency-Track v5, decoupling the monolithic API server into separate, scalable microservices.
 
 **Components:**
-
 - `hyades-apiserver` - Core API server
 - `hyades-frontend` - Web UI
 - `hyades-notification-publisher` - Notification handling
@@ -210,7 +269,6 @@ Hyades is the incubating project for Dependency-Track v5, decoupling the monolit
 - `hyades-vulnerability-analyzer` - Vulnerability scanning
 
 **Requirements:**
-
 - External PostgreSQL database
 - Apache Kafka cluster
 - Kubernetes 1.19+
@@ -226,7 +284,7 @@ helm install hyades dependency-track/hyades \
     --set common.kafka.bootstrapServers="kafka:9092"
 ```
 
-> **Warning:** Hyades is NOT generally available. Breaking changes may occur without notice. Use only in test environments. GA roadmap: <https://github.com/DependencyTrack/hyades/issues/860>
+> **Warning:** Hyades is NOT generally available. Breaking changes may occur without notice. Use only in test environments. GA roadmap: https://github.com/DependencyTrack/hyades/issues/860
 
 ---
 
@@ -288,51 +346,119 @@ ALPINE_OIDC_USER_PROVISIONING=true
 ALPINE_OIDC_TEAM_SYNCHRONIZATION=true
 ```
 
-### Azure AD App Registration (CRITICAL)
+### Azure AD OIDC Groups Integration (Detailed Guide)
 
-> **IMPORTANT**: The Azure AD App Registration **MUST** have the correct
-> redirect URI configured, or you will get error `AADSTS50011`.
+#### How OIDC Groups Work in Dependency-Track
 
-**Required Redirect URI:**
+1. **Group Claim Flow**:
+   - User authenticates via Azure AD
+   - Azure AD returns ID token with `groups` claim (array of Group Object IDs)
+   - Dependency-Track reads the `groups` claim (configured via `ALPINE_OIDC_TEAMS_CLAIM`)
+   - Groups are matched to Teams via OpenID Connect Groups mappings
 
-```text
-https://<your-dtrack-hostname>/static/oidc-callback.html
-```
+2. **Important Behavior**:
+   - Groups only appear in Administration > OpenID Connect Groups **after a user from that group authenticates**
+   - Teams must exist before group mapping (auto-created if `ALPINE_OIDC_TEAM_SYNCHRONIZATION=true`)
+   - Group Object IDs (UUIDs) are used, not display names
 
-**Example for dev environment:**
+#### Method 1: API-Based Setup (Recommended)
 
-```text
-https://dtrack.dev.cafehyna.com.br/static/oidc-callback.html
-```
-
-**Configure via Azure CLI:**
+Use the REST API to create teams, OIDC groups, and mappings:
 
 ```bash
-# Add redirect URI to existing App Registration
-az ad app update \
-  --id <app-registration-id> \
-  --web-redirect-uris "https://dtrack.example.com/static/oidc-callback.html"
+# Set environment variables
+export DTRACK_URL="https://dtrack.example.com"
+export DTRACK_API_KEY="your-api-key"
 
-# Verify the redirect URI was added
-az ad app show --id <app-registration-id> --query "web.redirectUris" -o tsv
+# Azure AD Group Object ID
+AZURE_GROUP_ID="31d6daa5-5cc2-4e5f-9bf5-75ee8e09198c"
+
+# 1. Create a Team (if doesn't exist)
+curl -X PUT "${DTRACK_URL}/api/v1/team" \
+  -H "X-Api-Key: ${DTRACK_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Administrators"}'
+
+# 2. Get the Team UUID
+TEAM_UUID=$(curl -s -H "X-Api-Key: ${DTRACK_API_KEY}" \
+  "${DTRACK_URL}/api/v1/team" | jq -r '.[] | select(.name=="Administrators") | .uuid')
+
+# 3. Create OIDC Group (required before mapping)
+# NOTE: Use Azure AD Group Object ID as both uuid and name
+curl -X PUT "${DTRACK_URL}/api/v1/oidc/group" \
+  -H "X-Api-Key: ${DTRACK_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d "{\"uuid\": \"${AZURE_GROUP_ID}\", \"name\": \"${AZURE_GROUP_ID}\"}"
+
+# 4. Get the created OIDC Group UUID
+OIDC_GROUP_UUID=$(curl -s -H "X-Api-Key: ${DTRACK_API_KEY}" \
+  "${DTRACK_URL}/api/v1/oidc/group" | jq -r ".[] | select(.name==\"${AZURE_GROUP_ID}\") | .uuid")
+
+# 5. Create OIDC Group-to-Team mapping
+# IMPORTANT: Use UUID strings directly, NOT objects
+curl -X PUT "${DTRACK_URL}/api/v1/oidc/mapping" \
+  -H "X-Api-Key: ${DTRACK_API_KEY}" \
+  -H "Content-Type: application/json" \
+  -d "{\"team\": \"${TEAM_UUID}\", \"group\": \"${OIDC_GROUP_UUID}\"}"
+
+# 6. Assign permissions to Team
+curl -X POST "${DTRACK_URL}/api/v1/permission/BOM_UPLOAD/team/${TEAM_UUID}" \
+  -H "X-Api-Key: ${DTRACK_API_KEY}"
 ```
 
-**Configure via Azure Portal:**
+> **IMPORTANT:** The `/api/v1/oidc/mapping` endpoint expects UUID **strings**, not objects.
+> Using `{"team": {"uuid": "..."}, "group": {"uuid": "..."}}` will return HTTP 400.
 
-1. Go to **Azure AD** → **App registrations**
-2. Select your Dependency-Track application
-3. Click **Authentication** (left menu)
-4. Under **Platform configurations** → **Web** → **Redirect URIs**
-5. Add: `https://<your-hostname>/static/oidc-callback.html`
-6. Click **Save**
+#### Method 2: Manual UI Configuration
 
-**Common OIDC Errors:**
+1. **Create Teams**:
+   - Go to Administration > Access Management > Teams
+   - Create teams: Administrators, Moderators, Auditors, Developers
+   - Assign permissions to each team
 
-| Error Code | Cause | Solution |
-|------------|-------|----------|
-| AADSTS50011 | Redirect URI mismatch | Add correct URI to App Registration |
-| AADSTS700016 | App not found in tenant | Verify app ID and tenant |
-| AADSTS65001 | User consent required | Grant admin consent in portal |
+2. **Map Groups**:
+   - Go to Administration > Access Management > OpenID Connect Groups
+   - Click "Create Group"
+   - Enter Azure AD Group Object ID (e.g., `31d6daa5-5cc2-4e5f-9bf5-75ee8e09198c`)
+   - Select Team to map to
+   - Save
+
+#### Retrieving Azure AD Group Object IDs
+
+```bash
+# List all Azure AD groups with DependencyTrack in name
+az ad group list --filter "startswith(displayName, 'G-Usuarios-DependencyTrack')" \
+  --query "[].{name:displayName, id:id}" -o table
+
+# Get specific group Object ID
+az ad group show --group "G-Usuarios-DependencyTrack-Admin" --query id -o tsv
+```
+
+#### Validating Group Claims in ID Token
+
+1. **Decode JWT Token** (use jwt.io):
+   - Login to Dependency-Track
+   - Capture network request to `/api/v1/oidc/callback`
+   - Decode the `id_token` to verify `groups` claim contains expected UUIDs
+
+2. **Azure AD Token Configuration Checklist**:
+   - App Registration has `groupMembershipClaims: SecurityGroup`
+   - Optional Claims include `groups` in ID Token
+   - API Permissions: `GroupMember.Read.All` (delegated)
+   - Admin consent granted
+
+#### Environment Variables Reference
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `ALPINE_OIDC_ENABLED` | Enable OIDC | `true` |
+| `ALPINE_OIDC_ISSUER` | Azure AD issuer URL | `https://login.microsoftonline.com/{tenant}/v2.0` |
+| `ALPINE_OIDC_CLIENT_ID` | App Registration Client ID | From Key Vault |
+| `ALPINE_OIDC_CLIENT_SECRET` | App Registration Secret | From Key Vault |
+| `ALPINE_OIDC_USERNAME_CLAIM` | Claim for username | `preferred_username` |
+| `ALPINE_OIDC_TEAMS_CLAIM` | Claim for groups | `groups` |
+| `ALPINE_OIDC_USER_PROVISIONING` | Auto-create users | `true` |
+| `ALPINE_OIDC_TEAM_SYNCHRONIZATION` | Auto-sync team membership | `true` |
 
 ---
 
@@ -340,7 +466,7 @@ az ad app show --id <app-registration-id> --query "web.redirectUris" -o tsv
 
 ### Workflow: BOM Upload Pipeline
 
-```text
+```
 ┌─────────────┐     ┌─────────────┐     ┌──────────────────┐
 │   Build     │────▶│ Generate    │────▶│    Upload to     │
 │   Project   │     │ CycloneDX   │     │ Dependency-Track │
@@ -426,7 +552,6 @@ jobs:
 ```
 
 **Official GitHub Action Options (`DependencyTrack/gh-upload-sbom@v3`):**
-
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
 | `serverHostname` | Yes | - | Dependency-Track server URL |
@@ -520,7 +645,6 @@ curl -H "X-Api-Key: YOUR_API_KEY" \
 ### OpenAPI Specification
 
 Access at:
-
 - JSON: `http://localhost:8081/api/openapi.json`
 - YAML: `http://localhost:8081/api/openapi.yaml`
 
@@ -834,32 +958,27 @@ environment:
 Additional templates and examples are in the `references/` directory:
 
 **Deployment:**
-
 - `references/deployment/docker-compose-production.yaml` - Docker Compose for production
 - `references/deployment/helm-values.yaml` - Helm values for v4.x (Chart v0.40.0)
 - `references/deployment/helm-values-hyades.yaml` - Helm values for Hyades v5.x (Chart v0.10.0)
 - `references/deployment/kubernetes-manifests/` - Raw Kubernetes manifests
 
 **CI/CD Integration:**
-
 - `references/cicd/jenkinsfile` - Jenkins Pipeline example
 - `references/cicd/github-action.yaml` - GitHub Actions workflow
 - `references/cicd/gitlab-ci.yaml` - GitLab CI/CD pipeline
 - `references/cicd/azure-pipeline.yaml` - Azure DevOps Pipeline
 
 **API & Scripts:**
-
 - `references/api/python-client.py` - Python client library example
 - `references/api/bash-scripts/` - Shell scripts for common operations
 
 **Policies:**
-
 - `references/policies/security-policies.json` - Security policy templates
 - `references/policies/license-policies.json` - License policy templates
 - `references/policies/operational-policies.json` - Operational policy templates
 
 **Troubleshooting:**
-
 - `references/troubleshooting.md` - Common issues and solutions
 
 ---
