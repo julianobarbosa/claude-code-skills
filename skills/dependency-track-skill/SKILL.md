@@ -409,6 +409,52 @@ curl -X POST "${DTRACK_URL}/api/v1/permission/BOM_UPLOAD/team/${TEAM_UUID}" \
 > **IMPORTANT:** The `/api/v1/oidc/mapping` endpoint expects UUID **strings**, not objects.
 > Using `{"team": {"uuid": "..."}, "group": {"uuid": "..."}}` will return HTTP 400.
 
+#### Verifying OIDC Group Mappings
+
+Use these commands to verify that OIDC groups are properly mapped to teams:
+
+```bash
+# Set environment variables
+export DTRACK_URL="https://dtrack.example.com"
+export DTRACK_API_KEY="your-api-key"
+
+# List all teams with their OIDC group mappings
+/usr/bin/curl -s "${DTRACK_URL}/api/v1/team" \
+  -H "X-Api-Key: ${DTRACK_API_KEY}" | \
+  /usr/bin/jq '[.[] | select(.mappedOidcGroups | length > 0) | {
+    team: .name,
+    oidcGroups: [.mappedOidcGroups[] | .group.name]
+  }]'
+
+# List all OIDC groups registered in D-Track
+/usr/bin/curl -s "${DTRACK_URL}/api/v1/oidc/group" \
+  -H "X-Api-Key: ${DTRACK_API_KEY}" | \
+  /usr/bin/jq '.[] | {uuid: .uuid, name: .name}'
+
+# Check specific team's OIDC mappings
+TEAM_NAME="Administrators"
+/usr/bin/curl -s "${DTRACK_URL}/api/v1/team" \
+  -H "X-Api-Key: ${DTRACK_API_KEY}" | \
+  /usr/bin/jq --arg team "$TEAM_NAME" '.[] | select(.name==$team) | {
+    name: .name,
+    uuid: .uuid,
+    oidcGroups: [.mappedOidcGroups[]? | {name: .group.name, uuid: .group.uuid}]
+  }'
+```
+
+**Example Output (cafehyna-dev cluster):**
+```json
+[
+  {"team": "Administrators", "oidcGroups": ["31d6daa5-5cc2-4e5f-9bf5-75ee8e09198c"]},
+  {"team": "Auditors", "oidcGroups": ["39d0ddb2-8a0d-47c9-bc55-1993aadf7fe8"]},
+  {"team": "Developers", "oidcGroups": ["7144c503-7934-40fe-99e2-f45f67cb383e"]},
+  {"team": "Moderators", "oidcGroups": ["d34a2ea3-34c9-4744-a031-4e4a55d72746"]},
+  {"team": "ReadOnly", "oidcGroups": ["7109c419-028e-4b7b-8246-66517d512c3c"]}
+]
+```
+
+> **Note:** Use full paths (`/usr/bin/curl`, `/usr/bin/jq`) to avoid shell alias issues in automated environments.
+
 #### Method 2: Manual UI Configuration
 
 1. **Create Teams**:
