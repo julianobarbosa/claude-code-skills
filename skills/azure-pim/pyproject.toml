@@ -1,0 +1,80 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "azure-pim"
+version = "0.1.0"
+description = "Azure Privileged Identity Management (PIM) automation toolkit - SDK, CLI, and workflows"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+authors = [{ name = "Barbosa", email = "juliano.barbosa@hypera.com.br" }]
+keywords = ["azure", "pim", "privileged-identity-management", "entra", "rbac", "jit"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: System :: Systems Administration",
+]
+
+dependencies = [
+    "msal>=1.28.0",
+    "httpx>=0.27.0",
+    "pydantic>=2.6.0",
+    "typer>=0.12.0",
+    "rich>=13.7.0",
+    "python-dateutil>=2.9.0",
+    "pyyaml>=6.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=4.1.0",
+    "pytest-asyncio>=0.23.0",
+    "pytest-httpx>=0.30.0",
+    "ruff>=0.3.0",
+    "mypy>=1.9.0",
+    "pre-commit>=3.7.0",
+]
+
+[project.scripts]
+pim = "azure_pim.cli:app"
+
+[project.urls]
+Documentation = "https://github.com/hypera/azure-pim#readme"
+Issues = "https://github.com/hypera/azure-pim/issues"
+Source = "https://github.com/hypera/azure-pim"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/azure_pim"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "B", "UP", "ANN", "S", "BLE", "C4", "DTZ", "T10", "ISC", "PIE", "PT", "RSE", "RET", "SIM", "TID", "ARG", "PTH", "ERA", "PL", "TRY", "RUF"]
+ignore = ["ANN101", "ANN102", "ANN401", "PLR0913", "TRY003", "S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["azure_pim"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-v --cov=azure_pim --cov-report=term-missing"
