@@ -1,13 +1,13 @@
 ---
 name: 1password
-description: Guide for implementing 1Password secrets management - CLI operations, service accounts, and Kubernetes integration. Use when retrieving secrets, managing vaults, configuring CI/CD pipelines, integrating with External Secrets Operator, or automating secrets workflows with 1Password.
+description: Guide for implementing 1Password secrets management - CLI operations, service accounts, Developer Environments, and Kubernetes integration. Use when retrieving secrets, managing vaults, configuring CI/CD pipelines, integrating with External Secrets Operator, managing Developer Environments, or automating secrets workflows with 1Password.
 ---
 
 # 1Password
 
 ## Overview
 
-This skill provides comprehensive guidance for working with 1Password's secrets management ecosystem. It covers the `op` CLI for local development, service accounts for automation, and Kubernetes integrations including the native 1Password Operator and External Secrets Operator.
+This skill provides comprehensive guidance for working with 1Password's secrets management ecosystem. It covers the `op` CLI for local development, service accounts for automation, **Developer Environments for project secrets**, and Kubernetes integrations including the native 1Password Operator and External Secrets Operator.
 
 ## Quick Reference
 
@@ -50,6 +50,8 @@ op document create <file> --vault <vault>    # Upload document
 What do you need to do?
 ├── Retrieve a secret for local development?
 │   └── Use: op read, op run, or op inject
+├── Manage project environment variables?
+│   └── See: Developer Environments (below)
 ├── Manage items/vaults in 1Password?
 │   └── Use: op item, op vault, op document commands
 ├── Automate secrets in CI/CD?
@@ -62,6 +64,103 @@ What do you need to do?
 └── Configure shell plugins for CLI tools?
     └── Use: op plugin commands
 ```
+
+## Developer Environments
+
+Developer Environments provide a dedicated location to store, organize, and manage project secrets as environment variables. This feature is primarily GUI-based, but CLI tools are available for automation.
+
+### Feature Overview
+
+| Feature | GUI | CLI |
+|---------|-----|-----|
+| Create environment | Yes | `op-env-create.sh` |
+| Update environment | Yes | `op-env-update.sh` |
+| Delete environment | Yes | `op-env-delete.sh` |
+| List environments | Yes | `op-env-list.sh` |
+| Export to .env | Yes | `op-env-export.sh` |
+| Mount .env file | Yes (beta) | No |
+
+### Quick Start with CLI Tools
+
+```bash
+# Create environment from .env file
+./tools/op-env-create.sh my-app-dev Development --from-file .env.local
+
+# Create with inline variables
+./tools/op-env-create.sh my-app-prod Production \
+    API_KEY=secret \
+    DB_HOST=db.example.com \
+    DB_PORT=5432
+
+# List all environments
+./tools/op-env-list.sh
+
+# Show environment (values masked)
+./tools/op-env-show.sh my-app-dev Development
+
+# Show with revealed values
+./tools/op-env-show.sh my-app-dev Development --reveal
+
+# Export to .env file
+./tools/op-env-export.sh my-app-dev Development > .env
+
+# Export as op:// template for op run/inject
+./tools/op-env-export.sh my-app-dev Development --format op-refs > .env.tpl
+
+# Update variables
+./tools/op-env-update.sh my-app-dev Development NEW_KEY=value
+
+# Remove variables
+./tools/op-env-update.sh my-app-dev Development --remove OLD_KEY
+
+# Delete environment
+./tools/op-env-delete.sh old-app Development
+```
+
+### Environment Secret Reference
+
+Access individual variables using the secret reference format:
+
+```
+op://<vault>/<environment>/variables/<key>
+```
+
+Example:
+```bash
+# Read single variable
+op read "op://Development/my-app-dev/variables/API_KEY"
+
+# Use in template file (.env.tpl)
+API_KEY=op://Development/my-app-dev/variables/API_KEY
+DB_HOST=op://Development/my-app-dev/variables/DB_HOST
+```
+
+### Using with op run
+
+```bash
+# Create template from environment
+./tools/op-env-export.sh my-app-dev Development --format op-refs > .env.tpl
+
+# Run command with injected secrets
+op run --env-file .env.tpl -- ./deploy.sh
+op run --env-file .env.tpl -- docker compose up
+op run --env-file .env.tpl -- npm start
+```
+
+### Current Environments (Barbosa Account)
+
+| Environment | Description |
+|-------------|-------------|
+| hypera-azure-rg-hypera-cafehyna-web-dev | Azure RG - Cafehyna Web Dev |
+| hypera-azure-devops-team-az-cli-pim | Azure DevOps Team - CLI PIM |
+| devops-team-pim | DevOps Team PIM credentials |
+| hypera-github-python-devops | GitHub - Python DevOps |
+| hypera-azure-rg-hypera-cafehyna-web | Azure RG - Cafehyna Web Prod |
+| repos-github-zsh | GitHub - ZSH repository |
+| hypera | General Hypera infrastructure |
+| Azure OpenAI-finops | Azure OpenAI FinOps config |
+
+See `references/environments/inventory.md` for detailed documentation.
 
 ## Secret Retrieval
 
@@ -717,6 +816,32 @@ kubectl describe secretstore <name>
 
 - `references/cli-commands.md` - Complete CLI command reference
 - `references/kubernetes-examples.md` - Kubernetes manifest examples
+- `references/environments/README.md` - Developer Environments guide
+- `references/environments/inventory.md` - Current environments inventory
+
+### Tools
+
+Environment management CLI tools (in `tools/`):
+
+| Tool | Description |
+|------|-------------|
+| `op-env-create.sh` | Create new environment item |
+| `op-env-update.sh` | Update existing environment |
+| `op-env-delete.sh` | Delete environment item |
+| `op-env-show.sh` | Display environment details |
+| `op-env-list.sh` | List all environment items |
+| `op-env-export.sh` | Export to .env format |
+
+### Templates
+
+Environment and integration templates (in `templates/`):
+
+| Template | Description |
+|----------|-------------|
+| `env.template` | Standard .env file template |
+| `env-op-refs.template` | Template with op:// references |
+| `github-actions-env.yaml` | GitHub Actions workflow example |
+| `docker-compose-env.yaml` | Docker Compose with secrets injection |
 
 ### Scripts
 
@@ -728,5 +853,7 @@ kubectl describe secretstore <name>
 
 - [1Password CLI Documentation](https://developer.1password.com/docs/cli/)
 - [Service Accounts Guide](https://developer.1password.com/docs/service-accounts/)
+- [Developer Environments](https://developer.1password.com/docs/environments/)
+- [Local .env Files](https://developer.1password.com/docs/environments/local-env-file/)
 - [Kubernetes Operator](https://developer.1password.com/docs/k8s/operator/)
 - [External Secrets Provider](https://external-secrets.io/latest/provider/1password-automation/)
