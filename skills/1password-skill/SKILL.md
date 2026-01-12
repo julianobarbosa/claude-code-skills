@@ -67,54 +67,136 @@ What do you need to do?
 
 ## Developer Environments
 
-Developer Environments provide a dedicated location to store, organize, and manage project secrets as environment variables. This feature is primarily GUI-based, but CLI tools are available for automation.
+Developer Environments provide a dedicated location to store, organize, and manage project secrets as environment variables. CLI tools (TypeScript/Bun) are available for full automation.
 
 ### Feature Overview
 
-| Feature | GUI | CLI |
-|---------|-----|-----|
-| Create environment | Yes | `op-env-create.sh` |
-| Update environment | Yes | `op-env-update.sh` |
-| Delete environment | Yes | `op-env-delete.sh` |
-| List environments | Yes | `op-env-list.sh` |
-| Export to .env | Yes | `op-env-export.sh` |
+| Feature | GUI | CLI Tool |
+|---------|-----|----------|
+| Create environment | Yes | `op-env-create` |
+| Update environment | Yes | `op-env-update` |
+| Delete environment | Yes | `op-env-delete` |
+| Show environment | Yes | `op-env-show` |
+| List environments | Yes | `op-env-list` |
+| Export to .env | Yes | `op-env-export` |
 | Mount .env file | Yes (beta) | No |
 
-### Quick Start with CLI Tools
+### CLI Tools Setup
+
+Tools are written in TypeScript and require [Bun](https://bun.sh) runtime:
 
 ```bash
-# Create environment from .env file
-./tools/op-env-create.sh my-app-dev Development --from-file .env.local
+# Navigate to tools directory
+cd tools
 
-# Create with inline variables
-./tools/op-env-create.sh my-app-prod Production \
+# Run any tool with bun
+bun run src/op-env-create.ts --help
+bun run src/op-env-list.ts --help
+
+# Or use npm scripts
+bun run create -- --help
+bun run list -- --help
+```
+
+### Environment Workflow
+
+#### 1. Create Environment
+
+```bash
+# From inline variables
+bun run src/op-env-create.ts my-app-dev Personal \
     API_KEY=secret \
-    DB_HOST=db.example.com \
+    DB_HOST=localhost \
     DB_PORT=5432
 
-# List all environments
-./tools/op-env-list.sh
+# From .env file
+bun run src/op-env-create.ts my-app-prod Production --from-file .env.prod
 
-# Show environment (values masked)
-./tools/op-env-show.sh my-app-dev Development
+# Combine file + inline (inline overrides file)
+bun run src/op-env-create.ts azure-config Shared --from-file .env EXTRA_KEY=value
+
+# With custom tags
+bun run src/op-env-create.ts secrets DevOps --tags "env,production,api" KEY=value
+```
+
+#### 2. List Environments
+
+```bash
+# List all environments (tagged with 'environment')
+bun run src/op-env-list.ts
+
+# Filter by vault
+bun run src/op-env-list.ts --vault Personal
+
+# Filter by tags
+bun run src/op-env-list.ts --tags "production"
+
+# JSON output
+bun run src/op-env-list.ts --json
+```
+
+#### 3. Show Environment Details
+
+```bash
+# Show with masked values (default)
+bun run src/op-env-show.ts my-app-dev Personal
 
 # Show with revealed values
-./tools/op-env-show.sh my-app-dev Development --reveal
+bun run src/op-env-show.ts my-app-dev Personal --reveal
 
-# Export to .env file
-./tools/op-env-export.sh my-app-dev Development > .env
+# JSON output
+bun run src/op-env-show.ts my-app-dev Personal --json
 
-# Export as op:// template for op run/inject
-./tools/op-env-export.sh my-app-dev Development --format op-refs > .env.tpl
+# Show only variable names
+bun run src/op-env-show.ts my-app-dev Personal --keys
+```
 
-# Update variables
-./tools/op-env-update.sh my-app-dev Development NEW_KEY=value
+#### 4. Update Environment
+
+```bash
+# Update/add single variable
+bun run src/op-env-update.ts my-app-dev Personal API_KEY=new-key
+
+# Merge from .env file
+bun run src/op-env-update.ts my-app-dev Personal --from-file .env.local
 
 # Remove variables
-./tools/op-env-update.sh my-app-dev Development --remove OLD_KEY
+bun run src/op-env-update.ts my-app-dev Personal --remove OLD_KEY,DEPRECATED
 
-# Delete environment
-./tools/op-env-delete.sh old-app Development
+# Update and remove in one command
+bun run src/op-env-update.ts my-app-dev Personal NEW_KEY=value --remove OLD_KEY
+```
+
+#### 5. Export Environment
+
+```bash
+# Export to .env file (standard format)
+bun run src/op-env-export.ts my-app-dev Personal > .env
+
+# Docker-compatible format (quoted values)
+bun run src/op-env-export.ts my-app-dev Personal --format docker > .env
+
+# op:// references template (for op run/inject)
+bun run src/op-env-export.ts my-app-dev Personal --format op-refs > .env.tpl
+
+# JSON format
+bun run src/op-env-export.ts my-app-dev Personal --format json
+
+# Add prefix to all variables
+bun run src/op-env-export.ts azure-config Shared --prefix AZURE_ > .env
+```
+
+#### 6. Delete Environment
+
+```bash
+# Interactive deletion (asks for confirmation)
+bun run src/op-env-delete.ts my-app-dev Personal
+
+# Force delete without confirmation
+bun run src/op-env-delete.ts my-app-dev Personal --force
+
+# Archive instead of permanent delete
+bun run src/op-env-delete.ts my-app-dev Personal --archive
 ```
 
 ### Environment Secret Reference
@@ -128,37 +210,91 @@ op://<vault>/<environment>/variables/<key>
 Example:
 ```bash
 # Read single variable
-op read "op://Development/my-app-dev/variables/API_KEY"
+op read "op://Personal/my-app-dev/variables/API_KEY"
 
 # Use in template file (.env.tpl)
-API_KEY=op://Development/my-app-dev/variables/API_KEY
-DB_HOST=op://Development/my-app-dev/variables/DB_HOST
+API_KEY=op://Personal/my-app-dev/variables/API_KEY
+DB_HOST=op://Personal/my-app-dev/variables/DB_HOST
 ```
 
-### Using with op run
+### Integration Patterns
+
+#### With op run (recommended)
 
 ```bash
-# Create template from environment
-./tools/op-env-export.sh my-app-dev Development --format op-refs > .env.tpl
+# 1. Export environment as op:// template
+bun run src/op-env-export.ts my-app-dev Personal --format op-refs > .env.tpl
 
-# Run command with injected secrets
+# 2. Run command with injected secrets
 op run --env-file .env.tpl -- ./deploy.sh
 op run --env-file .env.tpl -- docker compose up
 op run --env-file .env.tpl -- npm start
+op run --env-file .env.tpl -- python app.py
+```
+
+#### With op inject
+
+```bash
+# 1. Create template with op:// references
+bun run src/op-env-export.ts my-app-dev Personal --format op-refs > config.tpl
+
+# 2. Inject secrets into file
+op inject -i config.tpl -o .env
+
+# 3. Use the generated .env file
+source .env && ./app
+```
+
+#### With Docker Compose
+
+```bash
+# 1. Export environment
+bun run src/op-env-export.ts my-app-dev Personal --format op-refs > .env.tpl
+
+# 2. Run docker compose with secrets
+op run --env-file .env.tpl -- docker compose up -d
+```
+
+#### In CI/CD (GitHub Actions)
+
+```yaml
+name: Deploy
+on: [push]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@v1
+
+      - name: Load secrets
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          API_KEY: op://CI-CD/my-app-prod/variables/API_KEY
+          DB_PASSWORD: op://CI-CD/my-app-prod/variables/DB_PASSWORD
+
+      - name: Deploy
+        run: ./deploy.sh
 ```
 
 ### Current Environments (Barbosa Account)
 
-| Environment | Description |
-|-------------|-------------|
-| hypera-azure-rg-hypera-cafehyna-web-dev | Azure RG - Cafehyna Web Dev |
-| hypera-azure-devops-team-az-cli-pim | Azure DevOps Team - CLI PIM |
-| devops-team-pim | DevOps Team PIM credentials |
-| hypera-github-python-devops | GitHub - Python DevOps |
-| hypera-azure-rg-hypera-cafehyna-web | Azure RG - Cafehyna Web Prod |
-| repos-github-zsh | GitHub - ZSH repository |
-| hypera | General Hypera infrastructure |
-| Azure OpenAI-finops | Azure OpenAI FinOps config |
+| Environment | Vault | Description |
+|-------------|-------|-------------|
+| hypera-azure-rg-hypera-cafehyna-web-dev | - | Azure RG - Cafehyna Web Dev |
+| hypera-azure-devops-team-az-cli-pim | - | Azure DevOps Team - CLI PIM |
+| devops-team-pim | - | DevOps Team PIM credentials |
+| hypera-github-python-devops | - | GitHub - Python DevOps |
+| hypera-azure-rg-hypera-cafehyna-web | - | Azure RG - Cafehyna Web Prod |
+| repos-github-zsh | - | GitHub - ZSH repository |
+| hypera | - | General Hypera infrastructure |
+| Azure OpenAI-finops | - | Azure OpenAI FinOps config |
 
 See `references/environments/inventory.md` for detailed documentation.
 
@@ -821,16 +957,27 @@ kubectl describe secretstore <name>
 
 ### Tools
 
-Environment management CLI tools (in `tools/`):
+Environment management CLI tools written in TypeScript (in `tools/src/`):
 
-| Tool | Description |
-|------|-------------|
-| `op-env-create.sh` | Create new environment item |
-| `op-env-update.sh` | Update existing environment |
-| `op-env-delete.sh` | Delete environment item |
-| `op-env-show.sh` | Display environment details |
-| `op-env-list.sh` | List all environment items |
-| `op-env-export.sh` | Export to .env format |
+| Tool | Command | Description |
+|------|---------|-------------|
+| `op-env-create.ts` | `bun run create` | Create new environment item |
+| `op-env-update.ts` | `bun run update` | Update existing environment |
+| `op-env-delete.ts` | `bun run delete` | Delete environment item |
+| `op-env-show.ts` | `bun run show` | Display environment details |
+| `op-env-list.ts` | `bun run list` | List all environment items |
+| `op-env-export.ts` | `bun run export` | Export to .env format |
+
+**Requirements:** [Bun](https://bun.sh) runtime
+
+```bash
+# Install bun (if not installed)
+curl -fsSL https://bun.sh/install | bash
+
+# Run tools from tools/ directory
+cd tools
+bun run src/op-env-list.ts --help
+```
 
 ### Templates
 

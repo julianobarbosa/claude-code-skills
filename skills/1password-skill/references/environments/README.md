@@ -2,49 +2,61 @@
 
 ## Overview
 
-1Password Developer Environments provide a dedicated location to store, organize, and manage project secrets as environment variables. This reference covers both the native GUI feature and CLI workarounds.
+1Password Developer Environments provide a dedicated location to store, organize, and manage project secrets as environment variables. This reference covers both the native GUI feature and CLI tools.
 
 ## Feature Status
 
 | Feature | GUI Support | CLI Support |
 |---------|-------------|-------------|
-| Create environment | Yes | Via tools* |
-| Update environment | Yes | Via tools* |
-| Delete environment | Yes | Via tools* |
-| List environments | Yes | `op env ls`** |
-| Export to .env | Yes | Via tools* |
+| Create environment | Yes | `op-env-create.ts` |
+| Update environment | Yes | `op-env-update.ts` |
+| Delete environment | Yes | `op-env-delete.ts` |
+| Show environment | Yes | `op-env-show.ts` |
+| List environments | Yes | `op-env-list.ts` |
+| Export to .env | Yes | `op-env-export.ts` |
 | Mount .env file | Yes (beta) | No |
 | AWS Secrets Manager sync | Yes (beta) | No |
 
-*Using `op item` commands with API Credential category
-**Only lists env vars with op:// references in shell
-
 ## CLI Tools
 
-The tools in `../tools/` provide environment management capabilities:
+Tools are written in TypeScript and require [Bun](https://bun.sh) runtime.
+
+### Setup
+
+```bash
+# Navigate to tools directory
+cd tools
+
+# Run any tool
+bun run src/op-env-list.ts --help
+```
+
+### Available Tools
 
 | Tool | Description |
 |------|-------------|
-| `op-env-create.sh` | Create new environment item |
-| `op-env-update.sh` | Update existing environment |
-| `op-env-delete.sh` | Delete environment item |
-| `op-env-show.sh` | Display environment details |
-| `op-env-list.sh` | List all environment items |
-| `op-env-export.sh` | Export to .env format |
+| `op-env-create.ts` | Create new environment item |
+| `op-env-update.ts` | Update existing environment |
+| `op-env-delete.ts` | Delete environment item |
+| `op-env-show.ts` | Display environment details |
+| `op-env-list.ts` | List all environment items |
+| `op-env-export.ts` | Export to .env format |
 
 ## Quick Start
 
 ### Create Environment
 
 ```bash
+cd tools
+
 # From inline variables
-./tools/op-env-create.sh my-app-dev Development \
+bun run src/op-env-create.ts my-app-dev Personal \
     API_KEY=secret123 \
     DB_HOST=localhost \
     DB_PORT=5432
 
 # From .env file
-./tools/op-env-create.sh my-app-prod Production \
+bun run src/op-env-create.ts my-app-prod Production \
     --from-file .env.production
 ```
 
@@ -52,45 +64,45 @@ The tools in `../tools/` provide environment management capabilities:
 
 ```bash
 # Update single variable
-./tools/op-env-update.sh my-app-dev Development API_KEY=new-key
+bun run src/op-env-update.ts my-app-dev Personal API_KEY=new-key
 
 # Merge from file
-./tools/op-env-update.sh my-app-dev Development --from-file .env.local
+bun run src/op-env-update.ts my-app-dev Personal --from-file .env.local
 
 # Remove variables
-./tools/op-env-update.sh my-app-dev Development --remove OLD_KEY,DEPRECATED
+bun run src/op-env-update.ts my-app-dev Personal --remove OLD_KEY,DEPRECATED
 ```
 
 ### View & Export
 
 ```bash
 # List all environments
-./tools/op-env-list.sh
+bun run src/op-env-list.ts
 
 # Show details (masked)
-./tools/op-env-show.sh my-app-dev Development
+bun run src/op-env-show.ts my-app-dev Personal
 
 # Show with values
-./tools/op-env-show.sh my-app-dev Development --reveal
+bun run src/op-env-show.ts my-app-dev Personal --reveal
 
 # Export to .env
-./tools/op-env-export.sh my-app-dev Development > .env
+bun run src/op-env-export.ts my-app-dev Personal > .env
 
 # Export as template
-./tools/op-env-export.sh my-app-dev Development --format op-refs > .env.tpl
+bun run src/op-env-export.ts my-app-dev Personal --format op-refs > .env.tpl
 ```
 
 ### Delete Environment
 
 ```bash
 # Interactive
-./tools/op-env-delete.sh old-app Development
+bun run src/op-env-delete.ts old-app Personal
 
 # Force delete
-./tools/op-env-delete.sh old-app Development --force
+bun run src/op-env-delete.ts old-app Personal --force
 
 # Archive instead
-./tools/op-env-delete.sh old-app Development --archive
+bun run src/op-env-delete.ts old-app Personal --archive
 ```
 
 ## Storage Model
@@ -109,7 +121,7 @@ op://<vault>/<environment-name>/variables/<key>
 
 Example:
 ```
-op://Development/my-app-dev/variables/API_KEY
+op://Personal/my-app-dev/variables/API_KEY
 ```
 
 ## Integration Patterns
@@ -118,7 +130,7 @@ op://Development/my-app-dev/variables/API_KEY
 
 ```bash
 # Create template
-./tools/op-env-export.sh my-app Production --format op-refs > .env.tpl
+bun run src/op-env-export.ts my-app Production --format op-refs > .env.tpl
 
 # Run command with injected secrets
 op run --env-file .env.tpl -- ./deploy.sh
@@ -128,7 +140,7 @@ op run --env-file .env.tpl -- ./deploy.sh
 
 ```bash
 # Create template
-./tools/op-env-export.sh my-app Production --format op-refs > config.tpl
+bun run src/op-env-export.ts my-app Production --format op-refs > config.tpl
 
 # Inject secrets into file
 op inject -i config.tpl -o config.env
@@ -140,7 +152,7 @@ op inject -i config.tpl -o config.env
 # GitHub Actions example
 - name: Load secrets
   run: |
-    ./tools/op-env-export.sh ci-secrets CI-CD > .env
+    bun run src/op-env-export.ts ci-secrets CI-CD > .env
   env:
     OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
 ```
@@ -158,7 +170,6 @@ op inject -i config.tpl -o config.env
 1. **GUI-Only Features:**
    - Local .env file mounting (requires desktop app)
    - AWS Secrets Manager sync
-   - Visual environment management
 
 2. **CLI Workarounds:**
    - Tools use API Credential category (not native Environment type)

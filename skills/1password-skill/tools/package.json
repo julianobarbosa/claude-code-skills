@@ -1,0 +1,27 @@
+{
+  "name": "@1password-skill/tools",
+  "version": "1.0.0",
+  "description": "CLI tools for managing 1Password Developer Environments",
+  "type": "module",
+  "bin": {
+    "op-env-create": "./src/op-env-create.ts",
+    "op-env-update": "./src/op-env-update.ts",
+    "op-env-delete": "./src/op-env-delete.ts",
+    "op-env-show": "./src/op-env-show.ts",
+    "op-env-list": "./src/op-env-list.ts",
+    "op-env-export": "./src/op-env-export.ts"
+  },
+  "scripts": {
+    "create": "bun run src/op-env-create.ts",
+    "update": "bun run src/op-env-update.ts",
+    "delete": "bun run src/op-env-delete.ts",
+    "show": "bun run src/op-env-show.ts",
+    "list": "bun run src/op-env-list.ts",
+    "export": "bun run src/op-env-export.ts",
+    "typecheck": "bun x tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  }
+}
