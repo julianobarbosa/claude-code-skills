@@ -213,20 +213,10 @@ plugins:
 ```
 
 **Popular Plugins:**
-
-| Category | Plugin | Purpose |
-|----------|--------|---------|
-| **Built-in** | `search` | Full-text search |
-| **Material** | `blog`, `tags`, `social` | Blog, tagging, OG cards |
-| **Navigation** | `literate-nav`, `awesome-pages` | Markdown/directory nav |
-| **Content** | `macros`, `include-markdown` | Variables, includes |
-| **Diagrams** | Native Mermaid, Kroki, D2 | Flowcharts, PlantUML |
-| **API Docs** | `mkdocstrings`, `swagger-ui-tag` | Auto-generate from code |
-| **Versioning** | `mike` | Multi-version docs |
-| **Git** | `git-revision-date-localized` | Last updated dates |
-| **PDF** | `print-site`, `with-pdf` | PDF export |
-| **Performance** | `minify`, `optimize` | Minify, compress images |
-| **i18n** | `static-i18n` | Multi-language |
+- `search` - Full-text search (built-in, enabled by default)
+- `blog` - Blog functionality (Material theme)
+- `tags` - Content categorization
+- `social` - Social media cards
 
 > **Note:** Defining `plugins` disables defaults. Add `- search` explicitly.
 
@@ -301,9 +291,6 @@ docs.example.com
 
 - **Configuration options:** See [references/configuration.md](references/configuration.md)
 - **Theme customization:** See [references/themes.md](references/themes.md)
-- **Plugin guide:** See [references/plugins.md](references/plugins.md)
-- **Diagrams (Mermaid, PlantUML, D2):** See [references/diagrams.md](references/diagrams.md)
-- **Versioning (mike):** See [references/versioning.md](references/versioning.md)
-- **API documentation:** See [references/api-docs.md](references/api-docs.md)
+- **Plugin development:** See [references/plugins.md](references/plugins.md)
 - **Deployment strategies:** See [references/deployment.md](references/deployment.md)
 - **Best practices:** See [references/best-practices.md](references/best-practices.md)
