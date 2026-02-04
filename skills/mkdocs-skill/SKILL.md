@@ -1,6 +1,12 @@
 ---
 name: mkdocs
 description: Build project documentation sites with MkDocs static site generator. USE WHEN user mentions mkdocs, documentation site, docs site, project documentation, OR wants to create, configure, build, or deploy documentation using Markdown. Covers installation, configuration, theming, plugins, and deployment.
+allowed-tools:
+  - Bash # Enables mkdocs commands and previews
+  - Glob
+  - Grep
+  - LS
+  - Read
 ---
 
 # MkDocs Documentation Site Generator
@@ -31,6 +37,7 @@ mkdocs serve
 ```
 
 **Project Structure Created:**
+
 ```
 my-project/
 ├── mkdocs.yml      # Configuration file
@@ -51,15 +58,16 @@ nav:
 
 ## Core Commands
 
-| Command | Purpose |
-|---------|---------|
-| `mkdocs new PROJECT` | Create new project |
-| `mkdocs serve` | Start dev server (localhost:8000) |
-| `mkdocs build` | Build static site to `site/` |
-| `mkdocs gh-deploy` | Deploy to GitHub Pages |
-| `mkdocs get-deps` | Show required packages |
+| Command              | Purpose                           |
+| -------------------- | --------------------------------- |
+| `mkdocs new PROJECT` | Create new project                |
+| `mkdocs serve`       | Start dev server (localhost:8000) |
+| `mkdocs build`       | Build static site to `site/`      |
+| `mkdocs gh-deploy`   | Deploy to GitHub Pages            |
+| `mkdocs get-deps`    | Show required packages            |
 
 **Common Options:**
+
 - `-f, --config-file FILE` - Use custom config file
 - `-s, --strict` - Fail on warnings
 - `-d, --site-dir DIR` - Custom output directory
@@ -96,8 +104,8 @@ project/
 nav:
   - Home: index.md
   - User Guide:
-    - Getting Started: user-guide/getting-started.md
-    - Configuration: user-guide/configuration.md
+      - Getting Started: user-guide/getting-started.md
+      - Configuration: user-guide/configuration.md
   - API Reference: api/
   - External Link: https://example.com/
 ```
@@ -108,12 +116,15 @@ nav:
 
 ```markdown
 # Link to another page
+
 [See Configuration](configuration.md)
 
 # Link to page in another directory
+
 [Installation](../getting-started/installation.md)
 
 # Link to section anchor
+
 [See Options](configuration.md#options)
 ```
 
@@ -127,7 +138,6 @@ authors:
   - John Doe
 date: 2024-01-01
 ---
-
 # Page Content Here
 ```
 
@@ -144,7 +154,7 @@ def hello():
 
 ```markdown
 | Header 1 | Header 2 |
-|----------|----------|
+| -------- | -------- |
 | Cell 1   | Cell 2   |
 ```
 
@@ -213,6 +223,7 @@ plugins:
 ```
 
 **Popular Plugins:**
+
 - `search` - Full-text search (built-in, enabled by default)
 - `blog` - Blog functionality (Material theme)
 - `tags` - Content categorization
@@ -259,6 +270,7 @@ mkdocs build
 ### Custom Domain
 
 Create `docs/CNAME` file:
+
 ```
 docs.example.com
 ```
@@ -274,6 +286,12 @@ docs.example.com
 5. Build: `mkdocs build`
 6. Deploy: `mkdocs gh-deploy`
 
+### Quick Build Preview
+
+`Bash(mkdocs build --dry-run)`
+
+If clean: `Bash(mkdocs serve -v)` (dev preview).
+
 ### Add New Section
 
 1. Create directory: `docs/new-section/`
@@ -286,6 +304,12 @@ docs.example.com
 1. Set `theme.custom_dir: custom_theme/`
 2. Create override files matching theme structure
 3. Use template blocks to extend base templates
+
+### Safe Preview Workflow
+
+1. Check MkDocs: `Bash(which mkdocs || echo "Install: pip install mkdocs")`
+2. Dry-run build: `Bash(mkdocs build --dry-run)`
+3. List issues: `Grep -r "ERROR" site/`
 
 ## Detailed References
 
