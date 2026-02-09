@@ -1,5 +1,5 @@
 ---
-name: ObsidianMaster
+name: obsidian-master-skill
 description: >-
   Comprehensive Obsidian vault management. USE WHEN obsidian, vault, note, daily note,
   PARA, inbox, knowledge capture, dataview, DQL, search vault, .base, bases, wikilink,
@@ -7,7 +7,7 @@ description: >-
   Python-powered tools for search, creation, and vault health.
 ---
 
-# ObsidianMaster
+# obsidian-master-skill
 
 Unified skill for all Obsidian vault operations. Routes to workflows and context files.
 
