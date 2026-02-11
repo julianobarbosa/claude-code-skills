@@ -66,5 +66,5 @@ date_formatted: 2026-02-09
 
 ## Context Files
 
-- `VaultOrganization.md` - Daily note frontmatter schema, naming conventions
-- `MarkdownReference.md` - Wikilink and callout syntax
+- `reference/vault-organization.md` - Daily note frontmatter schema, naming conventions
+- `reference/markdown.md` - Wikilink and callout syntax

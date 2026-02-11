@@ -53,5 +53,5 @@ When processing inbox notes:
 
 ## Context Files
 
-- `VaultOrganization.md` - PARA folders, frontmatter schemas
-- `KnowledgeCapturePatterns.md` - Templates for different note types
+- `reference/vault-organization.md` - PARA folders, frontmatter schemas
+- `reference/knowledge-capture.md` - Templates for different note types

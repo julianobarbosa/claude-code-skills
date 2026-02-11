@@ -12,7 +12,7 @@ Create notes with proper frontmatter, PARA placement, and wikilinks.
    - Meeting -> `10 - 1-1/` or project folder
    - MOC -> `00 - Maps of Content/`
    - Generic -> `00 - Inbox/` (for later triage)
-3. **Apply template** from `KnowledgeCapturePatterns.md` or `VaultOrganization.md`
+3. **Apply template** from `reference/knowledge-capture.md` or `reference/vault-organization.md`
 4. **Generate frontmatter** with `created`, `updated`, `tags`, `type`
 5. **Scan for related notes** and insert `[[wikilinks]]`
 6. **Create file** using `Tools/NoteCreator.py create`
@@ -40,6 +40,6 @@ python Tools/NoteCreator.py create \
 
 ## Context Files
 
-- `VaultOrganization.md` - Folder structure, frontmatter schemas
-- `KnowledgeCapturePatterns.md` - Templates for each note type
-- `MarkdownReference.md` - Obsidian markdown syntax
+- `reference/vault-organization.md` - Folder structure, frontmatter schemas
+- `reference/knowledge-capture.md` - Templates for each note type
+- `reference/markdown.md` - Obsidian markdown syntax

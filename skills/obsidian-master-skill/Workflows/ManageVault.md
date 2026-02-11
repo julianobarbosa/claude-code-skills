@@ -66,4 +66,4 @@ Broken links: 12
 
 ## Context Files
 
-- `VaultOrganization.md` - PARA structure, lifecycle states
+- `reference/vault-organization.md` - PARA structure, lifecycle states

@@ -60,4 +60,4 @@ python Tools/BaseBuilder.py preview \
 
 ## Context Files
 
-- `BasesReference.md` - Complete .base schema, filters, formulas, functions
+- `reference/bases.md` - Complete .base schema, filters, formulas, functions

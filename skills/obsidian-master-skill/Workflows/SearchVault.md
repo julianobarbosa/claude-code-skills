@@ -65,5 +65,5 @@ When Obsidian REST API is unavailable:
 
 ## Context Files
 
-- `RestApiReference.md` - API endpoints, DQL syntax
-- `VaultOrganization.md` - Folder structure for scoping searches
+- `reference/rest-api.md` - API endpoints, DQL syntax
+- `reference/vault-organization.md` - Folder structure for scoping searches

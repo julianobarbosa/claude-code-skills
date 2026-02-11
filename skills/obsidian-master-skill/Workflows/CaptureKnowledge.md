@@ -10,7 +10,7 @@ Extract insights from conversations and save them as vault notes.
    - "How do I..." / steps -> How-To
    - "In the meeting..." -> Meeting Note
    - Quick insight -> Daily Append
-2. **Select template** from `KnowledgeCapturePatterns.md`
+2. **Select template** from `reference/knowledge-capture.md`
 3. **Extract content** from conversation context
 4. **Create note** via `Tools/NoteCreator.py capture`
 5. **Link to existing notes** - search vault for related content
@@ -70,5 +70,5 @@ The workflow scans conversation for these signals:
 
 ## Context Files
 
-- `KnowledgeCapturePatterns.md` - All templates and linking strategy
-- `VaultOrganization.md` - PARA placement rules
+- `reference/knowledge-capture.md` - All templates and linking strategy
+- `reference/vault-organization.md` - PARA placement rules

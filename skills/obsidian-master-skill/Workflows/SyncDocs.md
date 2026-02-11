@@ -52,4 +52,4 @@ tags:
 
 ## Context Files
 
-- `VaultOrganization.md` - Destination folder conventions
+- `reference/vault-organization.md` - Destination folder conventions
