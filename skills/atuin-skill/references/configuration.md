@@ -20,6 +20,35 @@ Complete reference for all Atuin configuration options.
 | `ATUIN_SESSION` | Current session ID (auto-set) |
 | `ATUIN_LOG` | Log level (debug, info, warn, error) |
 
+## Intent-to-Config Quick Reference
+
+Quick lookup: what the user wants -> which config key to change.
+
+| User Says | Config Key | Value |
+|-----------|-----------|-------|
+| "fuzzy search" | `search_mode` | `"fuzzy"` |
+| "prefix search" | `search_mode` | `"prefix"` |
+| "exact search", "fulltext" | `search_mode` | `"fulltext"` |
+| "skim search", "fzf-like" | `search_mode` | `"skim"` |
+| "show all machines", "global" | `filter_mode` | `"global"` |
+| "only this machine", "local" | `filter_mode` | `"host"` |
+| "only this session" | `filter_mode` | `"session"` |
+| "only this directory" | `filter_mode` | `"directory"` |
+| "only this repo", "workspace" | `filter_mode` | `"workspace"` |
+| "up arrow for directory" | `filter_mode_shell_up_key_binding` | `"directory"` |
+| "up arrow for prefix" | `search_mode_shell_up_key_binding` | `"prefix"` |
+| "up arrow like readline" | Both `prefix` + `host` |
+| "compact", "minimal" | `style` | `"compact"` |
+| "fullscreen" | `inline_height` | `0` |
+| "search bar at top" | `invert` | `true` |
+| "execute on enter" | `enter_accept` | `true` |
+| "vim keys" | `keymap_mode` | `"vim-normal"` |
+| "filter secrets" | `secrets_filter` | `true` |
+| "sync every command" | `sync_frequency` | `"0"` |
+| "self-hosted server" | `sync_address` | User's URL |
+| "enable dotfiles" | `[dotfiles] enabled` | `true` |
+| "enable daemon" | `[daemon] enabled` | `true` |
+
 ## Core Configuration
 
 ### Path Settings

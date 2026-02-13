@@ -557,11 +557,13 @@ curl --proto '=https' --tlsv1.2 -LsSf https://setup.atuin.sh | sh
 
 ## References
 
-- [references/configuration.md](references/configuration.md) - Complete configuration reference
+- [references/configuration.md](references/configuration.md) - Complete configuration reference with intent-to-config mapping
 - [references/commands.md](references/commands.md) - Full CLI command reference
+- [references/search-reference.md](references/search-reference.md) - Search flags, TUI shortcuts, Vim mode, format variables
 - [references/sync-setup.md](references/sync-setup.md) - Detailed sync configuration
 - [references/troubleshooting.md](references/troubleshooting.md) - Common issues and fixes
 - [references/workflows.md](references/workflows.md) - Advanced usage patterns
+- [references/tips-and-tricks.md](references/tips-and-tricks.md) - Power user patterns, fzf coexistence, dotfiles sync, tmux
 
 ## External Links
 
