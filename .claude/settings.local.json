@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(atuin search:*)",
+      "Bash(atuin sync:*)",
+      "Bash(gh release:*)",
+      "WebFetch(domain:atuin.sh)",
+      "WebFetch(domain:calebhearth.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:ksridhar.dev)",
+      "WebFetch(domain:nickyt.co)",
+      "WebFetch(domain:tratt.net)",
+      "WebSearch"
+    ]
+  }
+}
