@@ -67,21 +67,21 @@ What do you need to do?
 
 ## Developer Environments
 
-Developer Environments provide a dedicated location to store, organize, and manage project secrets as environment variables. CLI tools (TypeScript/Bun) are available for full automation.
+Developer Environments provide a dedicated location to store, organize, and manage project secrets as environment variables. CLI tools are available in both TypeScript/Bun and Python SDK variants.
 
 ### Feature Overview
 
-| Feature | GUI | CLI Tool |
-|---------|-----|----------|
-| Create environment | Yes | `op-env-create` |
-| Update environment | Yes | `op-env-update` |
-| Delete environment | Yes | `op-env-delete` |
-| Show environment | Yes | `op-env-show` |
-| List environments | Yes | `op-env-list` |
-| Export to .env | Yes | `op-env-export` |
-| Mount .env file | Yes (beta) | No |
+| Feature | GUI | TypeScript CLI | Python SDK CLI |
+|---------|-----|---------------|----------------|
+| Create environment | Yes | `bun run create` | `uv run op-env-create` |
+| Update environment | Yes | `bun run update` | `uv run op-env-update` |
+| Delete environment | Yes | `bun run delete` | `uv run op-env-delete` |
+| Show environment | Yes | `bun run show` | `uv run op-env-show` |
+| List environments | Yes | `bun run list` | `uv run op-env-list` |
+| Export to .env | Yes | `bun run export` | `uv run op-env-export` |
+| Mount .env file | Yes (beta) | No | No |
 
-### CLI Tools Setup
+### CLI Tools Setup (TypeScript)
 
 Tools are written in TypeScript and require [Bun](https://bun.sh) runtime:
 
@@ -97,6 +97,59 @@ bun run src/op-env-list.ts --help
 bun run create -- --help
 bun run list -- --help
 ```
+
+### CLI Tools Setup (Python SDK)
+
+Python tools use the official `onepassword-sdk` package and require [uv](https://docs.astral.sh/uv/):
+
+```bash
+# Navigate to tools-python directory
+cd tools-python
+
+# Install dependencies
+uv sync
+
+# Run any tool
+uv run op-env-create --help
+uv run op-env-list --help
+```
+
+**Requirements:** Python 3.9+, `OP_SERVICE_ACCOUNT_TOKEN` environment variable.
+
+### When to Use SDK vs CLI
+
+| Use Case | Recommended | Why |
+|----------|------------|-----|
+| Python applications (FastAPI, Django) | Python SDK | Native async, no subprocess overhead |
+| Shell scripts, CI/CD pipelines | TypeScript CLI or `op` CLI | Direct CLI integration |
+| Batch secret resolution | Python SDK | `resolve_all()` for efficiency |
+| Tag-based filtering | TypeScript CLI | SDK lacks tag filter support |
+| Interactive local development | Either | Both have identical interfaces |
+
+### SecretsManager (Python SDK)
+
+For Python applications that need runtime secret resolution:
+
+```python
+from op_env.secrets_manager import SecretsManager
+
+async def main():
+    sm = await SecretsManager.create()
+
+    # Single secret (with caching)
+    api_key = await sm.get("op://Production/API/key")
+
+    # Batch resolve
+    secrets = await sm.get_many([
+        "op://Production/DB/password",
+        "op://Production/DB/host",
+    ])
+
+    # Load all vars from an environment item
+    env = await sm.resolve_environment("my-app-prod", "Production")
+```
+
+See `references/python-sdk.md` for full SDK reference and integration patterns.
 
 ### Environment Workflow
 
@@ -952,31 +1005,32 @@ kubectl describe secretstore <name>
 
 - `references/cli-commands.md` - Complete CLI command reference
 - `references/kubernetes-examples.md` - Kubernetes manifest examples
+- `references/python-sdk.md` - Python SDK reference and integration guide
 - `references/environments/README.md` - Developer Environments guide
 - `references/environments/inventory.md` - Current environments inventory
 
 ### Tools
 
-Environment management CLI tools written in TypeScript (in `tools/src/`):
+Environment management CLI tools in TypeScript and Python:
 
-| Tool | Command | Description |
-|------|---------|-------------|
-| `op-env-create.ts` | `bun run create` | Create new environment item |
-| `op-env-update.ts` | `bun run update` | Update existing environment |
-| `op-env-delete.ts` | `bun run delete` | Delete environment item |
-| `op-env-show.ts` | `bun run show` | Display environment details |
-| `op-env-list.ts` | `bun run list` | List all environment items |
-| `op-env-export.ts` | `bun run export` | Export to .env format |
+| Operation | TypeScript (`tools/`) | Python (`tools-python/`) |
+|-----------|----------------------|--------------------------|
+| Create | `bun run create` | `uv run op-env-create` |
+| Update | `bun run update` | `uv run op-env-update` |
+| Delete | `bun run delete` | `uv run op-env-delete` |
+| Show | `bun run show` | `uv run op-env-show` |
+| List | `bun run list` | `uv run op-env-list` |
+| Export | `bun run export` | `uv run op-env-export` |
 
-**Requirements:** [Bun](https://bun.sh) runtime
+**TypeScript requirements:** [Bun](https://bun.sh) runtime
+**Python requirements:** Python 3.9+, [uv](https://docs.astral.sh/uv/), `OP_SERVICE_ACCOUNT_TOKEN`
 
 ```bash
-# Install bun (if not installed)
-curl -fsSL https://bun.sh/install | bash
+# TypeScript tools
+cd tools && bun run src/op-env-list.ts --help
 
-# Run tools from tools/ directory
-cd tools
-bun run src/op-env-list.ts --help
+# Python SDK tools
+cd tools-python && uv sync && uv run op-env-list --help
 ```
 
 ### Templates
