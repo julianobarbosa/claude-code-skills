@@ -513,6 +513,62 @@ def api_call_with_retry(url, headers, max_retries=3):
 
 ---
 
+## Multi-Repo Work Item Segregation
+
+When a single Azure DevOps project contains multiple repositories, use **Area Paths** for primary segregation and **hierarchical Iteration Paths** for repo-scoped sprint/epic tracking.
+
+### Target Structure
+
+```
+Area Paths:                          Iteration Paths:
+project\                             project\Iteration\
+├── repo-a           (per-repo)      ├── Sprint 1        (shared across repos)
+├── repo-b           (per-repo)      ├── Sprint 2        (shared across repos)
+└── repo-c           (per-repo)      ├── repo-a\         (repo-scoped container)
+                                     │   ├── epic-1-...  (auto-created by sync)
+                                     │   └── epic-2-...
+                                     └── repo-b\         (repo-scoped container)
+```
+
+### Path Format Differences (Critical)
+
+Azure DevOps uses two **different** path formats for iterations:
+
+| Operation | Format | Example |
+|-----------|--------|---------|
+| `az boards iteration project create --path` | `\Project\Iteration\Parent` (literal "Iteration" segment required) | `\devops-team\Iteration\azure-quota-automation` |
+| `az boards work-item update --iteration` | `Project\Parent\Child` (no "Iteration" segment, no leading `\`) | `devops-team\azure-quota-automation\epic-1-slug` |
+
+### Setup Commands for a New Repo
+
+```bash
+# 1. Create area path (if not exists)
+az boards area project create --name "<repo-name>" --path "\<project>"
+
+# 2. Create iteration container
+az boards iteration project create --name "<repo-name>" --path "\<project>\Iteration"
+
+# 3. Configure BMAD sync (devops-sync-config.yaml)
+# areaPath: "<project>\\<repo-name>"
+# iterationRootPath: "<repo-name>"
+```
+
+### Moving Iterations (No Native Move)
+
+Azure DevOps CLI has no `move` command for iterations. To restructure:
+1. Verify no work items assigned: `az boards query --wiql "... WHERE [System.IterationPath] = '...'" `
+2. Delete: `az boards iteration project delete --path "\project\Iteration\old-path" --yes`
+3. Recreate under new parent: `az boards iteration project create --name "name" --path "\project\Iteration\new-parent"`
+4. Update state files with new iteration IDs
+
+### Common Error: TF401347
+
+`TF401347: The iteration path does not exist` — caused by using the wrong path format. Check:
+- `--iteration` on work items uses `Project\Parent\Child` (no "Iteration" segment)
+- `--path` on iteration create uses `\Project\Iteration\Parent` (with "Iteration" segment)
+
+---
+
 ## Best Practices
 
 ### 1. Use Batch Operations
