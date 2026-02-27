@@ -5,20 +5,24 @@
 This document tracks all Developer Environments configured in 1Password under the Barbosa account.
 
 **Account:** Barbosa
-**Last Updated:** 2026-01-12
+**Last Updated:** 2026-02-19
+**Vault:** hypera (service account access)
 
 ## Current Environments
 
-| # | Environment Name | Description | Status |
-|---|-----------------|-------------|--------|
-| 1 | hypera-azure-rg-hypera-cafehyna-web-dev | Azure Resource Group - Cafehyna Web Dev | Active |
-| 2 | hypera-azure-devops-team-az-cli-pim | Azure DevOps Team - AZ CLI PIM credentials | Active |
-| 3 | devops-team-pim | DevOps Team PIM access credentials | Active |
-| 4 | hypera-github-python-devops | GitHub credentials for Python DevOps projects | Active |
-| 5 | hypera-azure-rg-hypera-cafehyna-web | Azure Resource Group - Cafehyna Web (Production) | Active |
-| 6 | repos-github-zsh | GitHub credentials for ZSH repository | Active |
-| 7 | hypera | General Hypera environment credentials | Active |
-| 8 | Azure OpenAI-finops | Azure OpenAI FinOps configuration | Active |
+| # | Environment Name | Description | Vault | Status | Created |
+|---|-----------------|-------------|-------|--------|---------|
+| 1 | Azure OpenAI-finops | Azure OpenAI FinOps configuration | hypera | Active | 2026-02-19 |
+| 2 | devops-team-pim | DevOps Team PIM access credentials | hypera | Active | 2026-02-19 |
+| 3 | .dotfiles | Dotfiles environment variables | hypera | Active | 2026-02-19 |
+| 4 | hypera-github-python-devops | GitHub credentials for Python DevOps projects | hypera | Active | 2026-02-19 |
+| 5 | hypera-azure-rg-hypera-cafehyna-web | Azure Resource Group - Cafehyna Web (Production) | hypera | Active | 2026-02-19 |
+| 6 | devops-team-azure-quota-automation | DevOps team Azure quota automation credentials | hypera | Active | 2026-02-19 |
+| 7 | hypera-azure-rg-hypera-cafehyna-web-dev | Azure Resource Group - Cafehyna Web Dev | hypera | Active | 2026-02-19 |
+| 8 | hypera | General Hypera environment credentials | hypera | Active | 2026-02-19 |
+| 9 | rg-hypera-aks-python-infra-dev | AKS Python infrastructure dev credentials | hypera | Active | 2026-02-19 |
+| 10 | hypera-azure-devops-team-az-cli-pim | Azure DevOps Team - AZ CLI PIM credentials | hypera | Active | 2026-02-19 |
+| 11 | repos-github-zsh | GitHub credentials for ZSH repository | hypera | Active | 2026-02-19 |
 
 ## Environment Categories
 
@@ -27,6 +31,10 @@ This document tracks all Developer Environments configured in 1Password under th
 - `hypera-azure-rg-hypera-cafehyna-web` - Production Azure resources
 - `hypera-azure-devops-team-az-cli-pim` - Azure CLI with PIM integration
 - `Azure OpenAI-finops` - Azure OpenAI service configuration
+- `devops-team-azure-quota-automation` - Azure quota automation
+
+### Kubernetes / Infrastructure
+- `rg-hypera-aks-python-infra-dev` - AKS Python infrastructure dev
 
 ### GitHub Environments
 - `hypera-github-python-devops` - Python DevOps automation
@@ -34,46 +42,80 @@ This document tracks all Developer Environments configured in 1Password under th
 
 ### Team Environments
 - `devops-team-pim` - DevOps team PIM credentials
+- `hypera-azure-devops-team-az-cli-pim` - Azure DevOps AZ CLI PIM
 
 ### General
 - `hypera` - General infrastructure credentials
+- `.dotfiles` - Dotfiles configuration
+- `devops-team-azure-quota-automation` - Quota automation
 
-## Usage Examples
+## CLI Management
 
-### Access via GUI
-1. Open 1Password Desktop App
-2. Navigate to Developer > Environments
-3. Click "View environment" on desired environment
+All environments were created via CLI using `op item create` with:
+- **Category:** API Credential
+- **Tag:** `environment`
+- **Vault:** `hypera`
+- **Initial variable:** `PLACEHOLDER=initialized` (replace with real values)
 
-### Access via CLI (using tools)
+### Populate Variables
+
+Add real variables to replace the placeholder:
+```bash
+# Edit environment to add real variables
+op item edit "<env-name>" --vault hypera \
+  variables.MY_KEY[concealed]=my-value \
+  variables.PLACEHOLDER[delete]
+```
+
+### Access via CLI Tools
 
 ```bash
+cd ~/.claude/skills/1password-skill/tools
+# OR
+cd .claude/skills/1password-skill/tools
+
 # List all environments
-op-env-list.sh
+bun run list --vault hypera
 
 # Show environment details
-op-env-show.sh "hypera" "Barbosa"
+bun run show "hypera" hypera
 
 # Export to .env file
-op-env-export.sh "hypera-azure-rg-hypera-cafehyna-web-dev" "Barbosa" > .env
+bun run export "hypera-azure-rg-hypera-cafehyna-web-dev" hypera > .env
 
-# Create op:// reference template
-op-env-export.sh "repos-github-zsh" "Barbosa" --format op-refs > .env.tpl
+# Create op:// reference
+op read "op://hypera/<env-name>/variables/<KEY>"
 ```
 
 ### Direct CLI Access
 
 ```bash
 # Read specific variable
-op read "op://Barbosa/hypera/variables/API_KEY"
+op read "op://hypera/hypera/variables/API_KEY"
 
 # Use with op run
 op run --env-file .env.tpl -- ./deploy.sh
+
+# List all environment items
+op item list --vault hypera --tags environment --format json | jq '.[].title'
 ```
+
+## Secret References Format
+
+All variables use the format:
+```
+op://hypera/<env-name>/variables/<KEY>
+```
+
+Examples:
+- `op://hypera/hypera/variables/API_KEY`
+- `op://hypera/devops-team-pim/variables/AZURE_CLIENT_ID`
+- `op://hypera/Azure OpenAI-finops/variables/OPENAI_API_KEY`
 
 ## Notes
 
-- Developer Environments is a beta feature in 1Password
-- Environments are managed primarily through the desktop GUI
-- CLI tools in this skill provide workaround for CRUD operations
-- Use the `environment` tag to track environment items created via CLI
+- All environments created 2026-02-19 via CLI (service account access to `hypera` vault)
+- Initial `PLACEHOLDER=initialized` variable should be replaced with real values
+- Developer Environments is a beta feature in 1Password (GUI-native type different from CLI API Credential items)
+- CLI items use `API Credential` category + `environment` tag as the programmatic equivalent
+- Use `op-env-update` to add variables once values are known
