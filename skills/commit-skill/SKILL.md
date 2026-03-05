@@ -6,3 +6,4 @@
 4. Report the commit hash and branch name
 
 NOTE: This repo uses Azure DevOps. For PRs use `az repos pr create`.
+NOTE: The `commit-msg` hook strips `Co-Authored-By` trailers so commits appear as sole-author.
