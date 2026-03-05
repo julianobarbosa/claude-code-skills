@@ -14,21 +14,21 @@ Git worktrees create isolated workspaces sharing the same repository, allowing w
 
 ```bash
 # Create worktree with new branch
-git worktree add .worktrees/feature-auth -b feature/auth
+git worktree add .claude/worktrees/feature-auth -b feature/auth
 
 # Create worktree from existing branch
-git worktree add .worktrees/bugfix bugfix/issue-123
+git worktree add .claude/worktrees/bugfix bugfix/issue-123
 
 # List worktrees
 git worktree list
 
 # Remove worktree
-git worktree remove .worktrees/feature-auth
+git worktree remove .claude/worktrees/feature-auth
 ```
 
 ## Directory Selection
 
-1. Check existing: `.worktrees/` or `worktrees/`
+1. Check existing: `.claude/worktrees/` or `worktrees/`
 2. Check CLAUDE.md for preference
 3. Ask user if neither exists
 
@@ -38,7 +38,7 @@ git worktree remove .worktrees/feature-auth
 
 ```bash
 # Verify directory is in .gitignore
-grep -q "^\.worktrees/$" .gitignore || grep -q "^worktrees/$" .gitignore
+grep -q "^\worktrees/$" .gitignore || grep -q "^worktrees/$" .gitignore
 ```
 
 If NOT in .gitignore: Add it immediately and commit.

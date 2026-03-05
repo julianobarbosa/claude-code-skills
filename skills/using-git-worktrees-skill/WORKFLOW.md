@@ -5,11 +5,11 @@
 ### 1. Check Existing Directories
 
 ```bash
-ls -d .worktrees 2>/dev/null     # Preferred (hidden)
-ls -d worktrees 2>/dev/null      # Alternative
+ls -d .claude/worktrees 2>/dev/null     # Preferred (hidden)
+ls -d .claude/worktrees 2>/dev/null      # Alternative
 ```
 
-If found: Use that directory. If both exist, `.worktrees` wins.
+If found: Use that directory. If both exist, `.claude/worktrees` wins.
 
 ### 2. Check CLAUDE.md
 
@@ -24,7 +24,7 @@ If preference specified: Use it without asking.
 ```
 No worktree directory found. Where should I create worktrees?
 
-1. .worktrees/ (project-local, hidden)
+1. .claude/worktrees/ (project-local, hidden)
 2. ~/.config/superpowers/worktrees/<project-name>/ (global location)
 ```
 
@@ -35,7 +35,7 @@ No worktree directory found. Where should I create worktrees?
 **MUST verify .gitignore before creating worktree:**
 
 ```bash
-grep -q "^\.worktrees/$" .gitignore || grep -q "^worktrees/$" .gitignore
+grep -q "^\worktrees/$" .gitignore || grep -q "^worktrees/$" .gitignore
 ```
 
 **If NOT in .gitignore:**
@@ -117,9 +117,9 @@ Ready to implement <feature-name>
 
 | Situation                   | Action                      |
 | --------------------------- | --------------------------- |
-| `.worktrees/` exists        | Use it (verify .gitignore)  |
+| `.claude/worktrees/` exists | Use it (verify .gitignore)  |
 | `worktrees/` exists         | Use it (verify .gitignore)  |
-| Both exist                  | Use `.worktrees/`           |
+| Both exist                  | Use `.claude/worktrees/`    |
 | Neither exists              | Check CLAUDE.md → Ask user  |
 | Directory not in .gitignore | Add it immediately + commit |
 | Tests fail during baseline  | Report failures + ask       |
@@ -131,13 +131,13 @@ Ready to implement <feature-name>
 git worktree list
 
 # Remove worktree (after merging branch)
-git worktree remove .worktrees/feature-name
+git worktree remove .claude/worktrees/feature-name
 
 # Prune stale worktrees
 git worktree prune
 
 # Move worktree
-git worktree move .worktrees/old-name .worktrees/new-name
+git worktree move .claude/worktrees/old-name .worktrees/new-name
 ```
 
 ## Common Mistakes
