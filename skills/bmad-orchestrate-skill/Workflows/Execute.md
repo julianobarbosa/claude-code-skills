@@ -63,9 +63,34 @@ git worktree add .claude/worktrees/wt-4-4 -b bmad/story-4-4
 
 Record the worktree paths for the merge step.
 
-## Step 4: Create tmux Session
+## Step 4: Determine Execution Mode
 
-Set up a tmux session with one pane per parallel worktree:
+Check for Agent Teams support:
+
+```bash
+echo "${CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS:-not_set}"
+```
+
+**If Agent Teams available** (`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` is set): use Agent tool with worktree isolation (preferred).
+**If not available**: fall back to tmux approach (Step 4b).
+
+### Step 4a: Agent Teams Execution (Preferred)
+
+For each parallel item, spawn an Agent with worktree isolation:
+
+```
+Agent tool call:
+  subagent_type: general-purpose
+  isolation: "worktree"
+  prompt: "cd to worktree root. Run /{bmad-command} with story_key={story-id}"
+  run_in_background: true
+```
+
+Each agent gets its own isolated worktree automatically — no manual `git worktree add` needed when using Agent Teams.
+
+### Step 4b: tmux Execution (Fallback)
+
+If Agent Teams is not available, set up a tmux session with one pane per parallel worktree:
 
 ```bash
 # Create named session for the epic
@@ -85,14 +110,17 @@ tmux split-window -v -t "bmad-epic-${EPIC_NUM}" -c ".claude/worktrees/wt-{third}
 tmux select-layout -t "bmad-epic-${EPIC_NUM}" tiled
 ```
 
-## Step 5: Launch Claude Code in Each Pane
+## Step 5: Launch Execution
+
+### Agent Teams Mode
+
+Agents launch automatically when spawned in Step 4a. Monitor via Agent tool responses — each agent reports back when complete.
+
+### tmux Mode
 
 Send the BMAD command to each tmux pane:
 
 ```bash
-# Pane indexing: 0, 1, 2, ...
-# Each pane runs Claude Code with the appropriate BMAD slash command
-
 tmux send-keys -t "bmad-epic-${EPIC_NUM}:0.0" \
   "claude --dangerously-skip-permissions '/{bmad-command} {story-context}'" Enter
 
@@ -100,16 +128,15 @@ tmux send-keys -t "bmad-epic-${EPIC_NUM}:0.1" \
   "claude --dangerously-skip-permissions '/{bmad-command} {story-context}'" Enter
 ```
 
-**IMPORTANT:** The `--dangerously-skip-permissions` flag is optional. If the user prefers interactive approval, omit it and let each Claude Code instance prompt for permissions.
-
-**Alternative (safer):** Launch Claude Code without auto-permissions:
-```bash
-tmux send-keys -t "bmad-epic-${EPIC_NUM}:0.0" "claude" Enter
-# Then manually send the /bmad command after Claude starts
-tmux send-keys -t "bmad-epic-${EPIC_NUM}:0.0" "/{bmad-command}" Enter
-```
+**IMPORTANT:** The `--dangerously-skip-permissions` flag is optional. If the user prefers interactive approval, omit it.
 
 ## Step 6: Monitor Progress
+
+### Agent Teams Mode
+
+Background agents automatically notify when complete. Check status via TaskList if using team coordination.
+
+### tmux Mode
 
 Attach to the tmux session to monitor:
 
@@ -137,6 +164,7 @@ worktrees:
     command: /bmad-bmm-{command}
     story: "{story_title}"
     status: running
+    agent_type: native  # native (Agent Teams) or tmux
 EOF
 ```
 

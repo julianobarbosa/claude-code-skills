@@ -81,3 +81,12 @@ User: "Merge the parallel story branches back"
 
 **Full Documentation:**
 - Dependency patterns: `DependencyPatterns.md`
+
+### Execution Modes
+
+| Mode | Method | Requirement | Isolation |
+|------|--------|-------------|-----------|
+| **Agent Teams** (preferred) | `Agent` tool with `isolation: "worktree"` | `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` env var set | Automatic git worktree per agent |
+| **tmux** (fallback) | Manual worktree + tmux panes | tmux installed, no `CLAUDECODE` env var blocking | Manual git worktree creation |
+
+Agent Teams is preferred when available — it handles worktree creation, isolation, and cleanup automatically.

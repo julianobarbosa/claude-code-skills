@@ -106,6 +106,37 @@ For unexpected conflicts:
 2. Ask which version to keep
 3. Never auto-resolve without understanding
 
+### Step 5a: Self-Healing Merge (Auto-Resolution)
+
+Before prompting for manual intervention, attempt automatic resolution for known-safe patterns:
+
+**sprint-status.yaml conflicts:**
+```bash
+# Accept all status line changes (different lines = always safe)
+# Each branch updates different story keys, so accept both sides
+git checkout --theirs _bmad-output/implementation-artifacts/sprint-status.yaml
+# Then manually merge any metadata changes (generated date, etc.)
+```
+
+**terraform/main.tf conflicts (additive modules):**
+```bash
+# If both branches add new module blocks (no overlapping resources):
+# 1. Accept both module blocks
+# 2. Verify no duplicate resource names
+terraform validate
+```
+
+**Auto-resolution retry pattern:**
+1. Attempt `git merge` — if conflict detected on known-safe files, auto-resolve as above
+2. If auto-resolution fails → `git merge --abort`
+3. Attempt `git rebase` instead: `git rebase main bmad/story-{id}`
+4. If rebase also fails → `git rebase --abort` → flag for manual intervention:
+   ```
+   ⚠️ Auto-resolution failed for bmad/story-{id}
+   Conflicting files: {list}
+   Manual intervention required — showing diff for review.
+   ```
+
 ## Step 6: Verify Merged State
 
 After all branches are merged:
