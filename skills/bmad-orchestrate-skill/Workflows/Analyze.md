@@ -77,7 +77,7 @@ For each pair of candidate stories (using detail resolved in Step 2a), determine
 
 ### Reference: Common Dependency Patterns
 
-Load `~/.claude/skills/BmadOrchestrate/DependencyPatterns.md` for detailed patterns.
+Load `~/.claude/skills/bmad-orchestrate-skill/DependencyPatterns.md` for detailed patterns.
 
 ## Step 4: Identify BMAD Workflow Parallelization
 
