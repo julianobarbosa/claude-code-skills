@@ -1,158 +1,206 @@
 # Git Worktrees Workflow
 
-## Directory Selection Process
+Detailed step-by-step for creating worktrees with tmux integration and task dispatch.
 
-### 1. Check Existing Directories
+## Phase 1: Pre-flight Checks
 
-```bash
-ls -d .claude/worktrees 2>/dev/null     # Preferred (hidden)
-ls -d .claude/worktrees 2>/dev/null      # Alternative
-```
-
-If found: Use that directory. If both exist, `.claude/worktrees` wins.
-
-### 2. Check CLAUDE.md
+### 1.1 Verify Git Repository
 
 ```bash
-grep -i "worktree.*director" CLAUDE.md 2>/dev/null
+REPO_ROOT=$(git rev-parse --show-toplevel 2>/dev/null)
+if [ -z "$REPO_ROOT" ]; then
+  echo "Error: Not in a git repository"
+  exit 1
+fi
 ```
 
-If preference specified: Use it without asking.
-
-### 3. Ask User
-
-```
-No worktree directory found. Where should I create worktrees?
-
-1. .claude/worktrees/ (project-local, hidden)
-2. ~/.config/superpowers/worktrees/<project-name>/ (global location)
-```
-
-## Safety Verification
-
-### For Project-Local Directories
-
-**MUST verify .gitignore before creating worktree:**
+### 1.2 Verify tmux Session
 
 ```bash
-grep -q "^\worktrees/$" .gitignore || grep -q "^worktrees/$" .gitignore
+if [ -z "$TMUX" ]; then
+  echo "Warning: Not in a tmux session — tmux window creation will be skipped"
+  TMUX_AVAILABLE=false
+else
+  SESSION=$(tmux display-message -p '#S')
+  TMUX_AVAILABLE=true
+fi
 ```
 
-**If NOT in .gitignore:**
-
-1. Add appropriate line to .gitignore
-2. Commit the change
-3. Proceed with worktree creation
-
-### For Global Directory
-
-No .gitignore verification needed - outside project entirely.
-
-## Creation Steps
-
-### 1. Detect Project Name
+### 1.3 Ensure Worktree Directory is Ignored
 
 ```bash
-project=$(basename "$(git rev-parse --show-toplevel)")
+mkdir -p "$REPO_ROOT/.claude/worktrees"
+
+# Test if the directory is ignored
+if ! git check-ignore -q "$REPO_ROOT/.claude/worktrees/test" 2>/dev/null; then
+  # Add to .gitignore
+  echo ".claude/worktrees/" >> "$REPO_ROOT/.gitignore"
+  echo "Added .claude/worktrees/ to .gitignore"
+  # Note: Don't auto-commit — let the user decide
+fi
 ```
 
-### 2. Create Worktree
+### 1.4 Verify Clean State (Optional)
+
+If creating worktrees for parallel work, a clean working tree avoids confusion:
 
 ```bash
-# Determine full path
-case $LOCATION in
-  .worktrees|worktrees)
-    path="$LOCATION/$BRANCH_NAME"
-    ;;
-  ~/.config/superpowers/worktrees/*)
-    path="~/.config/superpowers/worktrees/$project/$BRANCH_NAME"
-    ;;
-esac
-
-# Create worktree with new branch
-git worktree add "$path" -b "$BRANCH_NAME"
-cd "$path"
+if [ -n "$(git status --porcelain)" ]; then
+  echo "Warning: Working tree has uncommitted changes"
+  echo "Worktree creation will proceed, but consider committing first"
+fi
 ```
 
-### 3. Run Project Setup
+## Phase 2: Create Worktree
 
-Auto-detect and run appropriate setup:
+### 2.1 Determine Parameters
+
+Required:
+- `WORKTREE_NAME` — short identifier (e.g., `story-1-3`)
+- `BRANCH_NAME` — git branch name (e.g., `bmad/story-1-3-deploy-nat-gateway`)
+- `BASE_BRANCH` — branch to fork from (e.g., `main`, current branch)
+
+### 2.2 Create
 
 ```bash
+WORKTREE_PATH="$REPO_ROOT/.claude/worktrees/$WORKTREE_NAME"
+
+# Check if path already exists
+if [ -d "$WORKTREE_PATH" ]; then
+  echo "Error: Worktree already exists at $WORKTREE_PATH"
+  echo "Remove it first: git worktree remove $WORKTREE_PATH"
+  exit 1
+fi
+
+# Create with new branch
+git worktree add "$WORKTREE_PATH" -b "$BRANCH_NAME" "$BASE_BRANCH"
+
+# Or attach to existing branch
+# git worktree add "$WORKTREE_PATH" "$BRANCH_NAME"
+```
+
+### 2.3 Project Setup (Auto-detect)
+
+```bash
+cd "$WORKTREE_PATH"
+
 # Node.js
 [ -f package.json ] && npm install
 
-# Rust
-[ -f Cargo.toml ] && cargo build
-
 # Python
+[ -f pyproject.toml ] && uv sync 2>/dev/null || pip install -e ".[dev]" 2>/dev/null
 [ -f requirements.txt ] && pip install -r requirements.txt
-[ -f pyproject.toml ] && uv sync
 
 # Go
 [ -f go.mod ] && go mod download
+
+# Rust
+[ -f Cargo.toml ] && cargo build
 ```
 
-### 4. Verify Clean Baseline
-
-Run tests to ensure worktree starts clean:
+### 2.4 Verify
 
 ```bash
-# Use project-appropriate command
-make test  # or npm test, cargo test, pytest, go test ./...
-```
-
-**If tests fail:** Report failures, ask whether to proceed.
-**If tests pass:** Report ready.
-
-### 5. Report Location
-
-```
-Worktree ready at <full-path>
-Tests passing (<N> tests, 0 failures)
-Ready to implement <feature-name>
-```
-
-## Quick Reference
-
-| Situation                   | Action                      |
-| --------------------------- | --------------------------- |
-| `.claude/worktrees/` exists | Use it (verify .gitignore)  |
-| `worktrees/` exists         | Use it (verify .gitignore)  |
-| Both exist                  | Use `.claude/worktrees/`    |
-| Neither exists              | Check CLAUDE.md → Ask user  |
-| Directory not in .gitignore | Add it immediately + commit |
-| Tests fail during baseline  | Report failures + ask       |
-
-## Common Commands
-
-```bash
-# List all worktrees
 git worktree list
-
-# Remove worktree (after merging branch)
-git worktree remove .claude/worktrees/feature-name
-
-# Prune stale worktrees
-git worktree prune
-
-# Move worktree
-git worktree move .claude/worktrees/old-name .worktrees/new-name
+echo "Worktree ready at: $WORKTREE_PATH"
+echo "Branch: $BRANCH_NAME (based on $BASE_BRANCH)"
 ```
 
-## Common Mistakes
+## Phase 3: tmux Window
 
-**Skipping .gitignore verification**
+Skip this phase if `TMUX_AVAILABLE=false`.
 
-- Worktree contents get tracked, pollute git status
-- Fix: Always check .gitignore before creating project-local worktree
+### 3.1 Create Window
 
-**Assuming directory location**
+```bash
+WINDOW_NAME="${SESSION}-${WORKTREE_NAME}"
 
-- Creates inconsistency, violates project conventions
-- Fix: Follow priority: existing > CLAUDE.md > ask
+# Create window in current session, starting in worktree directory
+tmux new-window -t "$SESSION" -n "$WINDOW_NAME" -c "$WORKTREE_PATH"
 
-**Proceeding with failing tests**
+echo "Created tmux window: $WINDOW_NAME in session $SESSION"
+```
 
-- Can't distinguish new bugs from pre-existing issues
-- Fix: Report failures, get explicit permission
+### 3.2 Verify Directory
+
+```bash
+# The -c flag should handle this, but verify
+tmux send-keys -t "${SESSION}:${WINDOW_NAME}" "pwd" Enter
+```
+
+## Phase 4: Dispatch Task (Optional)
+
+Only execute if the user provided a task/command to run.
+
+### 4.1 Send Command
+
+```bash
+TASK_COMMAND="claude '/bmad-create-story story 1-3'"  # example
+
+tmux send-keys -t "${SESSION}:${WINDOW_NAME}" "$TASK_COMMAND" Enter
+
+echo "Dispatched task to window $WINDOW_NAME"
+```
+
+### 4.2 Monitor
+
+The user can switch to the window to monitor progress:
+- `Ctrl-b` then window number to switch
+- `tmux select-window -t "${SESSION}:${WINDOW_NAME}"` from another pane
+
+## Phase 5: Cleanup
+
+After work is done and merged back.
+
+### 5.1 Kill tmux Window
+
+```bash
+tmux kill-window -t "${SESSION}:${WINDOW_NAME}" 2>/dev/null
+```
+
+### 5.2 Remove Worktree
+
+```bash
+git worktree remove "$WORKTREE_PATH"
+```
+
+### 5.3 Delete Branch (if merged)
+
+```bash
+git branch -d "$BRANCH_NAME" 2>/dev/null
+```
+
+### 5.4 Prune
+
+```bash
+git worktree prune
+```
+
+## Edge Cases
+
+### Multiple Worktrees in Parallel
+
+Create each one sequentially — each gets its own tmux window:
+
+```bash
+for story in "1-3" "1-4" "2-1"; do
+  # Each iteration creates worktree + tmux window
+  # Use unique WORKTREE_NAME and BRANCH_NAME per story
+done
+```
+
+### Worktree from Remote Branch
+
+```bash
+git fetch origin
+git worktree add "$WORKTREE_PATH" "origin/feature-branch"
+```
+
+### Resume After Disconnect
+
+Worktrees persist across tmux detach/reattach. If the tmux window was lost:
+
+```bash
+# Recreate window for existing worktree
+tmux new-window -t "$SESSION" -n "$WINDOW_NAME" -c "$WORKTREE_PATH"
+```
