@@ -1,0 +1,11 @@
+{
+  "expectations": [
+    {"text": "Identifies unpinned base image (ubuntu:latest) as a security issue", "passed": true, "evidence": "Issue 1: 'Unpinned Base Image Tag (FROM ubuntu:latest)' - Severity High"},
+    {"text": "Identifies SSH PasswordAuthentication yes as a security risk", "passed": true, "evidence": "Issue 3: 'Password Authentication Enabled for SSH' - Severity High"},
+    {"text": "Identifies curl|bash without checksum verification as unsafe", "passed": true, "evidence": "Issue 4: 'Piping Curl Output Directly to Bash' - Severity Critical, mentions no integrity verification"},
+    {"text": "Identifies running as root as a security issue", "passed": true, "evidence": "Issue 5: 'Running as Root' - Severity High, notes no USER directive"},
+    {"text": "Provides a hardened version of the Dockerfile with fixes applied", "passed": true, "evidence": "Complete hardened Dockerfile provided with pinned version, non-root user, sha256 verification"},
+    {"text": "Recommends pinning tool versions instead of using latest", "passed": true, "evidence": "Hardened version uses 'v1.2.3' pinned version with SHA-256 checksum"}
+  ],
+  "summary": {"passed": 6, "failed": 0, "total": 6, "pass_rate": 1.0}
+}

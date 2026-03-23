@@ -1,0 +1,31 @@
+{
+  "eval_id": 3,
+  "eval_name": "dockerfile-security-review",
+  "prompt": "Review this Dockerfile for security issues:\nFROM ubuntu:latest\nRUN apt-get update && apt-get install -y openssh-server curl\nRUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config\nRUN curl https://example.com/tool/latest/download | bash\nEXPOSE 22\nCMD [\"/usr/sbin/sshd\", \"-D\"]",
+  "assertions": [
+    {
+      "text": "Identifies unpinned base image (ubuntu:latest) as a security issue",
+      "type": "content"
+    },
+    {
+      "text": "Identifies SSH PasswordAuthentication yes as a security risk",
+      "type": "content"
+    },
+    {
+      "text": "Identifies curl|bash without checksum verification as unsafe",
+      "type": "content"
+    },
+    {
+      "text": "Identifies running as root as a security issue",
+      "type": "content"
+    },
+    {
+      "text": "Provides a hardened version of the Dockerfile with fixes applied",
+      "type": "content"
+    },
+    {
+      "text": "Recommends pinning tool versions instead of using latest",
+      "type": "content"
+    }
+  ]
+}

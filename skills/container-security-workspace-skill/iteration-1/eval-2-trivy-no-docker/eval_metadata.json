@@ -1,0 +1,27 @@
+{
+  "eval_id": 2,
+  "eval_name": "trivy-scan-without-docker",
+  "prompt": "I need to run a security scan on our container image cafehyna.azurecr.io/apps/myapp:2.0.0 but we don't have Docker running locally. Can you scan it for vulnerabilities?",
+  "assertions": [
+    {
+      "text": "Suggests running Trivy via ACR task as the primary approach",
+      "type": "content"
+    },
+    {
+      "text": "Shows importing trivy image into ACR first to avoid Docker Hub dependency",
+      "type": "content"
+    },
+    {
+      "text": "Provides the az acr run command to execute Trivy scan",
+      "type": "content"
+    },
+    {
+      "text": "Filters for HIGH and CRITICAL severity vulnerabilities",
+      "type": "content"
+    },
+    {
+      "text": "Explains how to interpret or categorize the CVE findings",
+      "type": "content"
+    }
+  ]
+}

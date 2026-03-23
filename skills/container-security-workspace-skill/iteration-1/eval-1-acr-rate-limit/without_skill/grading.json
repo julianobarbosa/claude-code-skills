@@ -1,0 +1,10 @@
+{
+  "expectations": [
+    {"text": "Recommends az acr import to pull the image into ACR", "passed": true, "evidence": "Step 1 shows 'az acr import --name cafehyna --source docker.io/library/nginx:1.25 --image nginx:1.25'"},
+    {"text": "Shows the correct az acr import command with --source docker.io/nginx:1.25", "passed": true, "evidence": "Uses '--source docker.io/library/nginx:1.25'"},
+    {"text": "Updates the Dockerfile FROM to reference cafehyna.azurecr.io instead of Docker Hub", "passed": true, "evidence": "'FROM cafehyna.azurecr.io/nginx:1.25'"},
+    {"text": "Explains that ACR cloud builds are unauthenticated against Docker Hub", "passed": true, "evidence": "'ACR build agents are unauthenticated against Docker Hub, they hit the anonymous pull rate limit'"},
+    {"text": "Includes a rebuild command using az acr build", "passed": true, "evidence": "Step 3: 'az acr build --registry cafehyna --image myapp:latest .'"}
+  ],
+  "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0}
+}

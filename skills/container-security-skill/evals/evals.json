@@ -1,0 +1,23 @@
+{
+  "skill_name": "container-security",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm getting 'toomanyrequests: You have reached your unauthenticated pull rate limit' when doing az acr build on our cafehyna ACR registry. The Dockerfile pulls FROM nginx:1.25 directly from Docker Hub. How do I fix this so all pulls stay within ACR?",
+      "expected_output": "Should recommend importing nginx:1.25 into cafehyna ACR with az acr import, updating the Dockerfile FROM to cafehyna.azurecr.io/<path>/nginx:1.25, and rebuilding with az acr build.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I need to run a security scan on our container image cafehyna.azurecr.io/apps/myapp:2.0.0 but we don't have Docker running locally. Can you scan it for vulnerabilities?",
+      "expected_output": "Should suggest running Trivy via ACR task (importing trivy image first if needed) or using trivy with --image-src remote. Should show how to analyze CRITICAL/HIGH findings.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Review this Dockerfile for security issues:\nFROM ubuntu:latest\nRUN apt-get update && apt-get install -y openssh-server curl\nRUN sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config\nRUN curl https://example.com/tool/latest/download | bash\nEXPOSE 22\nCMD [\"/usr/sbin/sshd\", \"-D\"]",
+      "expected_output": "Should identify: unpinned base image, password SSH auth enabled, curl|bash without verification, running as root, no version pinning on tool. Should provide hardened version.",
+      "files": []
+    }
+  ]
+}

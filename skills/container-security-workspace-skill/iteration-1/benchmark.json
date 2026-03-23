@@ -1,0 +1,170 @@
+{
+  "metadata": {
+    "skill_name": "container-security",
+    "skill_path": "/Users/juliano.barbosa/Repos/github/claude-code-skills/skills/container-security-skill",
+    "executor_model": "claude-opus-4-6",
+    "timestamp": "2026-03-18T19:00:00Z",
+    "evals_run": [1, 2, 3],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1,
+      "eval_name": "ACR Rate Limit Fix",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 38.4,
+        "tokens": 33727,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Recommends az acr import to pull the image into ACR", "passed": true, "evidence": "Step 1 clearly shows az acr import command"},
+        {"text": "Shows the correct az acr import command with --source docker.io/nginx:1.25", "passed": true, "evidence": "Uses --source docker.io/library/nginx:1.25"},
+        {"text": "Updates the Dockerfile FROM to reference cafehyna.azurecr.io", "passed": true, "evidence": "FROM cafehyna.azurecr.io/base/nginx:1.25"},
+        {"text": "Explains that ACR cloud builds are unauthenticated against Docker Hub", "passed": true, "evidence": "Problem section explains unauthenticated pull quota"},
+        {"text": "Includes a rebuild command using az acr build", "passed": true, "evidence": "Step 3 shows az acr build command"}
+      ]
+    },
+    {
+      "eval_id": 1,
+      "eval_name": "ACR Rate Limit Fix",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 45.3,
+        "tokens": 30211,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Recommends az acr import to pull the image into ACR", "passed": true, "evidence": "Step 1 shows az acr import command"},
+        {"text": "Shows the correct az acr import command with --source docker.io/nginx:1.25", "passed": true, "evidence": "Uses --source docker.io/library/nginx:1.25"},
+        {"text": "Updates the Dockerfile FROM to reference cafehyna.azurecr.io", "passed": true, "evidence": "FROM cafehyna.azurecr.io/nginx:1.25"},
+        {"text": "Explains that ACR cloud builds are unauthenticated against Docker Hub", "passed": true, "evidence": "ACR build agents are unauthenticated"},
+        {"text": "Includes a rebuild command using az acr build", "passed": true, "evidence": "Step 3 shows az acr build command"}
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "Trivy Scan Without Docker",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 41.0,
+        "tokens": 33975,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Suggests running Trivy via ACR task as the primary approach", "passed": true, "evidence": "Trivy via ACR Task (Option A) is the primary section"},
+        {"text": "Shows importing trivy image into ACR first", "passed": true, "evidence": "One-time setup section with az acr import for trivy"},
+        {"text": "Provides the az acr run command to execute Trivy scan", "passed": true, "evidence": "Both table and JSON variants shown"},
+        {"text": "Filters for HIGH and CRITICAL severity", "passed": true, "evidence": "--severity HIGH,CRITICAL in commands"},
+        {"text": "Explains how to interpret CVE findings", "passed": true, "evidence": "Categorization table and Python extraction script"}
+      ]
+    },
+    {
+      "eval_id": 2,
+      "eval_name": "Trivy Scan Without Docker",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 0.4,
+        "passed": 2,
+        "failed": 3,
+        "total": 5,
+        "time_seconds": 24.8,
+        "tokens": 29492,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Suggests running Trivy via ACR task as the primary approach", "passed": false, "evidence": "Suggested trivy image directly without ACR task pattern"},
+        {"text": "Shows importing trivy image into ACR first", "passed": false, "evidence": "Did not mention importing trivy into ACR"},
+        {"text": "Provides the az acr run command to execute Trivy scan", "passed": false, "evidence": "Suggested trivy image command, not az acr run"},
+        {"text": "Filters for HIGH and CRITICAL severity", "passed": true, "evidence": "Mentioned --severity flag"},
+        {"text": "Explains how to interpret CVE findings", "passed": true, "evidence": "Mentioned alternatives like Grype and Azure Defender"}
+      ]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "Dockerfile Security Review",
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 39.8,
+        "tokens": 33314,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Identifies unpinned base image as a security issue", "passed": true, "evidence": "Issue 1: Unpinned Base Image Tag"},
+        {"text": "Identifies SSH PasswordAuthentication yes as a risk", "passed": true, "evidence": "Issue: Password Authentication Enabled"},
+        {"text": "Identifies curl|bash as unsafe", "passed": true, "evidence": "Issue: Unauthenticated remote code execution via curl|bash"},
+        {"text": "Identifies running as root as a security issue", "passed": true, "evidence": "Issue: Running as Root"},
+        {"text": "Provides a hardened Dockerfile", "passed": true, "evidence": "Complete hardened Dockerfile in response (from task summary)"},
+        {"text": "Recommends pinning tool versions", "passed": true, "evidence": "Hardened version uses pinned version"}
+      ],
+      "notes": ["Output was in agent summary only - plan mode blocked file write"]
+    },
+    {
+      "eval_id": 3,
+      "eval_name": "Dockerfile Security Review",
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 6,
+        "failed": 0,
+        "total": 6,
+        "time_seconds": 50.0,
+        "tokens": 30813,
+        "errors": 0
+      },
+      "expectations": [
+        {"text": "Identifies unpinned base image as a security issue", "passed": true, "evidence": "Issue 1: Unpinned Base Image Tag - High"},
+        {"text": "Identifies SSH PasswordAuthentication yes as a risk", "passed": true, "evidence": "Issue 3: Password Authentication Enabled - High"},
+        {"text": "Identifies curl|bash as unsafe", "passed": true, "evidence": "Issue 4: Piping Curl Output Directly to Bash - Critical"},
+        {"text": "Identifies running as root as a security issue", "passed": true, "evidence": "Issue 5: Running as Root - High"},
+        {"text": "Provides a hardened Dockerfile", "passed": true, "evidence": "Complete hardened Dockerfile with pinned version, non-root user, sha256"},
+        {"text": "Recommends pinning tool versions", "passed": true, "evidence": "Uses v1.2.3 with SHA-256 checksum"}
+      ]
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {"mean": 1.0, "stddev": 0.0, "min": 1.0, "max": 1.0},
+      "time_seconds": {"mean": 39.7, "stddev": 1.3, "min": 38.4, "max": 41.0},
+      "tokens": {"mean": 33672, "stddev": 331, "min": 33314, "max": 33975}
+    },
+    "without_skill": {
+      "pass_rate": {"mean": 0.8, "stddev": 0.35, "min": 0.4, "max": 1.0},
+      "time_seconds": {"mean": 40.0, "stddev": 13.2, "min": 24.8, "max": 50.0},
+      "tokens": {"mean": 30172, "stddev": 661, "min": 29492, "max": 30813}
+    },
+    "delta": {
+      "pass_rate": "+0.20",
+      "time_seconds": "-0.3",
+      "tokens": "+3500"
+    }
+  },
+  "notes": [
+    "Eval 1 (ACR rate limit) passes 100% for both configurations - this is well-known knowledge, skill doesn't add differentiation here",
+    "Eval 2 (Trivy without Docker) is the strongest differentiator: with_skill 100% vs without_skill 40%. The ACR task pattern for running Trivy is the key value-add",
+    "Eval 3 (Dockerfile review) passes 100% for both - general security knowledge is strong without the skill",
+    "The skill's primary value is in the ACR-specific operational patterns (importing tools, running scans via ACR tasks) rather than general security knowledge"
+  ]
+}

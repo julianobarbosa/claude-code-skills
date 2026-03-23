@@ -1,0 +1,10 @@
+{
+  "expectations": [
+    {"text": "Suggests running Trivy via ACR task as the primary approach", "passed": true, "evidence": "Section 'Recommended: Trivy via ACR Task (Option A)' is the primary approach"},
+    {"text": "Shows importing trivy image into ACR first to avoid Docker Hub dependency", "passed": true, "evidence": "'az acr import --name cafehyna --source docker.io/aquasec/trivy:latest --image tools/trivy:latest'"},
+    {"text": "Provides the az acr run command to execute Trivy scan", "passed": true, "evidence": "Shows both table and JSON variants of 'az acr run --registry cafehyna --cmd ...'"},
+    {"text": "Filters for HIGH and CRITICAL severity vulnerabilities", "passed": true, "evidence": "'--severity HIGH,CRITICAL' in both scan commands"},
+    {"text": "Explains how to interpret or categorize the CVE findings", "passed": true, "evidence": "Provides categorization table (Fixable by us, Fixable upstream, OS-level, will_not_fix) and Python extraction script"}
+  ],
+  "summary": {"passed": 5, "failed": 0, "total": 5, "pass_rate": 1.0}
+}

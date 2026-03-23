@@ -1,0 +1,27 @@
+{
+  "eval_id": 1,
+  "eval_name": "acr-rate-limit-fix",
+  "prompt": "I'm getting 'toomanyrequests: You have reached your unauthenticated pull rate limit' when doing az acr build on our cafehyna ACR registry. The Dockerfile pulls FROM nginx:1.25 directly from Docker Hub. How do I fix this so all pulls stay within ACR?",
+  "assertions": [
+    {
+      "text": "Recommends az acr import to pull the image into ACR",
+      "type": "content"
+    },
+    {
+      "text": "Shows the correct az acr import command with --source docker.io/nginx:1.25",
+      "type": "content"
+    },
+    {
+      "text": "Updates the Dockerfile FROM to reference cafehyna.azurecr.io instead of Docker Hub",
+      "type": "content"
+    },
+    {
+      "text": "Explains that ACR cloud builds are unauthenticated against Docker Hub",
+      "type": "content"
+    },
+    {
+      "text": "Includes a rebuild command using az acr build",
+      "type": "content"
+    }
+  ]
+}
