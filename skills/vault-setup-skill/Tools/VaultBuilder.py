@@ -109,8 +109,8 @@ def cli():
 @click.option("--scope", type=click.Choice(["work", "personal", "both"]), default="work", help="Vault scope")
 @click.option("--vault-path", type=click.Path(), default=".", help="Path to create vault in")
 @click.option("--role-description", default="", help="Free-text role description for CLAUDE.md")
-@click.option("--open-obsidian/--no-open-obsidian", default=True, help="Open vault in Obsidian after creation")
-def create(role_keywords, scope, vault_path, role_description, open_obsidian):
+@click.option("--open-obsidian/--no-open-obsidian", "should_open", default=True, help="Open vault in Obsidian after creation")
+def create(role_keywords, scope, vault_path, role_description, should_open):
     """Create vault folders and CLAUDE.md based on keyword detection."""
     vault = Path(vault_path).resolve()
 
@@ -156,7 +156,7 @@ When something lands in inbox/ → ask if I want it sorted now
     click.echo(f"  [ok] CLAUDE.md written")
 
     # Open Obsidian
-    if open_obsidian:
+    if should_open:
         open_obsidian(vault)
         click.echo(f"  [ok] Obsidian open requested")
 
