@@ -148,3 +148,7 @@ When routing to a non-projects folder, the filename pattern stays the same: `YYY
 - **No conversation context**: If the session was too short or trivial, ask the user what to capture rather than generating an empty tldr
 - **Project name ambiguity**: If the user says a name that matches multiple folders, list the matches and ask which one
 - **Delete confirmation skipped**: Never delete without explicit confirmation — if the user says anything other than "yes" or "delete it", abort
+
+### Platform Notes
+
+This skill works on macOS, Linux, and Windows. Use forward slashes for vault paths — Obsidian normalizes paths across platforms.

@@ -81,5 +81,5 @@ python Tools/VaultBuilder.py create --role-keywords "notes,class,study,personal"
 python Tools/VaultBuilder.py verify --vault-path ~/vaults/work
 
 # Add vault to global context
-python Tools/VaultBuilder.py inject-global --vault-path /Users/me/vaults/work
+python Tools/VaultBuilder.py inject-global --vault-path ~/vaults/work
 ```

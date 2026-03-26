@@ -70,3 +70,7 @@ Keep it tight — this is a launchpad, not a report. If there are blockers from 
 - **Weekend/holiday gap**: If the last daily note is several days old, still carry forward its open items
 - **Multiple daily notes for same date**: Use the one matching `YYYY-MM-DD.md` exactly; ignore timestamped variants
 - **Empty inbox**: Report "Inbox: Empty" — this is a positive signal, not an error
+
+### Platform Notes
+
+This skill works on macOS, Linux, and Windows. File paths use forward slashes in vault context regardless of platform — Obsidian normalizes paths internally.
