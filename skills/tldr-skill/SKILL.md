@@ -10,7 +10,7 @@ description: >-
 
 Manage conversation summaries (tldrs) in the Obsidian vault. Each tldr captures decisions, key things to remember, and next actions.
 
-**Vault root: `~/.obsidian/vaults/.obsidian-barbosa-0/`.** All paths below are relative to this vault root. Always resolve to absolute paths when reading or writing files — never use the current working directory.
+**Vault root:** Determined from the current working directory or the project's CLAUDE.md context. All paths below are relative to the vault root. Always resolve to absolute paths when reading or writing files.
 
 ## Operations
 
@@ -87,7 +87,7 @@ status: complete
 
 ### Step 4 — Update Memory
 
-Read `memory.md` at vault root (`~/.obsidian/vaults/.obsidian-barbosa-0/memory.md`). Append any new:
+Read `memory.md` at the vault root. Append any new:
 - Session log entry (one line: date + project + what happened)
 - Preferences discovered during the session
 
