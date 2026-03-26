@@ -61,7 +61,12 @@ def import_files(source_dir: Path, vault_dir: Path) -> dict:
         try:
             if file_path.suffix.lower() == ".md":
                 # Add frontmatter to markdown files
-                content = file_path.read_text(encoding="utf-8", errors="replace")
+                raw_bytes = file_path.read_bytes()
+                try:
+                    content = raw_bytes.decode("utf-8")
+                except UnicodeDecodeError:
+                    content = raw_bytes.decode("utf-8", errors="replace")
+                    print(f"  [warn] {file_path.name}: encoding issues detected, some characters replaced")
                 content = add_frontmatter(content, file_path)
                 target.write_text(content, encoding="utf-8")
             else:
