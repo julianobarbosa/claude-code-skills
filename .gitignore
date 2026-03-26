@@ -63,3 +63,4 @@ htmlcov/
 tmp/
 temp/
 *.tmp
+autoresearch-results.tsv
