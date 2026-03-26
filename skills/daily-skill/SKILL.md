@@ -55,3 +55,18 @@ What are we working on today?
 ```
 
 Keep it tight — this is a launchpad, not a report. If there are blockers from yesterday, call them out prominently.
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| No previous daily note found | First time using the skill, or `daily/` folder is empty | Skip carry-forward — start with a clean slate |
+| Template not found | `references/templates.md` missing (located relative to this skill's root directory) | Create the daily note with a minimal template: heading + sections for capture, tasks, log |
+| `projects/` folder missing | Vault doesn't use this folder name | Check CLAUDE.md for the vault's actual project folder name and scan that instead |
+| Briefing shows stale data | Daily note was created by another tool with different structure | Read whatever exists — adapt to the note's actual sections rather than forcing the template |
+
+### Edge Cases
+
+- **Weekend/holiday gap**: If the last daily note is several days old, still carry forward its open items
+- **Multiple daily notes for same date**: Use the one matching `YYYY-MM-DD.md` exactly; ignore timestamped variants
+- **Empty inbox**: Report "Inbox: Empty" — this is a positive signal, not an error

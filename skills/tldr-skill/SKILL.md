@@ -133,3 +133,18 @@ The default destination is `01 - Projects/{project-name}/`. However, route diffe
 | General / no project | `06 - Daily/` | Quick chats, no clear project |
 
 When routing to a non-projects folder, the filename pattern stays the same: `YYYY-MM-DD-HH-mm-{topic}-tldr.md`
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Project folder doesn't exist | First tldr for this project | Create the folder automatically before writing the file |
+| `memory.md` not found at vault root | File hasn't been created yet | Create it with a header: `# Memory` and append the session log entry |
+| Multiple tldrs for same date | Several sessions in one day | Each gets a unique timestamp in the filename — no conflict |
+| Can't determine vault root | Skill invoked outside a vault context | Ask the user for the vault path, or check CLAUDE.md for vault location |
+
+### Edge Cases
+
+- **No conversation context**: If the session was too short or trivial, ask the user what to capture rather than generating an empty tldr
+- **Project name ambiguity**: If the user says a name that matches multiple folders, list the matches and ask which one
+- **Delete confirmation skipped**: Never delete without explicit confirmation — if the user says anything other than "yes" or "delete it", abort

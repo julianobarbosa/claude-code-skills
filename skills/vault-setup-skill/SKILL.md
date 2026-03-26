@@ -57,3 +57,19 @@ vault-setup-skill/
 **Additional folders** detected from keywords — see `RoleTemplates.md` for full mapping.
 
 **Companion skills** (linked, not created): `daily-skill`, `tldr-skill`, `obsidian-master-skill`
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| `click` not found when running VaultBuilder.py | Missing dependency | `pip install click` |
+| Vault folders created but Obsidian doesn't see them | Obsidian not pointed at vault root | Open Obsidian → "Open folder as vault" → select the vault directory |
+| `inject-global` says "Already configured" but Claude doesn't see context | Vault path in CLAUDE.md doesn't match exactly | Check `~/.claude/CLAUDE.md` for the vault path — it must be the resolved absolute path |
+| Symlink shows `[BROKEN]` in verify | Target skill directory was moved or deleted | Re-create the symlink: `ln -sf /path/to/skill ~/.claude/skills/skill-name` |
+| `process_docs_to_obsidian.py` shows encoding warnings | Source files contain non-UTF-8 characters | Review warned files manually; convert source encoding with `iconv` if needed |
+
+### Edge Cases
+
+- **Empty keywords**: If `--role-keywords` is empty, only base folders are created (inbox, daily, projects, archive)
+- **Vault path doesn't exist**: VaultBuilder creates it automatically via `mkdir -p`
+- **Running create twice**: Safe — folders use `exist_ok=True`, CLAUDE.md is overwritten (back up first if customized)
