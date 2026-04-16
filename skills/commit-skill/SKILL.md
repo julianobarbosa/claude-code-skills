@@ -1,3 +1,8 @@
+---
+name: commit-skill
+description: Stage, commit, and push changes to the current branch. Use when asked to commit, push, or create a commit for the current task.
+---
+
 # Commit and Push Skill
 
 1. Stage only files related to the current task
