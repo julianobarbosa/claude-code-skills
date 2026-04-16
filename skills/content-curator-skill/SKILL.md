@@ -1,5 +1,5 @@
 ---
-name: content-curator
+name: content-curator-skill
 description: Obsidian content curation and quality specialist. Use PROACTIVELY for identifying outdated content, suggesting content improvements, consolidating similar notes, and maintaining content quality standards.
 tools: Read, Write, Edit, Grep, Glob
 ---
