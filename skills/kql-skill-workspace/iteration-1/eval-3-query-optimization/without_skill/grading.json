@@ -1,0 +1,64 @@
+{
+  "eval_id": 3,
+  "eval_name": "optimize-slow-sentinel-query",
+  "configuration": "without_skill",
+  "expectations": [
+    {
+      "text": "Adds TimeGenerated filter that was missing in the original",
+      "passed": true,
+      "evidence": "'| where TimeGenerated > ago(1d)' added in SecurityEvent and SigninLogs subquery"
+    },
+    {
+      "text": "Removes unnecessary tolower() call",
+      "passed": true,
+      "evidence": "The optimized query uses '| where Account has \"admin\"' without tolower(). Explanation section '2. Replace tolower(Account) contains ...' confirms removal."
+    },
+    {
+      "text": "Replaces contains with has or =~ for the admin string match",
+      "passed": true,
+      "evidence": "'| where Account has \"admin\"' — confirmed in both query and explanation: 'has is case-insensitive by default in KQL and uses term-level indexing'"
+    },
+    {
+      "text": "Filters both sides of the join before joining (adds where to SigninLogs subquery)",
+      "passed": true,
+      "evidence": "SigninLogs subquery includes '| where TimeGenerated > ago(1d)'. Explanation section '3. Summarize and Filter *Before* the Join' addresses this."
+    },
+    {
+      "text": "Provides explanation of each optimization and why it improves performance",
+      "passed": true,
+      "evidence": "optimization_explanation.md has 5 numbered sections with Problem/Fix rationale for: time bound, tolower+contains replacement, summarize-before-join, column projection, and rename count_"
+    },
+    {
+      "text": "Adds project to reduce column transfer before join or summarize",
+      "passed": true,
+      "evidence": "SigninLogs subquery uses '| project UserPrincipalName' — only the needed column. Explanation section '4. Project Only Needed Columns in SigninLogs' confirms intent."
+    }
+  ],
+  "pass_rate": 1.0,
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 43.3,
+    "total_duration_seconds": 43.3
+  },
+  "claims": [
+    {
+      "claim": "The join key mismatch between DOMAIN\\user and UPN is NOT addressed",
+      "type": "quality",
+      "verified": true,
+      "evidence": "The without_skill output joins on '$left.Account == $right.UserPrincipalName' directly — the same broken join key as the original. The explanation does not mention this bug."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "Both configurations pass all 6 assertions, but the without_skill output retains a critical correctness bug (join key mismatch between DOMAIN\\user format and UPN format) that would produce near-zero results in production. Adding an assertion for the join key fix would correctly differentiate the two outputs."
+      }
+    ],
+    "overall": "All assertions pass for both configurations, making them indistinguishable by this eval. The join key mismatch is the key differentiator that goes unmeasured — a significant gap."
+  }
+}

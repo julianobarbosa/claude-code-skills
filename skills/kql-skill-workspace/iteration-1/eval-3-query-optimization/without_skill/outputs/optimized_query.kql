@@ -1,0 +1,19 @@
+// Optimized: Failed Login Query for Admin Accounts with Correlated Sign-In Logs
+// Key changes: pre-filter early, summarize before join, use has_any for prefix matching
+
+let SuspectAccounts =
+    SecurityEvent
+    | where TimeGenerated > ago(1d)                          // time-bound to reduce scan
+    | where EventID == 4625
+    | where Account has "admin"                              // case-insensitive, index-friendly vs tolower()+contains
+    | summarize FailedLogins = count() by Account, Computer  // aggregate before join (reduces join size)
+    | where FailedLogins > 5;                                // filter early, before the join
+
+SuspectAccounts
+| join kind=inner (
+    SigninLogs
+    | where TimeGenerated > ago(1d)                          // match same time window
+    | project UserPrincipalName                              // project only needed column
+) on $left.Account == $right.UserPrincipalName
+| project Account, Computer, FailedLogins
+| sort by FailedLogins desc

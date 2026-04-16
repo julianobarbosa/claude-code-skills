@@ -1,0 +1,60 @@
+{
+  "eval_id": 4,
+  "eval_name": "lateral-movement-detection",
+  "configuration": "without_skill",
+  "expectations": [
+    {
+      "text": "Output includes standard .kql comment header block",
+      "passed": false,
+      "evidence": "File has a two-line comment header ('// Lateral Movement Detection — ...', '// Detects accounts...', '// Tables: DeviceLogonEvents...') but NOT a structured block with labeled fields for Title, Service, Tables, Description, Parameters, and Complexity in the skill's standard format."
+    },
+    {
+      "text": "Uses DeviceLogonEvents, SecurityEvent (4624), or IdentityLogonEvents",
+      "passed": true,
+      "evidence": "Uses 'DeviceLogonEvents' as the primary table"
+    },
+    {
+      "text": "Groups by 1-hour time bins (bin(Timestamp, 1h) or equivalent)",
+      "passed": true,
+      "evidence": "Uses sliding-window join: 'where Timestamp2 >= Timestamp and Timestamp2 < Timestamp + RollingWindow' where RollingWindow = 1h. Equivalent to grouping by 1h windows."
+    },
+    {
+      "text": "Counts distinct devices/machines per account per time window",
+      "passed": true,
+      "evidence": "'UniqueDevices = dcount(DeviceName2)' in the summarize, grouped by AccountId and WindowStart = Timestamp"
+    },
+    {
+      "text": "Filters for accounts hitting more than 5 distinct devices",
+      "passed": true,
+      "evidence": "'let HopThreshold = 5;' and '| where UniqueDevices > HopThreshold'"
+    },
+    {
+      "text": "Covers the last 48 hours as specified",
+      "passed": true,
+      "evidence": "'let LookbackWindow = 48h;' and '| where Timestamp > ago(LookbackWindow)' applied to both sides of the join"
+    }
+  ],
+  "pass_rate": 0.833,
+  "summary": {
+    "passed": 5,
+    "failed": 1,
+    "total": 6,
+    "pass_rate": 0.833
+  },
+  "timing": {
+    "executor_duration_seconds": 38.0,
+    "total_duration_seconds": 38.0
+  },
+  "claims": [
+    {
+      "claim": "Uses AccountId = tolower(strcat(AccountDomain, '\\\\', AccountName)) as composite identity",
+      "type": "quality",
+      "verified": true,
+      "evidence": "'extend AccountId = tolower(strcat(AccountDomain, \"\\\\\\\\\", AccountName))' normalizes the identity before joining"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "Header assertion correctly differentiates skill from no-skill output. Other logic is functionally equivalent."
+  }
+}

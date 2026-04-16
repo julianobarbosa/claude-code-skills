@@ -1,0 +1,106 @@
+{
+  "metadata": {
+    "skill_name": "kql-skill",
+    "skill_path": "/Users/juliano.barbosa/Repos/github/claude-code-skills/skills/kql-skill",
+    "executor_model": "claude-sonnet-4-6",
+    "timestamp": "2026-04-02T17:40:00Z",
+    "evals_run": [1, 2, 3, 4, 5, 6, 7],
+    "runs_per_configuration": 1
+  },
+  "runs": [
+    {
+      "eval_id": 1, "eval_name": "capacity-planning-high-memory-vms",
+      "configuration": "with_skill", "pass_rate": 1.0,
+      "time_seconds": 60.6, "total_tokens": 24249
+    },
+    {
+      "eval_id": 1, "eval_name": "capacity-planning-high-memory-vms",
+      "configuration": "without_skill", "pass_rate": 0.833,
+      "time_seconds": 37.9, "total_tokens": 14257
+    },
+    {
+      "eval_id": 2, "eval_name": "sql-to-kql-port-scan-detection",
+      "configuration": "with_skill", "pass_rate": 0.857,
+      "time_seconds": 43.6, "total_tokens": 19021
+    },
+    {
+      "eval_id": 2, "eval_name": "sql-to-kql-port-scan-detection",
+      "configuration": "without_skill", "pass_rate": 0.857,
+      "time_seconds": 20.3, "total_tokens": 13555
+    },
+    {
+      "eval_id": 3, "eval_name": "optimize-slow-sentinel-query",
+      "configuration": "with_skill", "pass_rate": 1.0,
+      "time_seconds": 79.5, "total_tokens": 22054
+    },
+    {
+      "eval_id": 3, "eval_name": "optimize-slow-sentinel-query",
+      "configuration": "without_skill", "pass_rate": 1.0,
+      "time_seconds": 43.3, "total_tokens": 14884
+    },
+    {
+      "eval_id": 4, "eval_name": "lateral-movement-detection",
+      "configuration": "with_skill", "pass_rate": 1.0,
+      "time_seconds": 59.9, "total_tokens": 23751
+    },
+    {
+      "eval_id": 4, "eval_name": "lateral-movement-detection",
+      "configuration": "without_skill", "pass_rate": 0.833,
+      "time_seconds": 38.0, "total_tokens": 14102
+    },
+    {
+      "eval_id": 5, "eval_name": "app-insights-dependency-degradation",
+      "configuration": "with_skill", "pass_rate": 1.0,
+      "time_seconds": 49.5, "total_tokens": 20561
+    },
+    {
+      "eval_id": 5, "eval_name": "app-insights-dependency-degradation",
+      "configuration": "without_skill", "pass_rate": 0.857,
+      "time_seconds": 30.5, "total_tokens": 14184
+    },
+    {
+      "eval_id": 6, "eval_name": "splunk-spl-brute-force-migration",
+      "configuration": "with_skill", "pass_rate": 1.0,
+      "time_seconds": 64.8, "total_tokens": 26524
+    },
+    {
+      "eval_id": 6, "eval_name": "splunk-spl-brute-force-migration",
+      "configuration": "without_skill", "pass_rate": 0.857,
+      "time_seconds": 35.6, "total_tokens": 14016
+    },
+    {
+      "eval_id": 7, "eval_name": "azure-reservation-consumption",
+      "configuration": "with_skill", "pass_rate": 1.0,
+      "time_seconds": 120.4, "total_tokens": 29533
+    },
+    {
+      "eval_id": 7, "eval_name": "azure-reservation-consumption",
+      "configuration": "without_skill", "pass_rate": 1.0,
+      "time_seconds": 83.0, "total_tokens": 19016
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "mean_pass_rate": 0.980,
+      "mean_time_seconds": 68.3,
+      "mean_tokens": 23670
+    },
+    "without_skill": {
+      "mean_pass_rate": 0.891,
+      "mean_time_seconds": 41.2,
+      "mean_tokens": 14859
+    },
+    "delta": {
+      "pass_rate": "+0.089",
+      "time_seconds": "+27.1",
+      "tokens": "+8811"
+    }
+  },
+  "notes": [
+    "Primary differentiator: structured .kql comment header (Title/Service/Tables/Description/Parameters/Complexity) consistently produced by skill runs",
+    "Eval 3 (optimization): with_skill caught a logic bug (Account vs UPN join mismatch) that without_skill missed — not captured by current assertions",
+    "Eval 2 (SQL translation): tied score — with_skill chose AzureFirewallNetworkRule (valid but unlisted table), assertion too narrow",
+    "With-skill runs average ~65% more tokens and ~65% longer runtime due to reading skill references",
+    "Eval 7 (reservations): both configs pass all assertions — hard to differentiate on this task"
+  ]
+}

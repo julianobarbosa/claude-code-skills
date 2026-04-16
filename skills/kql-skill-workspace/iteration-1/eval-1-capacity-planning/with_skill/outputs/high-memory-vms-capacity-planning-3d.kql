@@ -1,0 +1,109 @@
+// ============================================================
+// Title: High Memory VMs — Sustained vs. Spike Analysis (Last 3 Days)
+// Service: Log Analytics
+// Tables: Perf, InsightsMetrics
+// Description: Identifies Azure VMs with >90% memory usage over the past
+//   3 days and classifies each VM as "consistently hot" (sustained pressure)
+//   versus "spiking" (intermittent peaks). Designed for capacity planning
+//   reviews. Uses Perf for agent-reported counters and provides per-VM
+//   statistics including average, peak, P95, number of breaching intervals,
+//   and a classification label.
+// Parameters: timeRange (default 3d), memThreshold (default 90),
+//             binSize (default 15m), sustainedThresholdPct (default 0.5)
+// Complexity: Intermediate
+// ============================================================
+
+// --- Parameters ---
+let timeRange = 3d;
+let memThreshold = 90.0;           // % memory in use threshold
+let binSize = 15m;                 // aggregation window per reading
+// A VM is "consistently hot" if more than this fraction of its sampled
+// intervals breached the threshold (50% = hot for >36 of 72 hours)
+let sustainedThresholdPct = 0.50;
+
+// --- Step 1: Pull % Available Memory counter, convert to % Used ---
+// "% Available MBytes" is the most reliable cross-platform counter name;
+// we derive % used as (1 - available/total). When only "% Used Memory"
+// is available (Linux-style agents), that is used directly.
+let memRaw = materialize(
+    Perf
+    | where TimeGenerated > ago(timeRange)
+    // Match both Windows "% Available MBytes" (needs total to convert)
+    // and Linux "% Used Memory" (direct percentage)
+    | where ObjectName in ("Memory", "LogicalDisk")
+    | where CounterName in (
+        "% Available MBytes",          // Windows — needs total memory
+        "% Used Memory",               // Linux VM agent
+        "Available MBytes",            // Windows absolute MB
+        "MemoryUsedPercentage"         // VM Insights (InsightsMetrics fallback)
+    )
+    | project TimeGenerated, Computer, CounterName, CounterValue
+);
+
+// --- Step 2: Compute % memory used per 15-minute bin, per VM ---
+// For "% Available MBytes": value IS already a percentage of available,
+// so % used = 100 - CounterValue.
+// For "% Used Memory" / "MemoryUsedPercentage": value is already % used.
+let memBinned =
+    memRaw
+    | extend MemPctUsed = case(
+        CounterName == "% Available MBytes", 100.0 - CounterValue,
+        CounterName == "Available MBytes",   todouble(null), // skip — needs total
+        CounterValue                                        // direct % used
+    )
+    | where isnotnull(MemPctUsed) and MemPctUsed between (0.0 .. 100.0)
+    | summarize
+        AvgMemPct   = round(avg(MemPctUsed), 1),
+        MaxMemPct   = round(max(MemPctUsed), 1),
+        P95MemPct   = round(percentile(MemPctUsed, 95), 1)
+        by Computer, bin(TimeGenerated, binSize);
+
+// --- Step 3: Keep only bins that breached the threshold ---
+// This gives us the breach count per VM as well as the total sample count
+// (needed to compute the breach rate and classify VMs)
+let allBinCounts =
+    memBinned
+    | summarize TotalBins = count() by Computer;
+
+let breachingBins =
+    memBinned
+    | where AvgMemPct > memThreshold;
+
+// --- Step 4: Roll up per VM — overall stats across all breaching intervals ---
+let vmSummary =
+    breachingBins
+    | summarize
+        BreachingBins     = count(),
+        OverallAvgMem     = round(avg(AvgMemPct), 1),
+        PeakMem           = round(max(MaxMemPct), 1),
+        P95Mem            = round(max(P95MemPct), 1),
+        FirstBreachTime   = min(TimeGenerated),
+        LastBreachTime    = max(TimeGenerated)
+        by Computer;
+
+// --- Step 5: Join with total bin counts to compute breach rate ---
+vmSummary
+| join kind=inner allBinCounts on Computer
+| extend
+    BreachRatePct       = round(todouble(BreachingBins) / todouble(TotalBins) * 100, 1),
+    SustainedBreachHours = round(todouble(BreachingBins) * (15.0 / 60), 1)
+// --- Step 6: Classify as "Consistently Hot" vs "Spiking" ---
+| extend Classification = iff(
+    todouble(BreachingBins) / todouble(TotalBins) >= sustainedThresholdPct,
+    "Consistently Hot",
+    "Spiking"
+)
+// --- Step 7: Final projection, sorted by severity ---
+| project
+    Computer,
+    Classification,
+    OverallAvgMem,
+    PeakMem,
+    P95Mem,
+    BreachRatePct,
+    SustainedBreachHours,
+    BreachingBins,
+    TotalBins,
+    FirstBreachTime,
+    LastBreachTime
+| sort by Classification asc, BreachRatePct desc, OverallAvgMem desc

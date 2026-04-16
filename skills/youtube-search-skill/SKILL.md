@@ -1,5 +1,5 @@
 ---
-name: YouTubeSearch
+name: youtube-search-skill
 description: Search YouTube and return structured video results with metadata and engagement metrics using yt-dlp. USE WHEN youtube search, find videos, search videos, video research, youtube results, channel research, video metrics, trending videos, content research. Even if the user just says "search YouTube for X" or "find videos about X", use this skill.
 ---
 

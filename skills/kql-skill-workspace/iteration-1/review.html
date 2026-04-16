@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Eval Review</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600&family=Lora:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js" integrity="sha384-EnyY0/GSHQGSxSgMwaIPzSESbqoOLSexfnSMN2AP+39Ckmn92stwABZynq1JyzdT" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg: #faf9f5;
+      --surface: #ffffff;
+      --border: #e8e6dc;
+      --text: #141413;
+      --text-muted: #b0aea5;
+      --accent: #d97757;
+      --accent-hover: #c4613f;
+      --green: #788c5d;
+      --green-bg: #eef2e8;
+      --red: #c44;
+      --red-bg: #fceaea;
+      --header-bg: #141413;
+      --header-text: #faf9f5;
+      --radius: 6px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Lora', Georgia, serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Header ---- */
+    .header {
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 1rem 2rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    .header h1 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 600;
+    }
+    .header .instructions {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 0.25rem;
+    }
+    .header .progress {
+      font-size: 0.875rem;
+      opacity: 0.8;
+      text-align: right;
+    }
+
+    /* ---- Main content ---- */
+    .main {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* ---- Sections ---- */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      flex-shrink: 0;
+    }
+    .section-header {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.75rem 1rem;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+    }
+    .section-body {
+      padding: 1rem;
+    }
+
+    /* ---- Config badge ---- */
+    .config-badge {
+      display: inline-block;
+      padding: 0.2rem 0.625rem;
+      border-radius: 9999px;
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      margin-left: 0.75rem;
+      vertical-align: middle;
+    }
+    .config-badge.config-primary {
+      background: rgba(33, 150, 243, 0.12);
+      color: #1976d2;
+    }
+    .config-badge.config-baseline {
+      background: rgba(255, 193, 7, 0.15);
+      color: #f57f17;
+    }
+
+    /* ---- Prompt ---- */
+    .prompt-text {
+      white-space: pre-wrap;
+      font-size: 0.9375rem;
+      line-height: 1.6;
+    }
+
+    /* ---- Outputs ---- */
+    .output-file {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .output-file + .output-file {
+      margin-top: 1rem;
+    }
+    .output-file-header {
+      padding: 0.5rem 0.75rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .output-file-header .dl-btn {
+      font-size: 0.7rem;
+      color: var(--accent);
+      text-decoration: none;
+      cursor: pointer;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-weight: 500;
+      opacity: 0.8;
+    }
+    .output-file-header .dl-btn:hover {
+      opacity: 1;
+      text-decoration: underline;
+    }
+    .output-file-content {
+      padding: 0.75rem;
+      overflow-x: auto;
+    }
+    .output-file-content pre {
+      font-size: 0.8125rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: 'SF Mono', SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+    }
+    .output-file-content img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 4px;
+    }
+    .output-file-content iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+    }
+    .output-file-content table {
+      border-collapse: collapse;
+      font-size: 0.8125rem;
+      width: 100%;
+    }
+    .output-file-content table td,
+    .output-file-content table th {
+      border: 1px solid var(--border);
+      padding: 0.375rem 0.5rem;
+      text-align: left;
+    }
+    .output-file-content table th {
+      background: var(--bg);
+      font-weight: 600;
+    }
+    .output-file-content .download-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.875rem;
+      cursor: pointer;
+    }
+    .output-file-content .download-link:hover {
+      background: var(--border);
+    }
+    .empty-state {
+      color: var(--text-muted);
+      font-style: italic;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    /* ---- Feedback ---- */
+    .prev-feedback {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 0.625rem 0.75rem;
+      margin-top: 0.75rem;
+      font-size: 0.8125rem;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+    .prev-feedback-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.25rem;
+      color: var(--text-muted);
+    }
+    .feedback-textarea {
+      width: 100%;
+      min-height: 100px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 0.9375rem;
+      line-height: 1.5;
+      resize: vertical;
+      color: var(--text);
+    }
+    .feedback-textarea:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    }
+    .feedback-status {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.5rem;
+      min-height: 1.1em;
+    }
+
+    /* ---- Grades (collapsible) ---- */
+    .grades-toggle {
+      display: flex;
+      align-items: center;
+      cursor: pointer;
+      user-select: none;
+    }
+    .grades-toggle:hover {
+      color: var(--accent);
+    }
+    .grades-toggle .arrow {
+      margin-right: 0.5rem;
+      transition: transform 0.15s;
+      font-size: 0.75rem;
+    }
+    .grades-toggle .arrow.open {
+      transform: rotate(90deg);
+    }
+    .grades-content {
+      display: none;
+      margin-top: 0.75rem;
+    }
+    .grades-content.open {
+      display: block;
+    }
+    .grades-summary {
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .grade-badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .grade-pass { background: var(--green-bg); color: var(--green); }
+    .grade-fail { background: var(--red-bg); color: var(--red); }
+    .assertion-list {
+      list-style: none;
+    }
+    .assertion-item {
+      padding: 0.625rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8125rem;
+    }
+    .assertion-item:last-child { border-bottom: none; }
+    .assertion-status {
+      font-weight: 600;
+      margin-right: 0.5rem;
+    }
+    .assertion-status.pass { color: var(--green); }
+    .assertion-status.fail { color: var(--red); }
+    .assertion-evidence {
+      color: var(--text-muted);
+      font-size: 0.75rem;
+      margin-top: 0.25rem;
+      padding-left: 1.5rem;
+    }
+
+    /* ---- View tabs ---- */
+    .view-tabs {
+      display: flex;
+      gap: 0;
+      padding: 0 2rem;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .view-tab {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.625rem 1.25rem;
+      font-size: 0.8125rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--text-muted);
+      border-bottom: 2px solid transparent;
+      transition: all 0.15s;
+    }
+    .view-tab:hover { color: var(--text); }
+    .view-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .view-panel { display: none; }
+    .view-panel.active { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+
+    /* ---- Benchmark view ---- */
+    .benchmark-view {
+      padding: 1.5rem 2rem;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .benchmark-table {
+      border-collapse: collapse;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 0.8125rem;
+      width: 100%;
+      margin-bottom: 1.5rem;
+    }
+    .benchmark-table th, .benchmark-table td {
+      padding: 0.625rem 0.75rem;
+      text-align: left;
+      border: 1px solid var(--border);
+    }
+    .benchmark-table th {
+      font-family: 'Poppins', sans-serif;
+      background: var(--header-bg);
+      color: var(--header-text);
+      font-weight: 500;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .benchmark-table tr:hover { background: var(--bg); }
+    .benchmark-table tr.benchmark-row-with { background: rgba(33, 150, 243, 0.06); }
+    .benchmark-table tr.benchmark-row-without { background: rgba(255, 193, 7, 0.06); }
+    .benchmark-table tr.benchmark-row-with:hover { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-without:hover { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-table tr.benchmark-row-avg { font-weight: 600; border-top: 2px solid var(--border); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-with { background: rgba(33, 150, 243, 0.12); }
+    .benchmark-table tr.benchmark-row-avg.benchmark-row-without { background: rgba(255, 193, 7, 0.12); }
+    .benchmark-delta-positive { color: var(--green); font-weight: 600; }
+    .benchmark-delta-negative { color: var(--red); font-weight: 600; }
+    .benchmark-notes {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .benchmark-notes h3 {
+      font-family: 'Poppins', sans-serif;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+    }
+    .benchmark-notes ul {
+      list-style: disc;
+      padding-left: 1.25rem;
+    }
+    .benchmark-notes li {
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      margin-bottom: 0.375rem;
+    }
+    .benchmark-empty {
+      color: var(--text-muted);
+      font-style: italic;
+      text-align: center;
+      padding: 3rem;
+    }
+
+    /* ---- Navigation ---- */
+    .nav {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      flex-shrink: 0;
+    }
+    .nav-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      color: var(--text);
+      transition: all 0.15s;
+    }
+    .nav-btn:hover:not(:disabled) {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .nav-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .done-btn {
+      font-family: 'Poppins', sans-serif;
+      padding: 0.5rem 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+    .done-btn:hover {
+      background: var(--bg);
+      border-color: var(--text-muted);
+    }
+    .done-btn.ready {
+      border: none;
+      background: var(--accent);
+      color: white;
+      font-weight: 600;
+    }
+    .done-btn.ready:hover {
+      background: var(--accent-hover);
+    }
+    /* ---- Done overlay ---- */
+    .done-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .done-overlay.visible {
+      display: flex;
+    }
+    .done-card {
+      background: var(--surface);
+      border-radius: 12px;
+      padding: 2rem 3rem;
+      text-align: center;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      max-width: 500px;
+    }
+    .done-card h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    .done-card p {
+      color: var(--text-muted);
+      margin-bottom: 1.5rem;
+      line-height: 1.5;
+    }
+    .done-card .btn-row {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+    .done-card button {
+      padding: 0.5rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      cursor: pointer;
+      font-size: 0.875rem;
+    }
+    .done-card button:hover {
+      background: var(--bg);
+    }
+    /* ---- Toast ---- */
+    .toast {
+      position: fixed;
+      bottom: 5rem;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--header-bg);
+      color: var(--header-text);
+      padding: 0.625rem 1.25rem;
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+      opacity: 0;
+      transition: opacity 0.3s;
+      pointer-events: none;
+      z-index: 200;
+    }
+    .toast.visible {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" style="height:100vh; display:flex; flex-direction:column;">
+    <div class="header">
+      <div>
+        <h1>Eval Review: <span id="skill-name"></span></h1>
+        <div class="instructions">Review each output and leave feedback below. Navigate with arrow keys or buttons. When done, copy feedback and paste into Claude Code.</div>
+      </div>
+      <div class="progress" id="progress"></div>
+    </div>
+
+    <!-- View tabs (only shown when benchmark data exists) -->
+    <div class="view-tabs" id="view-tabs" style="display:none;">
+      <button class="view-tab active" onclick="switchView('outputs')">Outputs</button>
+      <button class="view-tab" onclick="switchView('benchmark')">Benchmark</button>
+    </div>
+
+    <!-- Outputs panel (qualitative review) -->
+    <div class="view-panel active" id="panel-outputs">
+    <div class="main">
+      <!-- Prompt -->
+      <div class="section">
+        <div class="section-header">Prompt <span class="config-badge" id="config-badge" style="display:none;"></span></div>
+        <div class="section-body">
+          <div class="prompt-text" id="prompt-text"></div>
+        </div>
+      </div>
+
+      <!-- Outputs -->
+      <div class="section">
+        <div class="section-header">Output</div>
+        <div class="section-body" id="outputs-body">
+          <div class="empty-state">No output files found</div>
+        </div>
+      </div>
+
+      <!-- Previous Output (collapsible) -->
+      <div class="section" id="prev-outputs-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="togglePrevOutputs()">
+            <span class="arrow" id="prev-outputs-arrow">&#9654;</span>
+            Previous Output
+          </div>
+        </div>
+        <div class="grades-content" id="prev-outputs-content"></div>
+      </div>
+
+      <!-- Grades (collapsible) -->
+      <div class="section" id="grades-section" style="display:none;">
+        <div class="section-header">
+          <div class="grades-toggle" onclick="toggleGrades()">
+            <span class="arrow" id="grades-arrow">&#9654;</span>
+            Formal Grades
+          </div>
+        </div>
+        <div class="grades-content" id="grades-content"></div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="section">
+        <div class="section-header">Your Feedback</div>
+        <div class="section-body">
+          <textarea
+            class="feedback-textarea"
+            id="feedback"
+            placeholder="What do you think of this output? Any issues, suggestions, or things that look great?"
+          ></textarea>
+          <div class="feedback-status" id="feedback-status"></div>
+          <div class="prev-feedback" id="prev-feedback" style="display:none;">
+            <div class="prev-feedback-label">Previous feedback</div>
+            <div id="prev-feedback-text"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="nav" id="outputs-nav">
+      <button class="nav-btn" id="prev-btn" onclick="navigate(-1)">&#8592; Previous</button>
+      <button class="done-btn" id="done-btn" onclick="showDoneDialog()">Submit All Reviews</button>
+      <button class="nav-btn" id="next-btn" onclick="navigate(1)">Next &#8594;</button>
+    </div>
+    </div><!-- end panel-outputs -->
+
+    <!-- Benchmark panel (quantitative stats) -->
+    <div class="view-panel" id="panel-benchmark">
+      <div class="benchmark-view" id="benchmark-content">
+        <div class="benchmark-empty">No benchmark data available. Run a benchmark to see quantitative results here.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Done overlay -->
+  <div class="done-overlay" id="done-overlay">
+    <div class="done-card">
+      <h2>Review Complete</h2>
+      <p>Your feedback has been saved. Go back to your Claude Code session and tell Claude you're done reviewing.</p>
+      <div class="btn-row">
+        <button onclick="closeDoneDialog()">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    // ---- Embedded data (injected by generate_review.py) ----
+    const EMBEDDED_DATA = {"skill_name": "kql-skill", "runs": [{"id": "eval-1-capacity-planning-with_skill", "prompt": "I need to find all Azure VMs that had more than 90% memory usage in the past 3 days, and I want to see which ones are consistently running hot versus just spiking. This is for a capacity planning review we're doing next week. Target: Log Analytics.", "eval_id": 1, "outputs": [{"name": "high-memory-vms-capacity-planning-3d.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIFRpdGxlOiBIaWdoIE1lbW9yeSBWTXMg4oCUIFN1c3RhaW5lZCB2cy4gU3Bpa2UgQW5hbHlzaXMgKExhc3QgMyBEYXlzKQovLyBTZXJ2aWNlOiBMb2cgQW5hbHl0aWNzCi8vIFRhYmxlczogUGVyZiwgSW5zaWdodHNNZXRyaWNzCi8vIERlc2NyaXB0aW9uOiBJZGVudGlmaWVzIEF6dXJlIFZNcyB3aXRoID45MCUgbWVtb3J5IHVzYWdlIG92ZXIgdGhlIHBhc3QKLy8gICAzIGRheXMgYW5kIGNsYXNzaWZpZXMgZWFjaCBWTSBhcyAiY29uc2lzdGVudGx5IGhvdCIgKHN1c3RhaW5lZCBwcmVzc3VyZSkKLy8gICB2ZXJzdXMgInNwaWtpbmciIChpbnRlcm1pdHRlbnQgcGVha3MpLiBEZXNpZ25lZCBmb3IgY2FwYWNpdHkgcGxhbm5pbmcKLy8gICByZXZpZXdzLiBVc2VzIFBlcmYgZm9yIGFnZW50LXJlcG9ydGVkIGNvdW50ZXJzIGFuZCBwcm92aWRlcyBwZXItVk0KLy8gICBzdGF0aXN0aWNzIGluY2x1ZGluZyBhdmVyYWdlLCBwZWFrLCBQOTUsIG51bWJlciBvZiBicmVhY2hpbmcgaW50ZXJ2YWxzLAovLyAgIGFuZCBhIGNsYXNzaWZpY2F0aW9uIGxhYmVsLgovLyBQYXJhbWV0ZXJzOiB0aW1lUmFuZ2UgKGRlZmF1bHQgM2QpLCBtZW1UaHJlc2hvbGQgKGRlZmF1bHQgOTApLAovLyAgICAgICAgICAgICBiaW5TaXplIChkZWZhdWx0IDE1bSksIHN1c3RhaW5lZFRocmVzaG9sZFBjdCAoZGVmYXVsdCAwLjUpCi8vIENvbXBsZXhpdHk6IEludGVybWVkaWF0ZQovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCi8vIC0tLSBQYXJhbWV0ZXJzIC0tLQpsZXQgdGltZVJhbmdlID0gM2Q7CmxldCBtZW1UaHJlc2hvbGQgPSA5MC4wOyAgICAgICAgICAgLy8gJSBtZW1vcnkgaW4gdXNlIHRocmVzaG9sZApsZXQgYmluU2l6ZSA9IDE1bTsgICAgICAgICAgICAgICAgIC8vIGFnZ3JlZ2F0aW9uIHdpbmRvdyBwZXIgcmVhZGluZwovLyBBIFZNIGlzICJjb25zaXN0ZW50bHkgaG90IiBpZiBtb3JlIHRoYW4gdGhpcyBmcmFjdGlvbiBvZiBpdHMgc2FtcGxlZAovLyBpbnRlcnZhbHMgYnJlYWNoZWQgdGhlIHRocmVzaG9sZCAoNTAlID0gaG90IGZvciA+MzYgb2YgNzIgaG91cnMpCmxldCBzdXN0YWluZWRUaHJlc2hvbGRQY3QgPSAwLjUwOwoKLy8gLS0tIFN0ZXAgMTogUHVsbCAlIEF2YWlsYWJsZSBNZW1vcnkgY291bnRlciwgY29udmVydCB0byAlIFVzZWQgLS0tCi8vICIlIEF2YWlsYWJsZSBNQnl0ZXMiIGlzIHRoZSBtb3N0IHJlbGlhYmxlIGNyb3NzLXBsYXRmb3JtIGNvdW50ZXIgbmFtZTsKLy8gd2UgZGVyaXZlICUgdXNlZCBhcyAoMSAtIGF2YWlsYWJsZS90b3RhbCkuIFdoZW4gb25seSAiJSBVc2VkIE1lbW9yeSIKLy8gaXMgYXZhaWxhYmxlIChMaW51eC1zdHlsZSBhZ2VudHMpLCB0aGF0IGlzIHVzZWQgZGlyZWN0bHkuCmxldCBtZW1SYXcgPSBtYXRlcmlhbGl6ZSgKICAgIFBlcmYKICAgIHwgd2hlcmUgVGltZUdlbmVyYXRlZCA+IGFnbyh0aW1lUmFuZ2UpCiAgICAvLyBNYXRjaCBib3RoIFdpbmRvd3MgIiUgQXZhaWxhYmxlIE1CeXRlcyIgKG5lZWRzIHRvdGFsIHRvIGNvbnZlcnQpCiAgICAvLyBhbmQgTGludXggIiUgVXNlZCBNZW1vcnkiIChkaXJlY3QgcGVyY2VudGFnZSkKICAgIHwgd2hlcmUgT2JqZWN0TmFtZSBpbiAoIk1lbW9yeSIsICJMb2dpY2FsRGlzayIpCiAgICB8IHdoZXJlIENvdW50ZXJOYW1lIGluICgKICAgICAgICAiJSBBdmFpbGFibGUgTUJ5dGVzIiwgICAgICAgICAgLy8gV2luZG93cyDigJQgbmVlZHMgdG90YWwgbWVtb3J5CiAgICAgICAgIiUgVXNlZCBNZW1vcnkiLCAgICAgICAgICAgICAgIC8vIExpbnV4IFZNIGFnZW50CiAgICAgICAgIkF2YWlsYWJsZSBNQnl0ZXMiLCAgICAgICAgICAgIC8vIFdpbmRvd3MgYWJzb2x1dGUgTUIKICAgICAgICAiTWVtb3J5VXNlZFBlcmNlbnRhZ2UiICAgICAgICAgLy8gVk0gSW5zaWdodHMgKEluc2lnaHRzTWV0cmljcyBmYWxsYmFjaykKICAgICkKICAgIHwgcHJvamVjdCBUaW1lR2VuZXJhdGVkLCBDb21wdXRlciwgQ291bnRlck5hbWUsIENvdW50ZXJWYWx1ZQopOwoKLy8gLS0tIFN0ZXAgMjogQ29tcHV0ZSAlIG1lbW9yeSB1c2VkIHBlciAxNS1taW51dGUgYmluLCBwZXIgVk0gLS0tCi8vIEZvciAiJSBBdmFpbGFibGUgTUJ5dGVzIjogdmFsdWUgSVMgYWxyZWFkeSBhIHBlcmNlbnRhZ2Ugb2YgYXZhaWxhYmxlLAovLyBzbyAlIHVzZWQgPSAxMDAgLSBDb3VudGVyVmFsdWUuCi8vIEZvciAiJSBVc2VkIE1lbW9yeSIgLyAiTWVtb3J5VXNlZFBlcmNlbnRhZ2UiOiB2YWx1ZSBpcyBhbHJlYWR5ICUgdXNlZC4KbGV0IG1lbUJpbm5lZCA9CiAgICBtZW1SYXcKICAgIHwgZXh0ZW5kIE1lbVBjdFVzZWQgPSBjYXNlKAogICAgICAgIENvdW50ZXJOYW1lID09ICIlIEF2YWlsYWJsZSBNQnl0ZXMiLCAxMDAuMCAtIENvdW50ZXJWYWx1ZSwKICAgICAgICBDb3VudGVyTmFtZSA9PSAiQXZhaWxhYmxlIE1CeXRlcyIsICAgdG9kb3VibGUobnVsbCksIC8vIHNraXAg4oCUIG5lZWRzIHRvdGFsCiAgICAgICAgQ291bnRlclZhbHVlICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIC8vIGRpcmVjdCAlIHVzZWQKICAgICkKICAgIHwgd2hlcmUgaXNub3RudWxsKE1lbVBjdFVzZWQpIGFuZCBNZW1QY3RVc2VkIGJldHdlZW4gKDAuMCAuLiAxMDAuMCkKICAgIHwgc3VtbWFyaXplCiAgICAgICAgQXZnTWVtUGN0ICAgPSByb3VuZChhdmcoTWVtUGN0VXNlZCksIDEpLAogICAgICAgIE1heE1lbVBjdCAgID0gcm91bmQobWF4KE1lbVBjdFVzZWQpLCAxKSwKICAgICAgICBQOTVNZW1QY3QgICA9IHJvdW5kKHBlcmNlbnRpbGUoTWVtUGN0VXNlZCwgOTUpLCAxKQogICAgICAgIGJ5IENvbXB1dGVyLCBiaW4oVGltZUdlbmVyYXRlZCwgYmluU2l6ZSk7CgovLyAtLS0gU3RlcCAzOiBLZWVwIG9ubHkgYmlucyB0aGF0IGJyZWFjaGVkIHRoZSB0aHJlc2hvbGQgLS0tCi8vIFRoaXMgZ2l2ZXMgdXMgdGhlIGJyZWFjaCBjb3VudCBwZXIgVk0gYXMgd2VsbCBhcyB0aGUgdG90YWwgc2FtcGxlIGNvdW50Ci8vIChuZWVkZWQgdG8gY29tcHV0ZSB0aGUgYnJlYWNoIHJhdGUgYW5kIGNsYXNzaWZ5IFZNcykKbGV0IGFsbEJpbkNvdW50cyA9CiAgICBtZW1CaW5uZWQKICAgIHwgc3VtbWFyaXplIFRvdGFsQmlucyA9IGNvdW50KCkgYnkgQ29tcHV0ZXI7CgpsZXQgYnJlYWNoaW5nQmlucyA9CiAgICBtZW1CaW5uZWQKICAgIHwgd2hlcmUgQXZnTWVtUGN0ID4gbWVtVGhyZXNob2xkOwoKLy8gLS0tIFN0ZXAgNDogUm9sbCB1cCBwZXIgVk0g4oCUIG92ZXJhbGwgc3RhdHMgYWNyb3NzIGFsbCBicmVhY2hpbmcgaW50ZXJ2YWxzIC0tLQpsZXQgdm1TdW1tYXJ5ID0KICAgIGJyZWFjaGluZ0JpbnMKICAgIHwgc3VtbWFyaXplCiAgICAgICAgQnJlYWNoaW5nQmlucyAgICAgPSBjb3VudCgpLAogICAgICAgIE92ZXJhbGxBdmdNZW0gICAgID0gcm91bmQoYXZnKEF2Z01lbVBjdCksIDEpLAogICAgICAgIFBlYWtNZW0gICAgICAgICAgID0gcm91bmQobWF4KE1heE1lbVBjdCksIDEpLAogICAgICAgIFA5NU1lbSAgICAgICAgICAgID0gcm91bmQobWF4KFA5NU1lbVBjdCksIDEpLAogICAgICAgIEZpcnN0QnJlYWNoVGltZSAgID0gbWluKFRpbWVHZW5lcmF0ZWQpLAogICAgICAgIExhc3RCcmVhY2hUaW1lICAgID0gbWF4KFRpbWVHZW5lcmF0ZWQpCiAgICAgICAgYnkgQ29tcHV0ZXI7CgovLyAtLS0gU3RlcCA1OiBKb2luIHdpdGggdG90YWwgYmluIGNvdW50cyB0byBjb21wdXRlIGJyZWFjaCByYXRlIC0tLQp2bVN1bW1hcnkKfCBqb2luIGtpbmQ9aW5uZXIgYWxsQmluQ291bnRzIG9uIENvbXB1dGVyCnwgZXh0ZW5kCiAgICBCcmVhY2hSYXRlUGN0ICAgICAgID0gcm91bmQodG9kb3VibGUoQnJlYWNoaW5nQmlucykgLyB0b2RvdWJsZShUb3RhbEJpbnMpICogMTAwLCAxKSwKICAgIFN1c3RhaW5lZEJyZWFjaEhvdXJzID0gcm91bmQodG9kb3VibGUoQnJlYWNoaW5nQmlucykgKiAoMTUuMCAvIDYwKSwgMSkKLy8gLS0tIFN0ZXAgNjogQ2xhc3NpZnkgYXMgIkNvbnNpc3RlbnRseSBIb3QiIHZzICJTcGlraW5nIiAtLS0KfCBleHRlbmQgQ2xhc3NpZmljYXRpb24gPSBpZmYoCiAgICB0b2RvdWJsZShCcmVhY2hpbmdCaW5zKSAvIHRvZG91YmxlKFRvdGFsQmlucykgPj0gc3VzdGFpbmVkVGhyZXNob2xkUGN0LAogICAgIkNvbnNpc3RlbnRseSBIb3QiLAogICAgIlNwaWtpbmciCikKLy8gLS0tIFN0ZXAgNzogRmluYWwgcHJvamVjdGlvbiwgc29ydGVkIGJ5IHNldmVyaXR5IC0tLQp8IHByb2plY3QKICAgIENvbXB1dGVyLAogICAgQ2xhc3NpZmljYXRpb24sCiAgICBPdmVyYWxsQXZnTWVtLAogICAgUGVha01lbSwKICAgIFA5NU1lbSwKICAgIEJyZWFjaFJhdGVQY3QsCiAgICBTdXN0YWluZWRCcmVhY2hIb3VycywKICAgIEJyZWFjaGluZ0JpbnMsCiAgICBUb3RhbEJpbnMsCiAgICBGaXJzdEJyZWFjaFRpbWUsCiAgICBMYXN0QnJlYWNoVGltZQp8IHNvcnQgYnkgQ2xhc3NpZmljYXRpb24gYXNjLCBCcmVhY2hSYXRlUGN0IGRlc2MsIE92ZXJhbGxBdmdNZW0gZGVzYwo="}], "grading": {"eval_id": 1, "eval_name": "capacity-planning-high-memory-vms", "configuration": "with_skill", "expectations": [{"text": "Output includes standard .kql comment header block (Title, Service, Tables, Description, Parameters, Complexity)", "passed": true, "evidence": "File opens with '// ===...===' block containing: Title: High Memory VMs \u2014 Sustained vs. Spike Analysis (Last 3 Days), Service: Log Analytics, Tables: Perf, InsightsMetrics, Description, Parameters (timeRange, memThreshold, binSize, sustainedThresholdPct), Complexity: Intermediate"}, {"text": "Uses Perf table (or InsightsMetrics) for memory counters", "passed": true, "evidence": "Query uses 'Perf' table directly: 'Perf | where TimeGenerated > ago(timeRange)' with CounterName matching '% Available MBytes', '% Used Memory', etc."}, {"text": "Includes TimeGenerated filter for 3 days (ago(3d) or equivalent)", "passed": true, "evidence": "'let timeRange = 3d;' defined as a parameter, used in 'Perf | where TimeGenerated > ago(timeRange)'"}, {"text": "Uses let statements for parameterized values (time range, threshold)", "passed": true, "evidence": "Multiple let statements: 'let timeRange = 3d;', 'let memThreshold = 90.0;', 'let binSize = 15m;', 'let sustainedThresholdPct = 0.50;'"}, {"text": "Distinguishes between sustained high memory and temporary spikes (e.g., via binned aggregation, percentiles, or duration counting)", "passed": true, "evidence": "Uses bin(TimeGenerated, binSize) for 15-min aggregation buckets, counts BreachingBins vs TotalBins, applies sustainedThresholdPct, and classifies as 'Consistently Hot' vs 'Spiking' using iff()"}, {"text": "Uses correct memory performance counter (% Committed Bytes In Use or Available MBytes)", "passed": true, "evidence": "Uses '% Available MBytes' (Windows), '% Used Memory' (Linux), 'Available MBytes', 'MemoryUsedPercentage' \u2014 explicitly converts '% Available MBytes' to % used via '100.0 - CounterValue'"}], "pass_rate": 1.0, "summary": {"passed": 6, "failed": 0, "total": 6, "pass_rate": 1.0}, "timing": {"executor_duration_seconds": 60.6, "total_duration_seconds": 60.6}, "claims": [{"claim": "Handles both Windows (% Available MBytes) and Linux (% Used Memory) counter formats", "type": "quality", "verified": true, "evidence": "The case() expression handles both counter types with appropriate conversion logic"}, {"claim": "Uses materialize() for performance on repeated subquery use", "type": "process", "verified": true, "evidence": "memRaw is wrapped in materialize() before being referenced twice in memBinned"}], "eval_feedback": {"suggestions": [], "overall": "No suggestions \u2014 assertions are specific and well-discriminating. The header check is appropriately detailed (includes all six fields). The spike vs sustained check correctly requires behavioral logic rather than just a label."}}}, {"id": "eval-1-capacity-planning-without_skill", "prompt": "I need to find all Azure VMs that had more than 90% memory usage in the past 3 days, and I want to see which ones are consistently running hot versus just spiking. This is for a capacity planning review we're doing next week. Target: Log Analytics.", "eval_id": 1, "outputs": [{"name": "vm_memory_capacity_planning.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gQXp1cmUgVk0gTWVtb3J5IENhcGFjaXR5IFBsYW5uaW5nIFF1ZXJ5Ci8vIFB1cnBvc2U6IElkZW50aWZ5IFZNcyB3aXRoID45MCUgbWVtb3J5IHVzYWdlIGluIHRoZSBwYXN0IDMgZGF5cywKLy8gICAgICAgICAgZGlzdGluZ3Vpc2hpbmcgY29uc2lzdGVudGx5IGhvdCBWTXMgZnJvbSBzcGlraW5nIG9uZXMuCi8vIFRhcmdldDogIExvZyBBbmFseXRpY3MgV29ya3NwYWNlIChQZXJmIHRhYmxlIHZpYSBBenVyZSBNb25pdG9yIEFnZW50IG9yIE1NQSkKCmxldCB0aW1lUmFuZ2UgPSAzZDsKbGV0IG1lbVRocmVzaG9sZCA9IDkwLjA7CmxldCBtaW5TYW1wbGVzRm9yQ29uc2lzdGVuY3kgPSA1OyAvLyBtaW5pbXVtIGRhdGEgcG9pbnRzIHRvIGV2YWx1YXRlIHBhdHRlcm4KCi8vIFN0ZXAgMTogR2F0aGVyIGFsbCBtZW1vcnkgdXNhZ2Ugc2FtcGxlcyBvdmVyIHRoZSBwYXN0IDMgZGF5cwpsZXQgTWVtb3J5U2FtcGxlcyA9IFBlcmYKfCB3aGVyZSBUaW1lR2VuZXJhdGVkID49IGFnbyh0aW1lUmFuZ2UpCnwgd2hlcmUgT2JqZWN0TmFtZSA9PSAiTWVtb3J5IgogICAgYW5kIENvdW50ZXJOYW1lID09ICIlIENvbW1pdHRlZCBCeXRlcyBJbiBVc2UiCnwgd2hlcmUgQ291bnRlclZhbHVlID4gMAp8IHByb2plY3QKICAgIFRpbWVHZW5lcmF0ZWQsCiAgICBDb21wdXRlciwKICAgIENvdW50ZXJWYWx1ZTsKCi8vIFN0ZXAgMjogQ29tcHV0ZSBwZXItVk0gbWVtb3J5IHN0YXRpc3RpY3MKbGV0IE1lbW9yeVN0YXRzID0gTWVtb3J5U2FtcGxlcwp8IHN1bW1hcml6ZQogICAgU2FtcGxlQ291bnQgICAgICAgPSBjb3VudCgpLAogICAgQXZnTWVtb3J5UGN0ICAgICAgPSByb3VuZChhdmcoQ291bnRlclZhbHVlKSwgMiksCiAgICBNYXhNZW1vcnlQY3QgICAgICA9IHJvdW5kKG1heChDb3VudGVyVmFsdWUpLCAyKSwKICAgIE1pbk1lbW9yeVBjdCAgICAgID0gcm91bmQobWluKENvdW50ZXJWYWx1ZSksIDIpLAogICAgUDUwTWVtb3J5UGN0ICAgICAgPSByb3VuZChwZXJjZW50aWxlKENvdW50ZXJWYWx1ZSwgNTApLCAyKSwKICAgIFA5ME1lbW9yeVBjdCAgICAgID0gcm91bmQocGVyY2VudGlsZShDb3VudGVyVmFsdWUsIDkwKSwgMiksCiAgICBQOTVNZW1vcnlQY3QgICAgICA9IHJvdW5kKHBlcmNlbnRpbGUoQ291bnRlclZhbHVlLCA5NSksIDIpLAogICAgSG90U2FtcGxlcyAgICAgICAgPSBjb3VudGlmKENvdW50ZXJWYWx1ZSA+IG1lbVRocmVzaG9sZCksCiAgICBGaXJzdFNlZW4gICAgICAgICA9IG1pbihUaW1lR2VuZXJhdGVkKSwKICAgIExhc3RTZWVuICAgICAgICAgID0gbWF4KFRpbWVHZW5lcmF0ZWQpCiAgICBieSBDb21wdXRlcgp8IHdoZXJlIE1heE1lbW9yeVBjdCA+IG1lbVRocmVzaG9sZCAgICAgICAgICAvLyBvbmx5IFZNcyB0aGF0IGhpdCB0aHJlc2hvbGQgYXQgbGVhc3Qgb25jZQp8IHdoZXJlIFNhbXBsZUNvdW50ID49IG1pblNhbXBsZXNGb3JDb25zaXN0ZW5jeTsKCi8vIFN0ZXAgMzogQ2xhc3NpZnkgVk1zIGFzIGNvbnNpc3RlbnRseSBob3QgdnMgc3Bpa2luZwpNZW1vcnlTdGF0cwp8IGV4dGVuZAogICAgSG90U2FtcGxlUGN0ID0gcm91bmQodG9kb3VibGUoSG90U2FtcGxlcykgLyB0b2RvdWJsZShTYW1wbGVDb3VudCkgKiAxMDAsIDEpLAogICAgT2JzZXJ2YXRpb25XaW5kb3dIb3VycyA9IHJvdW5kKGRhdGV0aW1lX2RpZmYoJ21pbnV0ZScsIExhc3RTZWVuLCBGaXJzdFNlZW4pIC8gNjAuMCwgMSkKfCBleHRlbmQKICAgIE1lbW9yeVBhdHRlcm4gPSBjYXNlKAogICAgICAgIC8vIENvbnNpc3RlbnRseSBob3Q6IG1lZGlhbiBBTkQgYXZlcmFnZSBib3RoIGFib3ZlIHRocmVzaG9sZCDihpIgc3VzdGFpbmVkIHByZXNzdXJlCiAgICAgICAgUDUwTWVtb3J5UGN0ID49IG1lbVRocmVzaG9sZCBhbmQgQXZnTWVtb3J5UGN0ID49IG1lbVRocmVzaG9sZCwKICAgICAgICAgICAgIkNvbnNpc3RlbnRseSBIb3QiLAogICAgICAgIC8vIEZyZXF1ZW50bHkgaG90OiBQOTAgYWJvdmUgdGhyZXNob2xkIGJ1dCBtZWRpYW4gYmVsb3cg4oaSIG9mdGVuIGhpZ2gKICAgICAgICBQOTBNZW1vcnlQY3QgPj0gbWVtVGhyZXNob2xkIGFuZCBQNTBNZW1vcnlQY3QgPCBtZW1UaHJlc2hvbGQsCiAgICAgICAgICAgICJGcmVxdWVudGx5IEhvdCIsCiAgICAgICAgLy8gU3Bpa2luZzogb25seSBtYXggY3Jvc3NlcyB0aHJlc2hvbGQsIFA5MCBzdGlsbCBiZWxvdyDihpIgaXNvbGF0ZWQgc3Bpa2VzCiAgICAgICAgTWF4TWVtb3J5UGN0ID4gbWVtVGhyZXNob2xkIGFuZCBQOTBNZW1vcnlQY3QgPCBtZW1UaHJlc2hvbGQsCiAgICAgICAgICAgICJTcGlraW5nIgogICAgKSwKICAgIENhcGFjaXR5UmlzayA9IGNhc2UoCiAgICAgICAgUDUwTWVtb3J5UGN0ID49IG1lbVRocmVzaG9sZCwgIkNyaXRpY2FsIiwKICAgICAgICBBdmdNZW1vcnlQY3QgPj0gbWVtVGhyZXNob2xkLCAiSGlnaCIsCiAgICAgICAgUDkwTWVtb3J5UGN0ID49IG1lbVRocmVzaG9sZCwgIk1lZGl1bSIsCiAgICAgICAgIkxvdyIKICAgICkKfCBwcm9qZWN0CiAgICBDb21wdXRlciwKICAgIE1lbW9yeVBhdHRlcm4sCiAgICBDYXBhY2l0eVJpc2ssCiAgICBBdmdNZW1vcnlQY3QsCiAgICBNYXhNZW1vcnlQY3QsCiAgICBNaW5NZW1vcnlQY3QsCiAgICBQNTBNZW1vcnlQY3QsCiAgICBQOTBNZW1vcnlQY3QsCiAgICBQOTVNZW1vcnlQY3QsCiAgICBIb3RTYW1wbGVzLAogICAgU2FtcGxlQ291bnQsCiAgICBIb3RTYW1wbGVQY3QsCiAgICBPYnNlcnZhdGlvbldpbmRvd0hvdXJzLAogICAgRmlyc3RTZWVuLAogICAgTGFzdFNlZW4KfCBvcmRlciBieQogICAgLy8gU3VyZmFjZSBjb25zaXN0ZW50bHkgaG90IC8gY3JpdGljYWwgVk1zIGZpcnN0LCB0aGVuIGJ5IGF2ZyB1c2FnZSBkZXNjCiAgICBDYXBhY2l0eVJpc2sgYXNjLCAgIC8vICJDcml0aWNhbCIgPCAiSGlnaCIgPCAiTG93IiBhbHBoYWJldGljYWxseSB3b3JrcyBoZXJlCiAgICBBdmdNZW1vcnlQY3QgZGVzYwo="}], "grading": {"eval_id": 1, "eval_name": "capacity-planning-high-memory-vms", "configuration": "without_skill", "expectations": [{"text": "Output includes standard .kql comment header block (Title, Service, Tables, Description, Parameters, Complexity)", "passed": false, "evidence": "File has a brief comment block ('// Azure VM Memory Capacity Planning Query', Purpose, Target) but does NOT follow the standard header structure with labeled fields for Title, Service, Tables, Description, Parameters, and Complexity. No formal structured header block present."}, {"text": "Uses Perf table (or InsightsMetrics) for memory counters", "passed": true, "evidence": "Uses 'Perf' table with 'ObjectName == \"Memory\"' and 'CounterName == \"% Committed Bytes In Use\"'"}, {"text": "Includes TimeGenerated filter for 3 days (ago(3d) or equivalent)", "passed": true, "evidence": "'let timeRange = 3d;' and 'Perf | where TimeGenerated >= ago(timeRange)'"}, {"text": "Uses let statements for parameterized values (time range, threshold)", "passed": true, "evidence": "'let timeRange = 3d;', 'let memThreshold = 90.0;', 'let minSamplesForConsistency = 5;'"}, {"text": "Distinguishes between sustained high memory and temporary spikes (e.g., via binned aggregation, percentiles, or duration counting)", "passed": true, "evidence": "Uses P50, P90, P95, AvgMemoryPct, and HotSamples/SampleCount ratio to classify into 'Consistently Hot', 'Frequently Hot', and 'Spiking' categories via case() expression"}, {"text": "Uses correct memory performance counter (% Committed Bytes In Use or Available MBytes)", "passed": true, "evidence": "Uses 'CounterName == \"% Committed Bytes In Use\"' which is listed as an acceptable counter in the assertion"}], "pass_rate": 0.833, "summary": {"passed": 5, "failed": 1, "total": 6, "pass_rate": 0.833}, "timing": {"executor_duration_seconds": 37.9, "total_duration_seconds": 37.9}, "claims": [{"claim": "Adds 'Frequently Hot' as a third classification category beyond just hot/spiking", "type": "quality", "verified": true, "evidence": "case() expression includes 'Frequently Hot' for P90 >= threshold but median < threshold \u2014 a useful extension beyond what was asked"}, {"claim": "Adds CapacityRisk column (Critical/High/Medium/Low)", "type": "quality", "verified": true, "evidence": "extend CapacityRisk = case(...) provides an additional risk tier column"}], "eval_feedback": {"suggestions": [{"assertion": "Output includes standard .kql comment header block (Title, Service, Tables, Description, Parameters, Complexity)", "reason": "The assertion correctly fails here \u2014 the without_skill output has a brief free-form comment, not the structured header. This is a meaningful discriminator for the skill."}], "overall": "The header assertion is working well as a discriminator between skill and no-skill outputs. Consider whether 'CapacityRisk' tier and '3-category classification' are desirable outcomes worth asserting on."}}}, {"id": "eval-2-sql-translation-with_skill", "prompt": "Convert SQL port scan detection query to KQL for Sentinel", "eval_id": 2, "outputs": [{"name": "port-scan-detection-firewall.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIFRpdGxlOiBQb3J0IFNjYW4gRGV0ZWN0aW9uIHZpYSBEZW5pZWQgRmlyZXdhbGwgQ29ubmVjdGlvbnMKLy8gU2VydmljZTogU2VudGluZWwKLy8gVGFibGVzOiBBenVyZUZpcmV3YWxsTmV0d29ya1J1bGUgKG9yIGN1c3RvbSBmaXJld2FsbF9sb2dzIGVxdWl2YWxlbnQpCi8vIERlc2NyaXB0aW9uOiBEZXRlY3RzIHBvdGVudGlhbCBwb3J0IHNjYW5uaW5nIGFjdGl2aXR5IGJ5IGlkZW50aWZ5aW5nIHNvdXJjZSBJUHMKLy8gICAgICAgICAgICAgIHRoYXQgaGF2ZSBhdHRlbXB0ZWQgY29ubmVjdGlvbnMgdG8gbW9yZSB0aGFuIDIwIGRpc3RpbmN0IGRlc3RpbmF0aW9uCi8vICAgICAgICAgICAgICBwb3J0cyB3aXRoaW4gdGhlIGxhc3QgaG91ciDigJQgYWxsIG9mIHdoaWNoIHdlcmUgZGVuaWVkLiBUcmFuc2xhdGVkCi8vICAgICAgICAgICAgICBmcm9tIFNRTCAobGVnYWN5IFNJRU0pLiBUb3AgNTAgcmVzdWx0cyBvcmRlcmVkIGJ5IHBvcnQgZGl2ZXJzaXR5LgovLyBQYXJhbWV0ZXJzOgovLyAgIGxvb2tiYWNrICAgICAgIC0gVGltZSB3aW5kb3cgdG8gYW5hbHl6ZSAoZGVmYXVsdDogMWgpCi8vICAgbWluX3BvcnRfY291bnQgLSBNaW5pbXVtIGRpc3RpbmN0IGRlc3RpbmF0aW9uIHBvcnRzIHRvIGZsYWcgKGRlZmF1bHQ6IDIwKQovLyAgIHJlc3VsdF9saW1pdCAgIC0gTWF4aW11bSBudW1iZXIgb2YgcmVzdWx0cyB0byByZXR1cm4gKGRlZmF1bHQ6IDUwKQovLyBDb21wbGV4aXR5OiBJbnRlcm1lZGlhdGUKLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgovLyBQYXJhbWV0ZXJpemUgdGhyZXNob2xkcyBmb3IgZWFzeSB0dW5pbmcKbGV0IGxvb2tiYWNrID0gMWg7CmxldCBtaW5fcG9ydF9jb3VudCA9IDIwOwpsZXQgcmVzdWx0X2xpbWl0ID0gNTA7CgovLyBOT1RFOiBSZXBsYWNlICdBenVyZUZpcmV3YWxsTmV0d29ya1J1bGUnIHdpdGggeW91ciBhY3R1YWwgdGFibGUgbmFtZSBpZiB1c2luZwovLyBhIGN1c3RvbSBjb25uZWN0b3IgKGUuZy4sIENvbW1vblNlY3VyaXR5TG9nLCBhIGN1c3RvbSBmaXJld2FsbF9sb2dzIHRhYmxlLCBldGMuKQovLyBGaWVsZCBtYXBwaW5ncyBtYXkgYWxzbyBkaWZmZXIg4oCUIGFkanVzdCBTcmNJUCwgRHN0SVAsIERzdFBvcnQsIGFuZCBBY3Rpb24gYWNjb3JkaW5nbHkuCkF6dXJlRmlyZXdhbGxOZXR3b3JrUnVsZQovLyBGaWx0ZXIgdG8gdGhlIHRpbWUgd2luZG93IGZpcnN0IOKAlCB0aGlzIGxpbWl0cyBkYXRhIHNjYW5uZWQgYmVmb3JlIGFnZ3JlZ2F0aW9uCnwgd2hlcmUgVGltZUdlbmVyYXRlZCA+IGFnbyhsb29rYmFjaykKLy8gT25seSBsb29rIGF0IGRlbmllZCB0cmFmZmljIChwb3J0IHNjYW5zIGdlbmVyYXRlIG1hbnkgZGVuaWVkIGNvbm5lY3Rpb25zKQp8IHdoZXJlIEFjdGlvbiA9fiAiRGVueSIKLy8gQWdncmVnYXRlIHBlciBzb3VyY2UvZGVzdGluYXRpb24gcGFpcjogY291bnQgdG90YWwgY29ubmVjdGlvbnMgYW5kIGRpc3RpbmN0IHBvcnRzCnwgc3VtbWFyaXplCiAgICBjb25uX2NvdW50ID0gY291bnQoKSwKICAgIHBvcnRfY291bnQgPSBkY291bnQoRGVzdGluYXRpb25Qb3J0KSAgLy8gZGNvdW50KCkgPSBDT1VOVChESVNUSU5DVCAuLi4pIGluIFNRTAogICAgYnkgU291cmNlSVAsIERlc3RpbmF0aW9uSVAKLy8gSEFWSU5HIGVxdWl2YWxlbnQ6IGZpbHRlciBhZ2dyZWdhdGVkIHJlc3VsdHMgd2hlcmUgcG9ydCBkaXZlcnNpdHkgZXhjZWVkcyB0aHJlc2hvbGQKfCB3aGVyZSBwb3J0X2NvdW50ID4gbWluX3BvcnRfY291bnQKLy8gU29ydCBieSBwb3J0IGNvdW50IGRlc2NlbmRpbmcg4oCUIGhpZ2hlc3QgcG9ydCBkaXZlcnNpdHkgaW5kaWNhdGVzIG1vc3QgYWdncmVzc2l2ZSBzY2FubmluZwp8IHNvcnQgYnkgcG9ydF9jb3VudCBkZXNjCi8vIExpbWl0IG91dHB1dCB0byB0b3AgTiByZXN1bHRzCnwgdGFrZSByZXN1bHRfbGltaXQKLy8gUHJvamVjdCBmaW5hbCBjb2x1bW5zIGluIGEgcmVhZGFibGUgb3JkZXIKfCBwcm9qZWN0IFNvdXJjZUlQLCBEZXN0aW5hdGlvbklQLCBjb25uX2NvdW50LCBwb3J0X2NvdW50Cg=="}], "grading": {"eval_id": 2, "eval_name": "sql-to-kql-port-scan-detection", "configuration": "with_skill", "expectations": [{"text": "Output includes standard .kql comment header block", "passed": true, "evidence": "File opens with '// ===...===' block containing Title, Service, Tables, Description, Parameters (lookback, min_port_count, result_limit), Complexity: Intermediate"}, {"text": "Uses KQL pipe-based flow, not nested SQL-style subqueries", "passed": true, "evidence": "Query is a single linear pipe chain: 'AzureFirewallNetworkRule | where ... | where ... | summarize ... | where ... | sort ... | take ... | project ...'. No nested subqueries."}, {"text": "Targets appropriate Sentinel table (CommonSecurityLog, AzureDiagnostics, or AzureNetworkAnalytics)", "passed": false, "evidence": "Uses 'AzureFirewallNetworkRule' \u2014 not one of the three listed tables. A comment acknowledges the mapping: 'Replace AzureFirewallNetworkRule with CommonSecurityLog...if using a custom connector'. The assertion lists specific acceptable tables that don't include AzureFirewallNetworkRule, so this is a technical failure even though the choice is defensible."}, {"text": "Uses dcount() for COUNT(DISTINCT dst_port) translation", "passed": true, "evidence": "'port_count = dcount(DestinationPort)' with inline comment '// dcount() = COUNT(DISTINCT ...) in SQL'"}, {"text": "Uses top N or take N instead of SQL LIMIT", "passed": true, "evidence": "'| take result_limit' where 'let result_limit = 50' \u2014 correctly uses KQL 'take' instead of SQL LIMIT"}, {"text": "Includes time filter (ago(1h) or equivalent)", "passed": true, "evidence": "'let lookback = 1h;' and '| where TimeGenerated > ago(lookback)'"}, {"text": "Description notes this was translated from SQL", "passed": true, "evidence": "Header Description: 'Translated from SQL (legacy SIEM)'"}], "pass_rate": 0.857, "summary": {"passed": 6, "failed": 1, "total": 7, "pass_rate": 0.857}, "timing": {"executor_duration_seconds": 43.6, "total_duration_seconds": 43.6}, "claims": [{"claim": "AzureFirewallNetworkRule is an appropriate Sentinel table for firewall-based port scan detection", "type": "quality", "verified": true, "evidence": "AzureFirewallNetworkRule is a legitimate Sentinel table for Azure Firewall network rules \u2014 arguably more precise for this use case than CommonSecurityLog. The assertion's list may be under-specified."}], "eval_feedback": {"suggestions": [{"assertion": "Targets appropriate Sentinel table (CommonSecurityLog, AzureDiagnostics, or AzureNetworkAnalytics)", "reason": "AzureFirewallNetworkRule is a valid and common Sentinel table for firewall port scan detection \u2014 arguably better than CommonSecurityLog for this use case. The assertion's enumerated list is too narrow. Consider broadening to include AzureFirewallNetworkRule or using a description like 'targets a network/firewall log table' instead of an exact list."}], "overall": "The table assertion is too prescriptive \u2014 the skill produced a defensible choice that fails a narrow list check. Other assertions are well-targeted."}}}, {"id": "eval-2-sql-translation-without_skill", "prompt": "Convert SQL port scan detection query to KQL for Sentinel", "eval_id": 2, "outputs": [{"name": "port_scan_detection.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gUG9ydCBTY2FuIERldGVjdGlvbiAtIENvbnZlcnRlZCBmcm9tIFNRTCB0byBLUUwKLy8gRGV0ZWN0cyBob3N0cyBzY2FubmluZyBtdWx0aXBsZSBkZXN0aW5hdGlvbiBwb3J0cyAoPjIwIGRpc3RpbmN0IHBvcnRzKSB3aXRoaW4gdGhlIGxhc3QgaG91cgovLyBPcmlnaW5hbCBTUUw6IFNFTEVDVCBzcmNfaXAsIGRzdF9pcCwgQ09VTlQoKikgYXMgY29ubl9jb3VudCwgQ09VTlQoRElTVElOQ1QgZHN0X3BvcnQpIGFzIHBvcnRfY291bnQKLy8gICAgICAgICAgICAgICBGUk9NIGZpcmV3YWxsX2xvZ3MgV0hFUkUgdGltZXN0YW1wID4gTk9XKCkgLSBJTlRFUlZBTCAxIEhPVVIgQU5EIGFjdGlvbiA9ICdkZW5pZWQnCi8vICAgICAgICAgICAgICAgR1JPVVAgQlkgc3JjX2lwLCBkc3RfaXAgSEFWSU5HIHBvcnRfY291bnQgPiAyMCBPUkRFUiBCWSBwb3J0X2NvdW50IERFU0MgTElNSVQgNTAKCkNvbW1vblNlY3VyaXR5TG9nCnwgd2hlcmUgVGltZUdlbmVyYXRlZCA+IGFnbygxaCkKfCB3aGVyZSBEZXZpY2VBY3Rpb24gPX4gImRlbmllZCIKfCBzdW1tYXJpemUKICAgIGNvbm5fY291bnQgPSBjb3VudCgpLAogICAgcG9ydF9jb3VudCA9IGRjb3VudChEZXN0aW5hdGlvblBvcnQpCiAgICBieSBTb3VyY2VJUCwgRGVzdGluYXRpb25JUAp8IHdoZXJlIHBvcnRfY291bnQgPiAyMAp8IG9yZGVyIGJ5IHBvcnRfY291bnQgZGVzYwp8IHRha2UgNTAK"}], "grading": {"eval_id": 2, "eval_name": "sql-to-kql-port-scan-detection", "configuration": "without_skill", "expectations": [{"text": "Output includes standard .kql comment header block", "passed": false, "evidence": "File has an inline comment block showing the original SQL query and describing the detection, but it is NOT a structured header with labeled Title, Service, Tables, Description, Parameters, and Complexity fields."}, {"text": "Uses KQL pipe-based flow, not nested SQL-style subqueries", "passed": true, "evidence": "Linear pipe chain: 'CommonSecurityLog | where ... | where ... | summarize ... | where ... | order by ... | take 50'"}, {"text": "Targets appropriate Sentinel table (CommonSecurityLog, AzureDiagnostics, or AzureNetworkAnalytics)", "passed": true, "evidence": "Uses 'CommonSecurityLog' \u2014 listed as an acceptable table in the assertion"}, {"text": "Uses dcount() for COUNT(DISTINCT dst_port) translation", "passed": true, "evidence": "'port_count = dcount(DestinationPort)'"}, {"text": "Uses top N or take N instead of SQL LIMIT", "passed": true, "evidence": "'| take 50' at the end of the pipeline"}, {"text": "Includes time filter (ago(1h) or equivalent)", "passed": true, "evidence": "'| where TimeGenerated > ago(1h)'"}, {"text": "Description notes this was translated from SQL", "passed": true, "evidence": "Comment block at top includes the original SQL: '// Original SQL: SELECT src_ip, dst_ip, COUNT(*) as conn_count, COUNT(DISTINCT dst_port)...'"}], "pass_rate": 0.857, "summary": {"passed": 6, "failed": 1, "total": 7, "pass_rate": 0.857}, "timing": {"executor_duration_seconds": 20.3, "total_duration_seconds": 20.3}, "claims": [{"claim": "Uses DeviceAction =~ 'denied' as the denial filter", "type": "factual", "verified": true, "evidence": "'| where DeviceAction =~ \"denied\"' \u2014 correct field name for CommonSecurityLog"}], "eval_feedback": {"suggestions": [{"reason": "Both with_skill and without_skill score identically on all except the header assertion. The header assertion is the primary discriminator. Consider adding an assertion about parameterization (let statements) since the skill uses parameterized thresholds and the no-skill output hardcodes values."}], "overall": "The header assertion correctly distinguishes the two outputs. A parameterization assertion would better measure skill value."}}}, {"id": "eval-3-query-optimization-with_skill", "prompt": "Optimize a slow Sentinel query with multiple anti-patterns", "eval_id": 3, "outputs": [{"name": "failed-logins-admin-accounts-optimized.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIFRpdGxlOiBGYWlsZWQgTG9naW5zIG9uIEFkbWluIEFjY291bnRzIHdpdGggU2lnbi1pbiBDb3JyZWxhdGlvbgovLyBTZXJ2aWNlOiBTZW50aW5lbAovLyBUYWJsZXM6IFNlY3VyaXR5RXZlbnQsIFNpZ25pbkxvZ3MKLy8gRGVzY3JpcHRpb246IERldGVjdHMgYnJ1dGUtZm9yY2Ugb3IgcmVwZWF0ZWQgZmFpbGVkIGxvZ2luIGF0dGVtcHRzIChFdmVudElEIDQ2MjUpCi8vICAgICAgICAgICAgICB0YXJnZXRpbmcgYWNjb3VudHMgd2l0aCAiYWRtaW4iIGluIHRoZSBuYW1lLCBjb3JyZWxhdGVkIHdpdGggQXp1cmUgQUQKLy8gICAgICAgICAgICAgIHNpZ24taW4gYWN0aXZpdHkuIFVzZWZ1bCBmb3IgaWRlbnRpZnlpbmcgdGFyZ2V0ZWQgY3JlZGVudGlhbCBhdHRhY2tzCi8vICAgICAgICAgICAgICBhZ2FpbnN0IHByaXZpbGVnZWQgYWNjb3VudHMuCi8vIFBhcmFtZXRlcnM6Ci8vICAgbG9va2JhY2sgICAgICAg4oCUIHRpbWUgd2luZG93IHRvIHNlYXJjaCAoZGVmYXVsdDogMWQpCi8vICAgbWluRmFpbHVyZXMgICAg4oCUIG1pbmltdW0gZmFpbGVkIGxvZ2luIGNvdW50IHRvIHN1cmZhY2UgKGRlZmF1bHQ6IDUpCi8vICAgYWRtaW5LZXl3b3JkICAg4oCUIHN1YnN0cmluZyB0byBtYXRjaCBpbiBhY2NvdW50IG5hbWUgKGRlZmF1bHQ6ICJhZG1pbiIpCi8vIENvbXBsZXhpdHk6IEludGVybWVkaWF0ZQovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCi8vIC0tLSBQYXJhbWV0ZXJzIC0tLQpsZXQgbG9va2JhY2sgPSAxZDsKbGV0IG1pbkZhaWx1cmVzID0gNTsKbGV0IGFkbWluS2V5d29yZCA9ICJhZG1pbiI7CgovLyAtLS0gU3RlcCAxOiBJZGVudGlmeSBhZG1pbiBhY2NvdW50cyB3aXRoIHJlcGVhdGVkIGZhaWx1cmVzIGZyb20gU2VjdXJpdHlFdmVudCAtLS0KLy8gRmlsdGVyIHRpbWUgKyBFdmVudElEIGZpcnN0IChjaGVhcGVzdCBvcGVyYXRpb25zKSBiZWZvcmUgYW55IGpvaW4gb3IgYWdncmVnYXRpb24uCi8vIFVzZSBgaGFzYCBpbnN0ZWFkIG9mIGBjb250YWluc2Ag4oCUIHRva2VuLWluZGV4ZWQsIH4xMHggZmFzdGVyIGZvciB3aG9sZS13b3JkIG1hdGNoZXMuCi8vIFJlbW92ZSBgdG9sb3dlcigpYCDigJQgS1FMIHN0cmluZyBvcGVyYXRvcnMgYXJlIGNhc2UtaW5zZW5zaXRpdmUgYnkgZGVmYXVsdC4KLy8gUHJvamVjdCBvbmx5IHRoZSBjb2x1bW5zIG5lZWRlZCBkb3duc3RyZWFtIHRvIHJlZHVjZSBkYXRhIHNodWZmbGVkIGludG8gdGhlIGpvaW4uCmxldCBmYWlsZWRMb2dpbnMgPQogICAgU2VjdXJpdHlFdmVudAogICAgfCB3aGVyZSBUaW1lR2VuZXJhdGVkID4gYWdvKGxvb2tiYWNrKQogICAgfCB3aGVyZSBFdmVudElEID09IDQ2MjUKICAgIHwgd2hlcmUgQWNjb3VudCBoYXMgYWRtaW5LZXl3b3JkICAgICAgICAgICAgICAgICAgICAgICAgICAvLyBoYXMgPSB0b2tlbiBpbmRleCwgbm90IHN1YnN0cmluZyBzY2FuCiAgICB8IHByb2plY3QgVGltZUdlbmVyYXRlZCwgQWNjb3VudCwgQ29tcHV0ZXIKICAgIHwgc3VtbWFyaXplIEZhaWx1cmVDb3VudCA9IGNvdW50KCkgYnkgQWNjb3VudCwgQ29tcHV0ZXIKICAgIHwgd2hlcmUgRmFpbHVyZUNvdW50ID4gbWluRmFpbHVyZXM7ICAgICAgICAgICAgICAgICAgICAgICAvLyBmaWx0ZXIgQUZURVIgYWdncmVnYXRpb24gKGNvcnJlY3QpCgovLyAtLS0gU3RlcCAyOiBQcmVwYXJlIHRoZSBTaWduaW5Mb2dzIHNpZGUgd2l0aCBhIG1hdGNoaW5nIHRpbWUgZmlsdGVyIGFuZCBtaW5pbWFsIGNvbHVtbnMgLS0tCi8vIE5PVEU6IFNlY3VyaXR5RXZlbnQuQWNjb3VudCBpcyB0eXBpY2FsbHkgaW4gRE9NQUlOXHVzZXJuYW1lIGZvcm1hdCwgd2hpbGUKLy8gICAgICAgU2lnbmluTG9ncy5Vc2VyUHJpbmNpcGFsTmFtZSBpcyBVUE4gKGVtYWlsKSBmb3JtYXQuIEEgZGlyZWN0IGpvaW4gb24gdGhlc2UKLy8gICAgICAgdHdvIGZpZWxkcyB3aWxsIHJldHVybiBuZWFyLXplcm8gcmVzdWx0cyBpbiBtb3N0IGVudmlyb25tZW50cy4KLy8KLy8gICAgICAgUmVjb21tZW5kZWQgZml4OiBleHRyYWN0IGp1c3QgdGhlIHVzZXJuYW1lIHBvcnRpb24gZnJvbSBBY2NvdW50IGJlZm9yZSBqb2luaW5nLAovLyAgICAgICBvciBqb2luIG9uIGEgY29tbW9uIGF0dHJpYnV0ZSBzdWNoIGFzIHRoZSBub3JtYWxpemVkIHVzZXJuYW1lOgovLyAgICAgICAgIHwgZXh0ZW5kIEFjY291bnRVc2VybmFtZSA9IHRvc3RyaW5nKHNwbGl0KEFjY291bnQsICJcXCIpWzFdKQovLyAgICAgICB0aGVuIGpvaW4gb24gQWNjb3VudFVzZXJuYW1lID1+IFVzZXJQcmluY2lwYWxOYW1lIChpZiBVUE5zIG1hdGNoIHNob3J0IG5hbWVzKS4KLy8KLy8gICAgICAgVGhlIHF1ZXJ5IGJlbG93IHVzZXMgdGhlIGNvcnJlY3RlZCBqb2luIGtleSB3aXRoIHVzZXJuYW1lIGV4dHJhY3Rpb24uCmxldCByZWNlbnRTaWduaW5zID0KICAgIFNpZ25pbkxvZ3MKICAgIHwgd2hlcmUgVGltZUdlbmVyYXRlZCA+IGFnbyhsb29rYmFjaykKICAgIHwgcHJvamVjdCBVc2VyUHJpbmNpcGFsTmFtZSwgU2lnbmluVGltZSA9IFRpbWVHZW5lcmF0ZWQsIFJlc3VsdFR5cGUsIEFwcERpc3BsYXlOYW1lLCBJUEFkZHJlc3M7CgovLyAtLS0gU3RlcCAzOiBKb2luIHByZS1maWx0ZXJlZCwgcHJvamVjdGVkIHNldHM7IGFkZCBzaHVmZmxlIGhpbnQgZm9yIGxhcmdlIFNpZ25pbkxvZ3MgLS0tCmZhaWxlZExvZ2lucwp8IGV4dGVuZCBBY2NvdW50VXNlcm5hbWUgPSB0b2xvd2VyKHRvc3RyaW5nKHNwbGl0KEFjY291bnQsICJcXCIpWzFdKSkgIC8vIGV4dHJhY3QgInVzZXJuYW1lIiBmcm9tICJET01BSU5cdXNlcm5hbWUiCnwgam9pbiBoaW50LnN0cmF0ZWd5ID0gc2h1ZmZsZSBraW5kID0gaW5uZXIgKAogICAgcmVjZW50U2lnbmlucwogICAgfCBleHRlbmQgQWNjb3VudFVzZXJuYW1lID0gdG9sb3dlcih0b3N0cmluZyhzcGxpdChVc2VyUHJpbmNpcGFsTmFtZSwgIkAiKVswXSkpICAvLyBleHRyYWN0ICJ1c2VybmFtZSIgZnJvbSAidXNlckBkb21haW4uY29tIgopIG9uIEFjY291bnRVc2VybmFtZQp8IHN1bW1hcml6ZQogICAgRmFpbHVyZUNvdW50ICAgICAgICA9IG1heChGYWlsdXJlQ291bnQpLAogICAgU2lnbmluQXR0ZW1wdHMgICAgICA9IGNvdW50KCksCiAgICBEaXN0aW5jdElQcyAgICAgICAgID0gZGNvdW50KElQQWRkcmVzcyksCiAgICBEaXN0aW5jdEFwcHMgICAgICAgID0gZGNvdW50KEFwcERpc3BsYXlOYW1lKSwKICAgIExhc3RTaWduaW5UaW1lICAgICAgPSBtYXgoU2lnbmluVGltZSkKICBieSBBY2NvdW50LCBDb21wdXRlciwgVXNlclByaW5jaXBhbE5hbWUKfCBzb3J0IGJ5IEZhaWx1cmVDb3VudCBkZXNjCg=="}, {"name": "optimization-notes.md", "type": "text", "content": "# Query Optimization Notes\n\n## Original Query\n\n```kql\nSecurityEvent\n| where EventID == 4625\n| where tolower(Account) contains \"admin\"\n| join kind=inner SigninLogs on $left.Account == $right.UserPrincipalName\n| summarize count() by Account, Computer\n| where count_ > 5\n| sort by count_ desc\n```\n\n## Issues Found\n\n### 1. Missing Time Filter (Critical \u2014 Full Table Scan)\n**Problem:** No `TimeGenerated` filter means every query scans the full retention window (90+ days by default in Sentinel). On a busy environment, `SecurityEvent` can hold hundreds of millions of rows.\n\n**Fix:** Add `| where TimeGenerated > ago(1d)` as the very first `where` clause. This leverages the time-range index and drastically reduces data scanned.\n\n---\n\n### 2. Unnecessary `tolower()` (Performance)\n**Problem:** `tolower(Account) contains \"admin\"` is slow for two reasons:\n- `tolower()` forces a per-row string transformation before comparison.\n- KQL string operators (`contains`, `has`, `==`, etc.) are **case-insensitive by default**. The `tolower()` call is redundant and wastes CPU.\n\n**Fix:** Remove `tolower()`.\n\n---\n\n### 3. `contains` Instead of `has` (Performance \u2014 ~10x slower)\n**Problem:** `contains` performs an O(n) substring scan across every row value. It cannot use the term index.\n\n`has` uses the inverted term index (O(1) lookup) and is approximately 10x faster. The difference: `has` matches on whole token boundaries, while `contains` matches any substring position.\n\n**Fix:** Use `| where Account has \"admin\"` \u2014 this correctly matches accounts like `CORP\\admin`, `CORP\\administrator`, `local_admin`, etc.\n\n---\n\n### 4. Join Without Pre-filtering SigninLogs (Performance)\n**Problem:** `SigninLogs` is joined with no time filter or column projection applied. This causes the engine to load the full `SigninLogs` table into memory before joining.\n\n**Fix:** Wrap the right side of the join in a subquery that applies the same `TimeGenerated` filter and a `project` to only the needed columns:\n```kql\n| join kind=inner (\n    SigninLogs\n    | where TimeGenerated > ago(1d)\n    | project UserPrincipalName, SigninTime = TimeGenerated, ResultType, IPAddress\n) on ...\n```\n\n---\n\n### 5. Join Key Mismatch \u2014 Logic Bug (Correctness)\n**Problem:** `$left.Account == $right.UserPrincipalName` compares two incompatible formats:\n- `SecurityEvent.Account` is typically in `DOMAIN\\username` format (e.g., `CORP\\jsmith`).\n- `SigninLogs.UserPrincipalName` is in UPN/email format (e.g., `jsmith@corp.com`).\n\nThese will almost never match directly, making the join return near-zero results silently.\n\n**Fix:** Extract just the username portion from each side before joining:\n```kql\n| extend AccountUsername = tolower(tostring(split(Account, \"\\\\\")[1]))\n```\nand on the SigninLogs side:\n```kql\n| extend AccountUsername = tolower(tostring(split(UserPrincipalName, \"@\")[0]))\n```\nThen join on `AccountUsername`.\n\n---\n\n### 6. No Column Projection Before Join (Performance)\n**Problem:** `SecurityEvent` carries 50+ columns through the pipeline into the join. Only `Account` and `Computer` are ultimately used.\n\n**Fix:** Add `| project TimeGenerated, Account, Computer` before the `summarize` to reduce the data volume shuffled into the join.\n\n---\n\n### 7. Join Hint for Large Tables (Performance \u2014 Optional)\n**Fix:** Add `hint.strategy = shuffle` to the join. This distributes the join computation across nodes rather than concentrating it, beneficial when `SigninLogs` is large.\n\n---\n\n## Summary of Changes\n\n| Issue | Original | Optimized |\n|-------|----------|-----------|\n| Time filter | Missing | `TimeGenerated > ago(lookback)` added first |\n| `tolower()` | Present (unnecessary) | Removed |\n| String match | `contains` (O(n) scan) | `has` (indexed, ~10x faster) |\n| SigninLogs filter | None | Time-bounded + projected |\n| Join key | Direct field mismatch | Username extracted from both sides |\n| Column projection | Missing | `project` added before join |\n| Join hint | None | `hint.strategy = shuffle` added |\n| Parameterization | Hardcoded | `let` statements for lookback, threshold, keyword |\n"}], "grading": {"eval_id": 3, "eval_name": "optimize-slow-sentinel-query", "configuration": "with_skill", "expectations": [{"text": "Adds TimeGenerated filter that was missing in the original", "passed": true, "evidence": "Both the optimized query and optimization-notes.md explicitly add TimeGenerated: '| where TimeGenerated > ago(lookback)' in SecurityEvent and SigninLogs subquery. Notes section title: '1. Missing Time Filter (Critical \u2014 Full Table Scan)'"}, {"text": "Removes unnecessary tolower() call", "passed": true, "evidence": "optimization-notes.md section '2. Unnecessary tolower() (Performance)' explains removal. The optimized query still uses tolower() but only for username extraction from Account/UPN format (a different purpose), not for the case-insensitive has comparison. The original tolower() on the has/contains comparison is gone."}, {"text": "Replaces contains with has or =~ for the admin string match", "passed": true, "evidence": "'| where Account has adminKeyword' in the query. Notes section '3. contains Instead of has (Performance \u2014 ~10x slower)' explains the change."}, {"text": "Filters both sides of the join before joining (adds where to SigninLogs subquery)", "passed": true, "evidence": "SigninLogs subquery includes '| where TimeGenerated > ago(lookback)' before being joined. Notes section '4. Join Without Pre-filtering SigninLogs' documents this."}, {"text": "Provides explanation of each optimization and why it improves performance", "passed": true, "evidence": "optimization-notes.md contains 7 numbered sections, each with Problem/Fix explanations covering: time filter, tolower removal, has vs contains, join pre-filtering, join key mismatch, column projection, and join hint"}, {"text": "Adds project to reduce column transfer before join or summarize", "passed": true, "evidence": "'| project TimeGenerated, Account, Computer' before summarize in SecurityEvent pipeline. Notes section '6. No Column Projection Before Join' documents this. SigninLogs side also uses '| project UserPrincipalName, SigninTime = TimeGenerated, ResultType, AppDisplayName, IPAddress'"}], "pass_rate": 1.0, "summary": {"passed": 6, "failed": 0, "total": 6, "pass_rate": 1.0}, "timing": {"executor_duration_seconds": 79.5, "total_duration_seconds": 79.5}, "claims": [{"claim": "Identifies and fixes the join key mismatch between DOMAIN\\username and UPN format", "type": "quality", "verified": true, "evidence": "Notes section 5 details 'Join Key Mismatch \u2014 Logic Bug' and the query uses split(Account, '\\\\') and split(UserPrincipalName, '@') to extract comparable username portions"}, {"claim": "Adds hint.strategy = shuffle to the join", "type": "process", "verified": true, "evidence": "'| join hint.strategy = shuffle kind = inner (...) on AccountUsername'"}], "eval_feedback": {"suggestions": [{"reason": "The join key mismatch fix (DOMAIN\\user vs UPN) is arguably the most impactful correctness improvement and no assertion checks for it. Consider adding an assertion: 'Identifies or fixes the join key mismatch between SecurityEvent.Account (DOMAIN\\user) and SigninLogs.UserPrincipalName (UPN) formats'."}], "overall": "Strong output \u2014 all assertions pass with clear evidence. The join key mismatch fix is a significant correctness improvement that goes unchecked by any assertion."}}}, {"id": "eval-3-query-optimization-without_skill", "prompt": "Optimize a slow Sentinel query with multiple anti-patterns", "eval_id": 3, "outputs": [{"name": "optimization_explanation.md", "type": "text", "content": "# KQL Query Optimization Explanation\n\n## Original Query\n\n```kql\nSecurityEvent\n| where EventID == 4625\n| where tolower(Account) contains \"admin\"\n| join kind=inner SigninLogs on $left.Account == $right.UserPrincipalName\n| summarize count() by Account, Computer\n| where count_ > 5\n| sort by count_ desc\n```\n\n## Optimized Query\n\n```kql\nlet SuspectAccounts =\n    SecurityEvent\n    | where TimeGenerated > ago(1d)\n    | where EventID == 4625\n    | where Account has \"admin\"\n    | summarize FailedLogins = count() by Account, Computer\n    | where FailedLogins > 5;\n\nSuspectAccounts\n| join kind=inner (\n    SigninLogs\n    | where TimeGenerated > ago(1d)\n    | project UserPrincipalName\n) on $left.Account == $right.UserPrincipalName\n| project Account, Computer, FailedLogins\n| sort by FailedLogins desc\n```\n\n## Changes and Rationale\n\n### 1. Add a Time Bound (`TimeGenerated > ago(1d)`)\n**Problem:** The original query has no time filter, forcing Sentinel to scan the full table history.  \n**Fix:** Adding `where TimeGenerated > ago(1d)` (or your desired window) dramatically reduces scanned rows. `TimeGenerated` is a partitioning key in Log Analytics \u2014 this is the single highest-impact optimization possible.\n\n### 2. Replace `tolower(Account) contains \"admin\"` with `Account has \"admin\"`\n**Problem:** `tolower()` + `contains` is a full string transformation followed by a substring scan. Neither is index-friendly, and `contains` performs a regex-style linear scan on every row.  \n**Fix:** `has` is case-insensitive by default in KQL and uses term-level indexing, making it significantly faster for token-based lookups.\n\n### 3. Summarize and Filter *Before* the Join\n**Problem:** The original query joins all matching `SecurityEvent` rows against the entirety of `SigninLogs` before aggregating and filtering. Joins are the most expensive operation \u2014 feeding them large inputs is the main cause of slowness.  \n**Fix:** Move `summarize` and `where count_ > 5` before the join. This reduces the left-side dataset to only accounts with more than 5 failures, potentially shrinking the join input by orders of magnitude.\n\n### 4. Project Only Needed Columns in `SigninLogs`\n**Problem:** The original join pulls every column from `SigninLogs` into memory during the join operation.  \n**Fix:** Use `| project UserPrincipalName` inside the join subquery to pass only the column needed for the join key, reducing memory pressure and data shuffling.\n\n### 5. Rename `count_` to `FailedLogins`\nThis is a readability improvement. The auto-generated column name `count_` is fragile (it changes if you rename the aggregation) and less descriptive.\n\n## Summary of Impact\n\n| Issue | Original | Optimized |\n|---|---|---|\n| Table scan scope | Full history | Time-bounded (e.g., last 1 day) |\n| String matching | `tolower()+contains` (no index) | `has` (term index) |\n| Join input size | All filtered rows | Pre-aggregated + pre-filtered rows |\n| SigninLogs columns in join | All columns | Only `UserPrincipalName` |\n| Readability | `count_` | `FailedLogins` |\n"}, {"name": "optimized_query.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gT3B0aW1pemVkOiBGYWlsZWQgTG9naW4gUXVlcnkgZm9yIEFkbWluIEFjY291bnRzIHdpdGggQ29ycmVsYXRlZCBTaWduLUluIExvZ3MKLy8gS2V5IGNoYW5nZXM6IHByZS1maWx0ZXIgZWFybHksIHN1bW1hcml6ZSBiZWZvcmUgam9pbiwgdXNlIGhhc19hbnkgZm9yIHByZWZpeCBtYXRjaGluZwoKbGV0IFN1c3BlY3RBY2NvdW50cyA9CiAgICBTZWN1cml0eUV2ZW50CiAgICB8IHdoZXJlIFRpbWVHZW5lcmF0ZWQgPiBhZ28oMWQpICAgICAgICAgICAgICAgICAgICAgICAgICAvLyB0aW1lLWJvdW5kIHRvIHJlZHVjZSBzY2FuCiAgICB8IHdoZXJlIEV2ZW50SUQgPT0gNDYyNQogICAgfCB3aGVyZSBBY2NvdW50IGhhcyAiYWRtaW4iICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgLy8gY2FzZS1pbnNlbnNpdGl2ZSwgaW5kZXgtZnJpZW5kbHkgdnMgdG9sb3dlcigpK2NvbnRhaW5zCiAgICB8IHN1bW1hcml6ZSBGYWlsZWRMb2dpbnMgPSBjb3VudCgpIGJ5IEFjY291bnQsIENvbXB1dGVyICAvLyBhZ2dyZWdhdGUgYmVmb3JlIGpvaW4gKHJlZHVjZXMgam9pbiBzaXplKQogICAgfCB3aGVyZSBGYWlsZWRMb2dpbnMgPiA1OyAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgLy8gZmlsdGVyIGVhcmx5LCBiZWZvcmUgdGhlIGpvaW4KClN1c3BlY3RBY2NvdW50cwp8IGpvaW4ga2luZD1pbm5lciAoCiAgICBTaWduaW5Mb2dzCiAgICB8IHdoZXJlIFRpbWVHZW5lcmF0ZWQgPiBhZ28oMWQpICAgICAgICAgICAgICAgICAgICAgICAgICAvLyBtYXRjaCBzYW1lIHRpbWUgd2luZG93CiAgICB8IHByb2plY3QgVXNlclByaW5jaXBhbE5hbWUgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAvLyBwcm9qZWN0IG9ubHkgbmVlZGVkIGNvbHVtbgopIG9uICRsZWZ0LkFjY291bnQgPT0gJHJpZ2h0LlVzZXJQcmluY2lwYWxOYW1lCnwgcHJvamVjdCBBY2NvdW50LCBDb21wdXRlciwgRmFpbGVkTG9naW5zCnwgc29ydCBieSBGYWlsZWRMb2dpbnMgZGVzYwo="}], "grading": {"eval_id": 3, "eval_name": "optimize-slow-sentinel-query", "configuration": "without_skill", "expectations": [{"text": "Adds TimeGenerated filter that was missing in the original", "passed": true, "evidence": "'| where TimeGenerated > ago(1d)' added in SecurityEvent and SigninLogs subquery"}, {"text": "Removes unnecessary tolower() call", "passed": true, "evidence": "The optimized query uses '| where Account has \"admin\"' without tolower(). Explanation section '2. Replace tolower(Account) contains ...' confirms removal."}, {"text": "Replaces contains with has or =~ for the admin string match", "passed": true, "evidence": "'| where Account has \"admin\"' \u2014 confirmed in both query and explanation: 'has is case-insensitive by default in KQL and uses term-level indexing'"}, {"text": "Filters both sides of the join before joining (adds where to SigninLogs subquery)", "passed": true, "evidence": "SigninLogs subquery includes '| where TimeGenerated > ago(1d)'. Explanation section '3. Summarize and Filter *Before* the Join' addresses this."}, {"text": "Provides explanation of each optimization and why it improves performance", "passed": true, "evidence": "optimization_explanation.md has 5 numbered sections with Problem/Fix rationale for: time bound, tolower+contains replacement, summarize-before-join, column projection, and rename count_"}, {"text": "Adds project to reduce column transfer before join or summarize", "passed": true, "evidence": "SigninLogs subquery uses '| project UserPrincipalName' \u2014 only the needed column. Explanation section '4. Project Only Needed Columns in SigninLogs' confirms intent."}], "pass_rate": 1.0, "summary": {"passed": 6, "failed": 0, "total": 6, "pass_rate": 1.0}, "timing": {"executor_duration_seconds": 43.3, "total_duration_seconds": 43.3}, "claims": [{"claim": "The join key mismatch between DOMAIN\\user and UPN is NOT addressed", "type": "quality", "verified": true, "evidence": "The without_skill output joins on '$left.Account == $right.UserPrincipalName' directly \u2014 the same broken join key as the original. The explanation does not mention this bug."}], "eval_feedback": {"suggestions": [{"reason": "Both configurations pass all 6 assertions, but the without_skill output retains a critical correctness bug (join key mismatch between DOMAIN\\user format and UPN format) that would produce near-zero results in production. Adding an assertion for the join key fix would correctly differentiate the two outputs."}], "overall": "All assertions pass for both configurations, making them indistinguishable by this eval. The join key mismatch is the key differentiator that goes unmeasured \u2014 a significant gap."}}}, {"id": "eval-4-threat-hunting-with_skill", "prompt": "Detect lateral movement: accounts authenticating to >5 machines in 1h window over 48h", "eval_id": 4, "outputs": [{"name": "lateral-movement-multi-machine-auth.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIFRpdGxlOiBMYXRlcmFsIE1vdmVtZW50IOKAlCBBY2NvdW50IEF1dGhlbnRpY2F0aW5nIHRvIDUrIE1hY2hpbmVzIGluIDEtSG91ciBXaW5kb3cKLy8gU2VydmljZTogU2VudGluZWwKLy8gVGFibGVzOiBEZXZpY2VMb2dvbkV2ZW50cywgSWRlbnRpdHlMb2dvbkV2ZW50cwovLyBEZXNjcmlwdGlvbjogRGV0ZWN0cyBwb3RlbnRpYWwgcGFzcy10aGUtaGFzaCBvciBzdG9sZW4gY3JlZGVudGlhbCBhYnVzZSBieSBmaW5kaW5nCi8vICAgYWNjb3VudHMgdGhhdCBzdWNjZXNzZnVsbHkgYXV0aGVudGljYXRlZCB0byBtb3JlIHRoYW4gNSBkaXN0aW5jdCBtYWNoaW5lcyB3aXRoaW4KLy8gICBhbnkgMS1ob3VyIHJvbGxpbmcgd2luZG93IGluIHRoZSBwYXN0IDQ4IGhvdXJzLiBIaWdoIG1hY2hpbmUtaG9wIGNvdW50cyBpbiBzaG9ydAovLyAgIHdpbmRvd3MgYXJlIGEgc3Ryb25nIGluZGljYXRvciBvZiBsYXRlcmFsIG1vdmVtZW50LiBVc2VzIE0zNjUgRGVmZW5kZXIgdGFibGVzCi8vICAgYXZhaWxhYmxlIGluIFNlbnRpbmVsIHZpYSB0aGUgdW5pZmllZCBzY2hlbWEuCi8vIFBhcmFtZXRlcnM6IGxvb2tiYWNrV2luZG93IChkZWZhdWx0IDQ4aCksIHJvbGxpbmdXaW5kb3cgKGRlZmF1bHQgMWgpLAovLyAgICAgICAgICAgICBtYWNoaW5lVGhyZXNob2xkIChkZWZhdWx0IDUpCi8vIENvbXBsZXhpdHk6IEFkdmFuY2VkCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKbGV0IGxvb2tiYWNrV2luZG93ICAgPSA0OGg7ICAgLy8gSG93IGZhciBiYWNrIHRvIGxvb2sKbGV0IHJvbGxpbmdXaW5kb3cgICAgPSAxaDsgICAgLy8gU2xpZGluZyB0aW1lIHdpbmRvdyB0byBldmFsdWF0ZSBwZXIgYWNjb3VudApsZXQgbWFjaGluZVRocmVzaG9sZCA9IDU7ICAgICAvLyBNaW5pbXVtIGRpc3RpbmN0IG1hY2hpbmVzIHRvIGZsYWcgYXMgc3VzcGljaW91cwoKLy8gLS0tIFN0ZXAgMTogQ29sbGVjdCBhbGwgc3VjY2Vzc2Z1bCBsb2dvbiBldmVudHMgZnJvbSBNMzY1IERlZmVuZGVyIC0tLQovLyBEZXZpY2VMb2dvbkV2ZW50cyBjb3ZlcnMgaW50ZXJhY3RpdmUsIG5ldHdvcmssIHJlbW90ZS1pbnRlcmFjdGl2ZSwgYW5kIGJhdGNoIGxvZ29ucy4KLy8gV2UgZXhjbHVkZSBTWVNURU0gYW5kIG1hY2hpbmUgYWNjb3VudHMgKGVuZGluZyBpbiAkKSB0byByZWR1Y2Ugbm9pc2UuCmxldCBsb2dvbkV2ZW50cyA9IG1hdGVyaWFsaXplKAogICAgRGV2aWNlTG9nb25FdmVudHMKICAgIHwgd2hlcmUgVGltZXN0YW1wID4gYWdvKGxvb2tiYWNrV2luZG93KQogICAgfCB3aGVyZSBBY3Rpb25UeXBlIGluICgiTG9nb25TdWNjZXNzIikKICAgIC8vIEV4Y2x1ZGUgbWFjaGluZSBhY2NvdW50cyBhbmQgd2VsbC1rbm93biBzeXN0ZW0gaWRlbnRpdGllcwogICAgfCB3aGVyZSBBY2NvdW50TmFtZSAhZW5kc3dpdGggIiQiCiAgICB8IHdoZXJlIEFjY291bnROYW1lICFpbiAoIlNZU1RFTSIsICJMT0NBTCBTRVJWSUNFIiwgIk5FVFdPUksgU0VSVklDRSIsICIiKQogICAgfCB3aGVyZSBpc25vdGVtcHR5KEFjY291bnROYW1lKSBhbmQgaXNub3RlbXB0eShEZXZpY2VOYW1lKQogICAgLy8gUHJvamVjdCBvbmx5IHRoZSBjb2x1bW5zIHdlIG5lZWQgdG8gbWluaW1pemUgZGF0YSB0cmFuc2ZlcgogICAgfCBwcm9qZWN0IFRpbWVzdGFtcCwgQWNjb3VudE5hbWUsIEFjY291bnREb21haW4sIERldmljZU5hbWUsIExvZ29uVHlwZSwgUmVtb3RlSVAgPSBSZW1vdGVJUEFkZHJlc3MKKTsKCi8vIC0tLSBTdGVwIDI6IFNlbGYtam9pbiB0byBmaW5kIHBhaXJzIG9mIGxvZ29ucyBieSB0aGUgc2FtZSBhY2NvdW50IC0tLQovLyBGb3IgZWFjaCBsb2dvbiBldmVudCwgY291bnQgaG93IG1hbnkgZGlzdGluY3QgbWFjaGluZXMgdGhlIHNhbWUgYWNjb3VudCB0b3VjaGVkCi8vIHdpdGhpbiB0aGUgbmV4dCBgcm9sbGluZ1dpbmRvd2AgaG91cnMgKHNsaWRpbmcgd2luZG93IGFwcHJvYWNoIHZpYSBqb2luKS4KLy8gVGhpcyBhdm9pZHMgYmluKCkgYWxpZ25tZW50IGdhcHMgdGhhdCBjb3VsZCBzcGxpdCBhIHJlYWwgYXR0YWNrIGFjcm9zcyB0d28gYnVja2V0cy4KbG9nb25FdmVudHMKfCBqb2luIGtpbmQ9aW5uZXIgKAogICAgbG9nb25FdmVudHMKICAgIHwgcHJvamVjdAogICAgICAgIEFjY291bnROYW1lLAogICAgICAgIEFjY291bnREb21haW4sCiAgICAgICAgV2luZG93U3RhcnQgID0gVGltZXN0YW1wLCAgICAgLy8gQW5jaG9yOiBzdGFydCBvZiB0aGUgMS1ob3VyIHdpbmRvdwogICAgICAgIFRhcmdldERldmljZSA9IERldmljZU5hbWUKKSBvbiBBY2NvdW50TmFtZQovLyBPbmx5IGNvbnNpZGVyIGV2ZW50cyB0aGF0IGZhbGwgd2l0aGluIFtXaW5kb3dTdGFydCwgV2luZG93U3RhcnQgKyByb2xsaW5nV2luZG93XQp8IHdoZXJlIFRpbWVzdGFtcCA+PSBXaW5kb3dTdGFydCBhbmQgVGltZXN0YW1wIDwgV2luZG93U3RhcnQgKyByb2xsaW5nV2luZG93Ci8vIC0tLSBTdGVwIDM6IEFnZ3JlZ2F0ZSBwZXIgYWNjb3VudCBwZXIgd2luZG93IGFuY2hvciAtLS0KfCBzdW1tYXJpemUKICAgIERpc3RpbmN0TWFjaGluZXMgID0gZGNvdW50KERldmljZU5hbWUpLAogICAgTWFjaGluZUxpc3QgICAgICAgPSBtYWtlX3NldChEZXZpY2VOYW1lLCAyMCksCiAgICBMb2dvblR5cGVzICAgICAgICA9IG1ha2Vfc2V0KExvZ29uVHlwZSwgMTApLAogICAgU291cmNlSVBzICAgICAgICAgPSBtYWtlX3NldChSZW1vdGVJUCwgMTApLAogICAgRWFybGllc3RMb2dvbiAgICAgPSBtaW4oVGltZXN0YW1wKSwKICAgIExhdGVzdExvZ29uICAgICAgID0gbWF4KFRpbWVzdGFtcCksCiAgICBUb3RhbExvZ29uRXZlbnRzICA9IGNvdW50KCkKICAgIGJ5IEFjY291bnROYW1lLCBBY2NvdW50RG9tYWluLCBXaW5kb3dTdGFydAovLyAtLS0gU3RlcCA0OiBBcHBseSB0aGUgdGhyZXNob2xkIC0tLQp8IHdoZXJlIERpc3RpbmN0TWFjaGluZXMgPiBtYWNoaW5lVGhyZXNob2xkCi8vIC0tLSBTdGVwIDU6IERlZHVwbGljYXRlIG92ZXJsYXBwaW5nIHdpbmRvd3MgZm9yIHRoZSBzYW1lIGFjY291bnQgLS0tCi8vIEtlZXAgb25seSB0aGUgcGVhayB3aW5kb3cgKGhpZ2hlc3QgbWFjaGluZSBjb3VudCkgcGVyIGFjY291bnQgcGVyIGhvdXIgdG8gYXZvaWQKLy8gZmxvb2RpbmcgcmVzdWx0cyB3aXRoIG92ZXJsYXBwaW5nIDEtbWludXRlLXNoaWZ0ZWQgd2luZG93cy4KfCBzdW1tYXJpemUKICAgIGFyZ19tYXgoRGlzdGluY3RNYWNoaW5lcywgKiksICAgICAgICAgICAvLyBLZWVwIHRoZSByb3cgd2l0aCB0aGUgaGlnaGVzdCBkaXN0aW5jdCBtYWNoaW5lIGNvdW50CiAgICBQZWFrV2luZG93Q291bnQgPSBjb3VudCgpICAgICAgICAgICAgICAgLy8gSG93IG1hbnkgb3ZlcmxhcHBpbmcgd2luZG93cyBleGNlZWRlZCB0aHJlc2hvbGQKICAgIGJ5IEFjY291bnROYW1lLCBBY2NvdW50RG9tYWluLCBiaW4oV2luZG93U3RhcnQsIHJvbGxpbmdXaW5kb3cpCi8vIC0tLSBTdGVwIDY6IFNvcnQgbW9zdCBzZXZlcmUgZmlyc3QgLS0tCnwgc29ydCBieSBEaXN0aW5jdE1hY2hpbmVzIGRlc2MsIEVhcmxpZXN0TG9nb24gYXNjCi8vIC0tLSBTdGVwIDc6IEZpbmFsIG91dHB1dCBwcm9qZWN0aW9uIC0tLQp8IHByb2plY3QKICAgIEVhcmxpZXN0TG9nb24sCiAgICBMYXRlc3RMb2dvbiwKICAgIEFjY291bnREb21haW4sCiAgICBBY2NvdW50TmFtZSwKICAgIERpc3RpbmN0TWFjaGluZXMsCiAgICBNYWNoaW5lTGlzdCwKICAgIExvZ29uVHlwZXMsCiAgICBTb3VyY2VJUHMsCiAgICBUb3RhbExvZ29uRXZlbnRzLAogICAgUGVha1dpbmRvd0NvdW50LAogICAgV2luZG93U3RhcnQK"}], "grading": {"eval_id": 4, "eval_name": "lateral-movement-detection", "configuration": "with_skill", "expectations": [{"text": "Output includes standard .kql comment header block", "passed": true, "evidence": "File opens with '// ===...===' block containing Title, Service: Sentinel, Tables: DeviceLogonEvents, IdentityLogonEvents, Description, Parameters (lookbackWindow, rollingWindow, machineThreshold), Complexity: Advanced"}, {"text": "Uses DeviceLogonEvents, SecurityEvent (4624), or IdentityLogonEvents", "passed": true, "evidence": "Uses 'DeviceLogonEvents' \u2014 listed as an acceptable table in the assertion"}, {"text": "Groups by 1-hour time bins (bin(Timestamp, 1h) or equivalent)", "passed": true, "evidence": "Uses a self-join approach with rolling window: 'where Timestamp >= WindowStart and Timestamp < WindowStart + rollingWindow' where rollingWindow = 1h. Deduplication uses 'bin(WindowStart, rollingWindow)'. This is a sliding-window approach equivalent to 1h grouping."}, {"text": "Counts distinct devices/machines per account per time window", "passed": true, "evidence": "'DistinctMachines = dcount(DeviceName)' in the summarize step, grouped by AccountName, AccountDomain, WindowStart"}, {"text": "Filters for accounts hitting more than 5 distinct devices", "passed": true, "evidence": "'let machineThreshold = 5;' and '| where DistinctMachines > machineThreshold'"}, {"text": "Covers the last 48 hours as specified", "passed": true, "evidence": "'let lookbackWindow = 48h;' and 'DeviceLogonEvents | where Timestamp > ago(lookbackWindow)'"}], "pass_rate": 1.0, "summary": {"passed": 6, "failed": 0, "total": 6, "pass_rate": 1.0}, "timing": {"executor_duration_seconds": 59.9, "total_duration_seconds": 59.9}, "claims": [{"claim": "Uses sliding window join (not fixed bin) to avoid missing attacks that span bin boundaries", "type": "quality", "verified": true, "evidence": "Self-join approach with 'where Timestamp >= WindowStart and Timestamp < WindowStart + rollingWindow' is a true sliding window, not fixed bins"}, {"claim": "Deduplicates overlapping windows per account using arg_max", "type": "process", "verified": true, "evidence": "Second summarize uses 'arg_max(DistinctMachines, *)' grouped by AccountName, AccountDomain, bin(WindowStart, rollingWindow)"}, {"claim": "Excludes machine accounts (ending in $) and well-known service accounts", "type": "quality", "verified": true, "evidence": "'where AccountName !endswith \"$\"' and 'where AccountName !in (\"SYSTEM\", \"LOCAL SERVICE\", \"NETWORK SERVICE\", \"\")'"}], "eval_feedback": {"suggestions": [], "overall": "All assertions pass with strong evidence. The query exceeds requirements with sliding window approach and deduplication logic."}}}, {"id": "eval-4-threat-hunting-without_skill", "prompt": "Detect lateral movement: accounts authenticating to >5 machines in 1h window over 48h", "eval_id": 4, "outputs": [{"name": "lateral_movement_detection.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gTGF0ZXJhbCBNb3ZlbWVudCBEZXRlY3Rpb24g4oCUIFBhc3MtdGhlLUhhc2ggLyBTdG9sZW4gQ3JlZGVudGlhbCBVc2UKLy8gRGV0ZWN0cyBhY2NvdW50cyB0aGF0IGF1dGhlbnRpY2F0ZWQgdG8gbW9yZSB0aGFuIDUgZGlzdGluY3QgbWFjaGluZXMKLy8gd2l0aGluIGFueSByb2xsaW5nIDEtaG91ciB3aW5kb3cgb3ZlciB0aGUgbGFzdCA0OCBob3Vycy4KLy8gVGFibGVzOiBEZXZpY2VMb2dvbkV2ZW50cyAoTTM2NSBEZWZlbmRlcikgc3VyZmFjZWQgaW4gTWljcm9zb2Z0IFNlbnRpbmVsCgpsZXQgTG9va2JhY2tXaW5kb3cgPSA0OGg7CmxldCBIb3BUaHJlc2hvbGQgICA9IDU7CmxldCBSb2xsaW5nV2luZG93ICA9IDFoOwoKRGV2aWNlTG9nb25FdmVudHMKfCB3aGVyZSBUaW1lc3RhbXAgPiBhZ28oTG9va2JhY2tXaW5kb3cpCi8vIEZvY3VzIG9uIG5ldHdvcmsgYW5kIGludGVyYWN0aXZlIGxvZ29uIHR5cGVzIG1vc3QgcmVsZXZhbnQgdG8gbGF0ZXJhbCBtb3ZlbWVudAp8IHdoZXJlIExvZ29uVHlwZSBpbiAoIk5ldHdvcmsiLCAiTmV0d29ya0NsZWFydGV4dCIsICJSZW1vdGVJbnRlcmFjdGl2ZSIsICJJbnRlcmFjdGl2ZSIpCi8vIEV4Y2x1ZGUgbWFjaGluZSBhY2NvdW50cyBhbmQgd2VsbC1rbm93biBzZXJ2aWNlIGFjY291bnRzCnwgd2hlcmUgQWNjb3VudE5hbWUgIWVuZHN3aXRoICIkIgp8IHdoZXJlIEFjY291bnROYW1lICFpbiAoIlNZU1RFTSIsICJMT0NBTCBTRVJWSUNFIiwgIk5FVFdPUksgU0VSVklDRSIsICIiKQovLyBOb3JtYWxpemUgYWNjb3VudCBpZGVudGlmaWVyIChkb21haW5cdXNlciBvciBVUE4pCnwgZXh0ZW5kIEFjY291bnRJZCA9IHRvbG93ZXIoc3RyY2F0KEFjY291bnREb21haW4sICJcXCIsIEFjY291bnROYW1lKSkKLy8gS2VlcCBvbmx5IHRoZSBmaWVsZHMgd2UgbmVlZAp8IHByb2plY3QgVGltZXN0YW1wLCBBY2NvdW50SWQsIERldmljZU5hbWUsIExvZ29uVHlwZSwgQWN0aW9uVHlwZSwgUmVtb3RlSVAKLy8gRm9yIGVhY2ggbG9nb24gZXZlbnQsIGxvb2sgZm9yd2FyZCAxIGhvdXIgYW5kIGNvdW50IGRpc3RpbmN0IGRlc3RpbmF0aW9uIG1hY2hpbmVzCnwgam9pbiBraW5kPWlubmVyICgKICAgIERldmljZUxvZ29uRXZlbnRzCiAgICB8IHdoZXJlIFRpbWVzdGFtcCA+IGFnbyhMb29rYmFja1dpbmRvdykKICAgIHwgd2hlcmUgTG9nb25UeXBlIGluICgiTmV0d29yayIsICJOZXR3b3JrQ2xlYXJ0ZXh0IiwgIlJlbW90ZUludGVyYWN0aXZlIiwgIkludGVyYWN0aXZlIikKICAgIHwgd2hlcmUgQWNjb3VudE5hbWUgIWVuZHN3aXRoICIkIgogICAgfCB3aGVyZSBBY2NvdW50TmFtZSAhaW4gKCJTWVNURU0iLCAiTE9DQUwgU0VSVklDRSIsICJORVRXT1JLIFNFUlZJQ0UiLCAiIikKICAgIHwgZXh0ZW5kIEFjY291bnRJZCA9IHRvbG93ZXIoc3RyY2F0KEFjY291bnREb21haW4sICJcXCIsIEFjY291bnROYW1lKSkKICAgIHwgcHJvamVjdCBUaW1lc3RhbXAyID0gVGltZXN0YW1wLCBBY2NvdW50SWQsIERldmljZU5hbWUyID0gRGV2aWNlTmFtZQopIG9uIEFjY291bnRJZAp8IHdoZXJlIFRpbWVzdGFtcDIgPj0gVGltZXN0YW1wIGFuZCBUaW1lc3RhbXAyIDwgVGltZXN0YW1wICsgUm9sbGluZ1dpbmRvdwovLyBDb3VudCBkaXN0aW5jdCBkZXN0aW5hdGlvbiBtYWNoaW5lcyB3aXRoaW4gZWFjaCBhY2NvdW50J3MgMS1ob3VyIHdpbmRvdwp8IHN1bW1hcml6ZQogICAgVW5pcXVlRGV2aWNlcyAgICAgPSBkY291bnQoRGV2aWNlTmFtZTIpLAogICAgRGV2aWNlTGlzdCAgICAgICAgPSBtYWtlX3NldChEZXZpY2VOYW1lMiwgMjApLAogICAgRWFybGllc3RMb2dvbiAgICAgPSBtaW4oVGltZXN0YW1wMiksCiAgICBMYXRlc3RMb2dvbiAgICAgICA9IG1heChUaW1lc3RhbXAyKSwKICAgIExvZ29uVHlwZXMgICAgICAgID0gbWFrZV9zZXQoTG9nb25UeXBlLCAxMCkKICAgIGJ5IEFjY291bnRJZCwgV2luZG93U3RhcnQgPSBUaW1lc3RhbXAKfCB3aGVyZSBVbmlxdWVEZXZpY2VzID4gSG9wVGhyZXNob2xkCi8vIEtlZXAgdGhlIHdvcnN0LWNhc2Ugd2luZG93IHBlciBhY2NvdW50IChoaWdoZXN0IGhvcCBjb3VudCkKfCBzdW1tYXJpemUKICAgIE1heFVuaXF1ZURldmljZXMgID0gbWF4KFVuaXF1ZURldmljZXMpLAogICAgV29yc3RXaW5kb3dTdGFydCAgPSBhcmdfbWF4KFVuaXF1ZURldmljZXMsIFdpbmRvd1N0YXJ0KSwKICAgIERldmljZUxpc3QgICAgICAgID0gYXJnX21heChVbmlxdWVEZXZpY2VzLCBEZXZpY2VMaXN0KSwKICAgIEVhcmxpZXN0TG9nb24gICAgID0gbWluKEVhcmxpZXN0TG9nb24pLAogICAgTGF0ZXN0TG9nb24gICAgICAgPSBtYXgoTGF0ZXN0TG9nb24pLAogICAgVG90YWxXaW5kb3dzT3ZlcjUgPSBjb3VudCgpCiAgICBieSBBY2NvdW50SWQKfCBleHRlbmQKICAgIFdpbmRvd1N0YXJ0ICAgICAgID0gV29yc3RXaW5kb3dTdGFydCwKICAgIFNwcmVhZE1pbnV0ZXMgICAgID0gZGF0ZXRpbWVfZGlmZigibWludXRlIiwgTGF0ZXN0TG9nb24sIEVhcmxpZXN0TG9nb24pCnwgcHJvamVjdAogICAgQWNjb3VudElkLAogICAgTWF4VW5pcXVlRGV2aWNlcywKICAgIFRvdGFsV2luZG93c092ZXI1LAogICAgV2luZG93U3RhcnQsCiAgICBFYXJsaWVzdExvZ29uLAogICAgTGF0ZXN0TG9nb24sCiAgICBTcHJlYWRNaW51dGVzLAogICAgRGV2aWNlTGlzdAp8IHNvcnQgYnkgTWF4VW5pcXVlRGV2aWNlcyBkZXNjLCBUb3RhbFdpbmRvd3NPdmVyNSBkZXNjCg=="}], "grading": {"eval_id": 4, "eval_name": "lateral-movement-detection", "configuration": "without_skill", "expectations": [{"text": "Output includes standard .kql comment header block", "passed": false, "evidence": "File has a two-line comment header ('// Lateral Movement Detection \u2014 ...', '// Detects accounts...', '// Tables: DeviceLogonEvents...') but NOT a structured block with labeled fields for Title, Service, Tables, Description, Parameters, and Complexity in the skill's standard format."}, {"text": "Uses DeviceLogonEvents, SecurityEvent (4624), or IdentityLogonEvents", "passed": true, "evidence": "Uses 'DeviceLogonEvents' as the primary table"}, {"text": "Groups by 1-hour time bins (bin(Timestamp, 1h) or equivalent)", "passed": true, "evidence": "Uses sliding-window join: 'where Timestamp2 >= Timestamp and Timestamp2 < Timestamp + RollingWindow' where RollingWindow = 1h. Equivalent to grouping by 1h windows."}, {"text": "Counts distinct devices/machines per account per time window", "passed": true, "evidence": "'UniqueDevices = dcount(DeviceName2)' in the summarize, grouped by AccountId and WindowStart = Timestamp"}, {"text": "Filters for accounts hitting more than 5 distinct devices", "passed": true, "evidence": "'let HopThreshold = 5;' and '| where UniqueDevices > HopThreshold'"}, {"text": "Covers the last 48 hours as specified", "passed": true, "evidence": "'let LookbackWindow = 48h;' and '| where Timestamp > ago(LookbackWindow)' applied to both sides of the join"}], "pass_rate": 0.833, "summary": {"passed": 5, "failed": 1, "total": 6, "pass_rate": 0.833}, "timing": {"executor_duration_seconds": 38.0, "total_duration_seconds": 38.0}, "claims": [{"claim": "Uses AccountId = tolower(strcat(AccountDomain, '\\\\', AccountName)) as composite identity", "type": "quality", "verified": true, "evidence": "'extend AccountId = tolower(strcat(AccountDomain, \"\\\\\\\\\", AccountName))' normalizes the identity before joining"}], "eval_feedback": {"suggestions": [], "overall": "Header assertion correctly differentiates skill from no-skill output. Other logic is functionally equivalent."}}}, {"id": "eval-5-app-insights-spike-with_skill", "prompt": "Find degraded dependencies during 3am spike for orders-api in Application Insights", "eval_id": 5, "outputs": [{"name": "orders-api-dependency-degradation.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIFRpdGxlOiBEZXBlbmRlbmN5IERlZ3JhZGF0aW9uIER1cmluZyBSZXNwb25zZSBUaW1lIFNwaWtlCi8vIFNlcnZpY2U6IEFwcCBJbnNpZ2h0cwovLyBUYWJsZXM6IGRlcGVuZGVuY2llcywgcmVxdWVzdHMKLy8gRGVzY3JpcHRpb246IElkZW50aWZpZXMgd2hpY2ggZGVwZW5kZW5jaWVzIChkYXRhYmFzZSwgZXh0ZXJuYWwgQVBJcywKLy8gICBvciBvdGhlciBvdXRib3VuZCBjYWxscykgZGVncmFkZWQgZHVyaW5nIGEga25vd24gc3Bpa2Ugd2luZG93IGZvcgovLyAgIHRoZSBvcmRlcnMtYXBpIHNlcnZpY2UuIENvbXBhcmVzIGJlaGF2aW9yIGluc2lkZSB0aGUgc3Bpa2Ugd2luZG93Ci8vICAgdmVyc3VzIGEgYmFzZWxpbmUgcGVyaW9kIGltbWVkaWF0ZWx5IGJlZm9yZSwgdG8gc3VyZmFjZSB3aGF0IGNoYW5nZWQuCi8vIFBhcmFtZXRlcnM6IHNwaWtlU3RhcnQgKHNwaWtlIHdpbmRvdyBzdGFydCksIHNwaWtlRW5kIChzcGlrZSB3aW5kb3cgZW5kKSwKLy8gICAgICAgICAgICAgYmFzZWxpbmVEdXJhdGlvbiAoaG93IGZhciBiYWNrIHRvIGxvb2sgZm9yIGJhc2VsaW5lKSwKLy8gICAgICAgICAgICAgYXBwTmFtZSAoY2xvdWRfUm9sZU5hbWUgb2YgdGhlIHRhcmdldCBzZXJ2aWNlKQovLyBDb21wbGV4aXR5OiBJbnRlcm1lZGlhdGUKLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgpsZXQgc3Bpa2VTdGFydCAgICA9IGRhdGV0aW1lKDIwMjYtMDQtMDFUMDI6NDU6MDBaKTsgLy8gfjE1IG1pbiBiZWZvcmUgcmVwb3J0ZWQgc3Bpa2UKbGV0IHNwaWtlRW5kICAgICAgPSBkYXRldGltZSgyMDI2LTA0LTAxVDAzOjMwOjAwWik7IC8vIH4zMCBtaW4gYWZ0ZXIgc3Bpa2Ugc3RhcnQKbGV0IGJhc2VsaW5lU3RhcnQgPSBkYXRldGltZSgyMDI2LTA0LTAxVDAxOjQ1OjAwWik7IC8vIDFoIHdpbmRvdyBiZWZvcmUgdGhlIHNwaWtlCmxldCBiYXNlbGluZUVuZCAgID0gZGF0ZXRpbWUoMjAyNi0wNC0wMVQwMjo0NTowMFopOwpsZXQgYXBwTmFtZSAgICAgICA9ICJvcmRlcnMtYXBpIjsKCi8vIFN0ZXAgMTogQWdncmVnYXRlIGRlcGVuZGVuY3kgYmVoYXZpb3IgaW5zaWRlIHRoZSBzcGlrZSB3aW5kb3cKbGV0IHNwaWtlRGVwcyA9IGRlcGVuZGVuY2llcwp8IHdoZXJlIHRpbWVzdGFtcCBiZXR3ZWVuIChzcGlrZVN0YXJ0IC4uIHNwaWtlRW5kKQp8IHdoZXJlIGNsb3VkX1JvbGVOYW1lIGhhcyBhcHBOYW1lCnwgc3VtbWFyaXplCiAgICBTcGlrZUNhbGxDb3VudCAgPSBjb3VudCgpLAogICAgU3Bpa2VBdmdNcyAgICAgID0gcm91bmQoYXZnKGR1cmF0aW9uKSwgMCksCiAgICBTcGlrZVA5NU1zICAgICAgPSByb3VuZChwZXJjZW50aWxlKGR1cmF0aW9uLCA5NSksIDApLAogICAgU3Bpa2VNYXhNcyAgICAgID0gcm91bmQobWF4KGR1cmF0aW9uKSwgMCksCiAgICBTcGlrZUZhaWxSYXRlICAgPSByb3VuZChjb3VudGlmKHN1Y2Nlc3MgPT0gZmFsc2UpICogMTAwLjAgLyBjb3VudCgpLCAxKQogICAgYnkgRGVwZW5kZW5jeU5hbWUgPSBuYW1lLCBEZXBlbmRlbmN5VHlwZSA9IHR5cGUsIFRhcmdldCA9IHRhcmdldDsKCi8vIFN0ZXAgMjogQWdncmVnYXRlIGRlcGVuZGVuY3kgYmVoYXZpb3IgaW4gdGhlIGJhc2VsaW5lIHdpbmRvdyAoYmVmb3JlIHNwaWtlKQpsZXQgYmFzZWxpbmVEZXBzID0gZGVwZW5kZW5jaWVzCnwgd2hlcmUgdGltZXN0YW1wIGJldHdlZW4gKGJhc2VsaW5lU3RhcnQgLi4gYmFzZWxpbmVFbmQpCnwgd2hlcmUgY2xvdWRfUm9sZU5hbWUgaGFzIGFwcE5hbWUKfCBzdW1tYXJpemUKICAgIEJhc2VDYWxsQ291bnQgICA9IGNvdW50KCksCiAgICBCYXNlQXZnTXMgICAgICAgPSByb3VuZChhdmcoZHVyYXRpb24pLCAwKSwKICAgIEJhc2VQOTVNcyAgICAgICA9IHJvdW5kKHBlcmNlbnRpbGUoZHVyYXRpb24sIDk1KSwgMCksCiAgICBCYXNlTWF4TXMgICAgICAgPSByb3VuZChtYXgoZHVyYXRpb24pLCAwKSwKICAgIEJhc2VGYWlsUmF0ZSAgICA9IHJvdW5kKGNvdW50aWYoc3VjY2VzcyA9PSBmYWxzZSkgKiAxMDAuMCAvIGNvdW50KCksIDEpCiAgICBieSBEZXBlbmRlbmN5TmFtZSA9IG5hbWUsIERlcGVuZGVuY3lUeXBlID0gdHlwZSwgVGFyZ2V0ID0gdGFyZ2V0OwoKLy8gU3RlcCAzOiBKb2luIGFuZCBjb21wdXRlIGRlbHRhcyDigJQgbGFyZ2UgcG9zaXRpdmUgZGVsdGEgPSBsaWtlbHkgY29udHJpYnV0b3IKc3Bpa2VEZXBzCnwgam9pbiBraW5kPWxlZnRvdXRlciBiYXNlbGluZURlcHMgb24gRGVwZW5kZW5jeU5hbWUsIERlcGVuZGVuY3lUeXBlLCBUYXJnZXQKfCBleHRlbmQKICAgIEF2Z01zRGVsdGEgICAgICA9IFNwaWtlQXZnTXMgLSBjb2FsZXNjZShCYXNlQXZnTXMsIDApLAogICAgUDk1TXNEZWx0YSAgICAgID0gU3Bpa2VQOTVNcyAtIGNvYWxlc2NlKEJhc2VQOTVNcywgMCksCiAgICBGYWlsUmF0ZURlbHRhICAgPSBTcGlrZUZhaWxSYXRlIC0gY29hbGVzY2UoQmFzZUZhaWxSYXRlLCAwLjApLAogICAgLy8gRmxhZyBkZXBlbmRlbmNpZXMgdGhhdCB3ZXJlIG5ldyBkdXJpbmcgdGhlIHNwaWtlIChubyBiYXNlbGluZSBjYWxscykKICAgIE5ld0R1cmluZ1Npa2UgICA9IGlpZihpc2VtcHR5KEJhc2VDYWxsQ291bnQpLCB0cnVlLCBmYWxzZSkKfCBwcm9qZWN0CiAgICBEZXBlbmRlbmN5TmFtZSwKICAgIERlcGVuZGVuY3lUeXBlLAogICAgVGFyZ2V0LAogICAgLy8gU3Bpa2Ugd2luZG93IG1ldHJpY3MKICAgIFNwaWtlQ2FsbENvdW50LAogICAgU3Bpa2VBdmdNcywKICAgIFNwaWtlUDk1TXMsCiAgICBTcGlrZU1heE1zLAogICAgU3Bpa2VGYWlsUmF0ZSwKICAgIC8vIEJhc2VsaW5lIG1ldHJpY3MKICAgIEJhc2VBdmdNcyAgICAgICA9IGNvYWxlc2NlKEJhc2VBdmdNcywgMCksCiAgICBCYXNlUDk1TXMgICAgICAgPSBjb2FsZXNjZShCYXNlUDk1TXMsIDApLAogICAgQmFzZUZhaWxSYXRlICAgID0gY29hbGVzY2UoQmFzZUZhaWxSYXRlLCAwLjApLAogICAgLy8gQ2hhbmdlIHNpZ25hbHMKICAgIEF2Z01zRGVsdGEsCiAgICBQOTVNc0RlbHRhLAogICAgRmFpbFJhdGVEZWx0YSwKICAgIE5ld0R1cmluZ1Npa2UKLy8gU29ydCBieSB3b3JzdCBkZWdyYWRhdGlvbiBmaXJzdCAobGFyZ2VzdCBhdmcgZHVyYXRpb24gaW5jcmVhc2UpCnwgc29ydCBieSBBdmdNc0RlbHRhIGRlc2MsIFNwaWtlRmFpbFJhdGUgZGVzYwo="}], "grading": {"eval_id": 5, "eval_name": "app-insights-dependency-degradation", "configuration": "with_skill", "expectations": [{"text": "Output includes standard .kql comment header block with Service: App Insights", "passed": true, "evidence": "File opens with '// ===...===' block containing Title, Service: App Insights, Tables: dependencies, requests, Description, Parameters (spikeStart, spikeEnd, baselineDuration, appName), Complexity: Intermediate"}, {"text": "Uses the dependencies table as primary data source", "passed": true, "evidence": "Both spikeDeps and baselineDeps are built from 'dependencies' table directly. First line of each subquery: 'let spikeDeps = dependencies | ...' and 'let baselineDeps = dependencies | ...'"}, {"text": "Filters around 2026-04-01T03:00:00Z (the spike window)", "passed": true, "evidence": "'let spikeStart = datetime(2026-04-01T02:45:00Z);' and 'let spikeEnd = datetime(2026-04-01T03:30:00Z);' \u2014 window centered on the 3am spike with 15 min pre-buffer and 30 min post"}, {"text": "Filters by cloud_RoleName == 'orders-api'", "passed": true, "evidence": "'| where cloud_RoleName has appName' where 'let appName = \"orders-api\";'"}, {"text": "Groups results by dependency type (SQL, HTTP, etc.) and/or target", "passed": true, "evidence": "Summarizes 'by DependencyName = name, DependencyType = type, Target = target' \u2014 groups by all three: name, type, and target"}, {"text": "Shows duration metrics (avg, p95, or max) to quantify degradation", "passed": true, "evidence": "SpikeAvgMs = round(avg(duration), 0), SpikeP95Ms = round(percentile(duration, 95), 0), SpikeMaxMs = round(max(duration), 0)"}, {"text": "Uses timestamp column (not TimeGenerated) for App Insights tables", "passed": true, "evidence": "'| where timestamp between (spikeStart .. spikeEnd)' \u2014 uses lowercase 'timestamp', correct for App Insights dependencies table"}], "pass_rate": 1.0, "summary": {"passed": 7, "failed": 0, "total": 7, "pass_rate": 1.0}, "timing": {"executor_duration_seconds": 49.5, "total_duration_seconds": 49.5}, "claims": [{"claim": "Includes baseline comparison window (before spike) and computes deltas", "type": "quality", "verified": true, "evidence": "baselineDeps subquery covers datetime(2026-04-01T01:45:00Z) to datetime(2026-04-01T02:45:00Z). Delta columns: AvgMsDelta, P95MsDelta, FailRateDelta computed in the join step."}, {"claim": "Flags dependencies that were new during the spike (no baseline calls)", "type": "quality", "verified": true, "evidence": "'NewDuringSike = iif(isempty(BaseCallCount), true, false)' \u2014 typo in column name ('Sike' vs 'Spike') but logic is correct"}], "eval_feedback": {"suggestions": [], "overall": "All 7 assertions pass with strong evidence. The baseline-comparison delta approach goes beyond the minimum requirements. No suggestions."}}}, {"id": "eval-5-app-insights-spike-without_skill", "prompt": "Find degraded dependencies during 3am spike for orders-api in Application Insights", "eval_id": 5, "outputs": [{"name": "dependency_degradation.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gQXBwbGljYXRpb24gSW5zaWdodHMg4oCUIERlcGVuZGVuY3kgRGVncmFkYXRpb24gQW5hbHlzaXMKLy8gQXBwOiBvcmRlcnMtYXBpIHwgV2luZG93OiAyMDI2LTA0LTAxVDAyOjQ1OjAwWiDigJMgMjAyNi0wNC0wMVQwMzoxNTowMFoKLy8gR29hbDogSWRlbnRpZnkgd2hpY2ggZGVwZW5kZW5jaWVzIChEQiwgZXh0ZXJuYWwgQVBJcywgZXRjLikgZGVncmFkZWQgZHVyaW5nIHRoZSBzcGlrZQoKbGV0IHNwaWtlU3RhcnQgPSBkYXRldGltZSgyMDI2LTA0LTAxVDAyOjQ1OjAwWik7CmxldCBzcGlrZUVuZCAgID0gZGF0ZXRpbWUoMjAyNi0wNC0wMVQwMzoxNTowMFopOwpsZXQgYmFzZVN0YXJ0ICA9IGRhdGV0aW1lKDIwMjYtMDQtMDFUMDE6NDU6MDBaKTsKbGV0IGJhc2VFbmQgICAgPSBkYXRldGltZSgyMDI2LTA0LTAxVDAyOjQ1OjAwWik7CmxldCBhcHBOYW1lICAgID0gIm9yZGVycy1hcGkiOwoKLy8gQmFzZWxpbmU6IGF2ZXJhZ2UgZHVyYXRpb24gcGVyIGRlcGVuZGVuY3kgaW4gdGhlIGhvdXIgYmVmb3JlIHRoZSBzcGlrZQpsZXQgYmFzZWxpbmUgPSBkZXBlbmRlbmNpZXMKfCB3aGVyZSB0aW1lc3RhbXAgYmV0d2VlbiAoYmFzZVN0YXJ0IC4uIGJhc2VFbmQpCnwgd2hlcmUgY2xvdWRfUm9sZU5hbWUgPT0gYXBwTmFtZQp8IHN1bW1hcml6ZQogICAgYmFzZWxpbmVfYXZnX21zICAgPSBhdmcoZHVyYXRpb24pLAogICAgYmFzZWxpbmVfcDk1X21zICAgPSBwZXJjZW50aWxlKGR1cmF0aW9uLCA5NSksCiAgICBiYXNlbGluZV9jYWxscyAgICA9IGNvdW50KCkKICAgIGJ5IHR5cGUsIHRhcmdldCwgbmFtZTsKCi8vIFNwaWtlIHdpbmRvdzogc2FtZSBtZXRyaWNzIGR1cmluZyB0aGUgaW5jaWRlbnQKbGV0IHNwaWtlID0gZGVwZW5kZW5jaWVzCnwgd2hlcmUgdGltZXN0YW1wIGJldHdlZW4gKHNwaWtlU3RhcnQgLi4gc3Bpa2VFbmQpCnwgd2hlcmUgY2xvdWRfUm9sZU5hbWUgPT0gYXBwTmFtZQp8IHN1bW1hcml6ZQogICAgc3Bpa2VfYXZnX21zICAgICAgPSBhdmcoZHVyYXRpb24pLAogICAgc3Bpa2VfcDk1X21zICAgICAgPSBwZXJjZW50aWxlKGR1cmF0aW9uLCA5NSksCiAgICBzcGlrZV9jYWxscyAgICAgICA9IGNvdW50KCksCiAgICBzcGlrZV9mYWlsdXJlX3BjdCA9IHJvdW5kKDEwMC4wICogY291bnRpZihzdWNjZXNzID09IGZhbHNlKSAvIGNvdW50KCksIDIpCiAgICBieSB0eXBlLCB0YXJnZXQsIG5hbWU7CgovLyBKb2luIGFuZCBjb21wdXRlIGRlZ3JhZGF0aW9uIHJhdGlvCnNwaWtlCnwgam9pbiBraW5kPWxlZnRvdXRlciBiYXNlbGluZSBvbiB0eXBlLCB0YXJnZXQsIG5hbWUKfCBleHRlbmQKICAgIGF2Z19kZWdyYWRhdGlvbl9yYXRpbyA9IHJvdW5kKHNwaWtlX2F2Z19tcyAvIG1heF9vZihiYXNlbGluZV9hdmdfbXMsIDEpLCAyKSwKICAgIHA5NV9kZWdyYWRhdGlvbl9yYXRpbyA9IHJvdW5kKHNwaWtlX3A5NV9tcyAvIG1heF9vZihiYXNlbGluZV9wOTVfbXMsIDEpLCAyKSwKICAgIGF2Z19kZWx0YV9tcyAgICAgICAgICA9IHJvdW5kKHNwaWtlX2F2Z19tcyAtIGNvYWxlc2NlKGJhc2VsaW5lX2F2Z19tcywgMC4wKSwgMSkKfCBwcm9qZWN0CiAgICBEZXBlbmRlbmN5VHlwZSAgICAgICAgPSB0eXBlLAogICAgVGFyZ2V0ICAgICAgICAgICAgICAgID0gdGFyZ2V0LAogICAgT3BlcmF0aW9uTmFtZSAgICAgICAgID0gbmFtZSwKICAgIFNwaWtlX0F2Z19tcyAgICAgICAgICA9IHJvdW5kKHNwaWtlX2F2Z19tcywgMSksCiAgICBCYXNlbGluZV9BdmdfbXMgICAgICAgPSByb3VuZChjb2FsZXNjZShiYXNlbGluZV9hdmdfbXMsIDAuMCksIDEpLAogICAgQXZnX0RlbHRhX21zICAgICAgICAgID0gYXZnX2RlbHRhX21zLAogICAgQXZnX0RlZ3JhZGF0aW9uX1JhdGlvID0gYXZnX2RlZ3JhZGF0aW9uX3JhdGlvLAogICAgU3Bpa2VfUDk1X21zICAgICAgICAgID0gcm91bmQoc3Bpa2VfcDk1X21zLCAxKSwKICAgIEJhc2VsaW5lX1A5NV9tcyAgICAgICA9IHJvdW5kKGNvYWxlc2NlKGJhc2VsaW5lX3A5NV9tcywgMC4wKSwgMSksCiAgICBQOTVfRGVncmFkYXRpb25fUmF0aW8gPSBwOTVfZGVncmFkYXRpb25fcmF0aW8sCiAgICBTcGlrZV9DYWxscyAgICAgICAgICAgPSBzcGlrZV9jYWxscywKICAgIEJhc2VsaW5lX0NhbGxzICAgICAgICA9IGNvYWxlc2NlKGJhc2VsaW5lX2NhbGxzLCAwKSwKICAgIEZhaWx1cmVfUGN0ICAgICAgICAgICA9IHNwaWtlX2ZhaWx1cmVfcGN0Cnwgd2hlcmUgQXZnX0RlZ3JhZGF0aW9uX1JhdGlvID4gMS41IG9yIEZhaWx1cmVfUGN0ID4gNSAgLy8gc3VyZmFjZSBtZWFuaW5nZnVsIHJlZ3Jlc3Npb25zIG9ubHkKfCBvcmRlciBieSBBdmdfRGVncmFkYXRpb25fUmF0aW8gZGVzYwo="}], "grading": {"eval_id": 5, "eval_name": "app-insights-dependency-degradation", "configuration": "without_skill", "expectations": [{"text": "Output includes standard .kql comment header block with Service: App Insights", "passed": false, "evidence": "File starts with two comment lines ('// Application Insights \u2014 Dependency Degradation Analysis', '// App: orders-api | Window: ... | Goal: ...') but NOT the structured header block with labeled Service, Tables, Parameters, and Complexity fields."}, {"text": "Uses the dependencies table as primary data source", "passed": true, "evidence": "Both baseline and spike subqueries use 'dependencies' table: 'let baseline = dependencies | ...' and 'let spike = dependencies | ...'"}, {"text": "Filters around 2026-04-01T03:00:00Z (the spike window)", "passed": true, "evidence": "'let spikeStart = datetime(2026-04-01T02:45:00Z);' and 'let spikeEnd = datetime(2026-04-01T03:15:00Z);'"}, {"text": "Filters by cloud_RoleName == 'orders-api'", "passed": true, "evidence": "'| where cloud_RoleName == appName' where 'let appName = \"orders-api\";'"}, {"text": "Groups results by dependency type (SQL, HTTP, etc.) and/or target", "passed": true, "evidence": "Summarizes 'by type, target, name' in both baseline and spike subqueries"}, {"text": "Shows duration metrics (avg, p95, or max) to quantify degradation", "passed": true, "evidence": "'spike_avg_ms = avg(duration)', 'spike_p95_ms = percentile(duration, 95)' in spike subquery"}, {"text": "Uses timestamp column (not TimeGenerated) for App Insights tables", "passed": true, "evidence": "'| where timestamp between (spikeStart .. spikeEnd)' \u2014 lowercase 'timestamp' used correctly for App Insights"}], "pass_rate": 0.857, "summary": {"passed": 6, "failed": 1, "total": 7, "pass_rate": 0.857}, "timing": {"executor_duration_seconds": 30.5, "total_duration_seconds": 30.5}, "claims": [{"claim": "Computes degradation ratio (spike/baseline) in addition to absolute delta", "type": "quality", "verified": true, "evidence": "'avg_degradation_ratio = round(spike_avg_ms / max_of(baseline_avg_ms, 1), 2)' and 'p95_degradation_ratio' computed in the join step"}, {"claim": "Adds a filter to surface only meaningful regressions", "type": "quality", "verified": true, "evidence": "'| where Avg_Degradation_Ratio > 1.5 or Failure_Pct > 5' filters out minor fluctuations"}], "eval_feedback": {"suggestions": [], "overall": "Header assertion is the correct differentiator. The without_skill output is technically strong and adds value with degradation ratios. No other suggestions."}}}, {"id": "eval-6-splunk-migration-with_skill", "prompt": "Convert Splunk SPL brute-force correlation search to KQL for Sentinel", "eval_id": 6, "outputs": [{"name": "ssh-brute-force-success-after-attack.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIFRpdGxlOiBTU0ggQnJ1dGUtRm9yY2UgRGV0ZWN0aW9uIHdpdGggUG9zdC1BdHRhY2sgU3VjY2VzcyBJbmRpY2F0b3IKLy8gU2VydmljZTogU2VudGluZWwKLy8gVGFibGVzOiBTeXNsb2cKLy8gRGVzY3JpcHRpb246IFRyYW5zbGF0ZWQgZnJvbSBTcGx1bmsgU1BMIGNvcnJlbGF0aW9uIHNlYXJjaC4gRGV0ZWN0cyB1c2VycyB0YXJnZXRlZAovLyAgICAgICAgICAgICAgYnkgU1NIIGJydXRlLWZvcmNlIGF0dGFja3MgKD4yMCBmYWlsZWQgcGFzc3dvcmQgYXR0ZW1wdHMgZnJvbSA+MyB1bmlxdWUKLy8gICAgICAgICAgICAgIHNvdXJjZSBJUHMpIGFuZCBmbGFncyB3aGV0aGVyIGEgc3VjY2Vzc2Z1bCBsb2dpbiBvY2N1cnJlZCB3aXRoaW4gMSBob3VyCi8vICAgICAgICAgICAgICBvZiB0aGUgZGV0ZWN0aW9uIHdpbmRvdyDigJQgYSBwb3RlbnRpYWwgaW5kaWNhdG9yIG9mIGNyZWRlbnRpYWwgY29tcHJvbWlzZS4KLy8gICAgICAgICAgICAgIE9yaWdpbmFsIHNvdXJjZTogaW5kZXg9YXV0aCBzb3VyY2V0eXBlPWxpbnV4X3NlY3VyZSAoU3BsdW5rKS4KLy8gUGFyYW1ldGVyczoKLy8gICBsb29rYmFja1dpbmRvdyAgICAgLSBIb3cgZmFyIGJhY2sgdG8gbG9vayBmb3IgZmFpbGVkIGF0dGVtcHRzIChkZWZhdWx0OiAyNGgpCi8vICAgZmFpbHVyZVRocmVzaG9sZCAgIC0gTWluaW11bSBmYWlsZWQgYXR0ZW1wdHMgdG8gcXVhbGlmeSAoZGVmYXVsdDogMjApCi8vICAgdW5pcXVlU291cmNlTWluICAgIC0gTWluaW11bSB1bmlxdWUgc291cmNlIElQcyB0byBxdWFsaWZ5IChkZWZhdWx0OiAzKQovLyAgIHN1Y2Nlc3NXaW5kb3cgICAgICAtIEhvdyBmYXIgYmFjayB0byBsb29rIGZvciBhIHBvc3QtYXR0YWNrIHN1Y2Nlc3MgKGRlZmF1bHQ6IDFoKQovLyBDb21wbGV4aXR5OiBJbnRlcm1lZGlhdGUKLy8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09CgpsZXQgbG9va2JhY2tXaW5kb3cgPSAyNGg7CmxldCBmYWlsdXJlVGhyZXNob2xkID0gMjA7CmxldCB1bmlxdWVTb3VyY2VNaW4gPSAzOwpsZXQgc3VjY2Vzc1dpbmRvdyA9IDFoOwoKLy8gU3RlcCAxOiBBZ2dyZWdhdGUgZmFpbGVkIFNTSCBwYXNzd29yZCBhdHRlbXB0cyBwZXIgdXNlcgpsZXQgZmFpbGVkQXR0ZW1wdHMgPQogICAgU3lzbG9nCiAgICB8IHdoZXJlIFRpbWVHZW5lcmF0ZWQgPiBhZ28obG9va2JhY2tXaW5kb3cpCiAgICAvLyBUYXJnZXQgU1NIIGF1dGggbWVzc2FnZXMgb24gTGludXgg4oCUIGVxdWl2YWxlbnQgdG8gc291cmNldHlwZT1saW51eF9zZWN1cmUKICAgIHwgd2hlcmUgRmFjaWxpdHkgPT0gImF1dGgiIG9yIFByb2Nlc3NOYW1lIGhhcyAic3NoZCIKICAgIC8vIEVxdWl2YWxlbnQgdG8gfCBzZWFyY2ggIkZhaWxlZCBwYXNzd29yZCIKICAgIHwgd2hlcmUgU3lzbG9nTWVzc2FnZSBoYXMgIkZhaWxlZCBwYXNzd29yZCIKICAgIC8vIEV4dHJhY3QgdGhlIHRhcmdldCB1c2VybmFtZSBhbmQgc291cmNlIElQIGZyb20gdGhlIHN5c2xvZyBtZXNzYWdlCiAgICAvLyBQYXR0ZXJuOiAiRmFpbGVkIHBhc3N3b3JkIGZvciA8dXNlcj4gZnJvbSA8aXA+IHBvcnQgPHBvcnQ+IC4uLiIKICAgIC8vICAgICAgICAgICJGYWlsZWQgcGFzc3dvcmQgZm9yIGludmFsaWQgdXNlciA8dXNlcj4gZnJvbSA8aXA+IHBvcnQgPHBvcnQ+IC4uLiIKICAgIHwgZXh0ZW5kCiAgICAgICAgVGFyZ2V0VXNlciA9IGV4dHJhY3QoQCJGYWlsZWQgcGFzc3dvcmQgZm9yICg/OmludmFsaWQgdXNlciApPyhcUyspIGZyb20iLCAxLCBTeXNsb2dNZXNzYWdlKSwKICAgICAgICBTb3VyY2VJUCAgID0gZXh0cmFjdChAImZyb20gKFxkezEsM31cLlxkezEsM31cLlxkezEsM31cLlxkezEsM30pIiwgMSwgU3lzbG9nTWVzc2FnZSkKICAgIHwgd2hlcmUgaXNub3RlbXB0eShUYXJnZXRVc2VyKSBhbmQgaXNub3RlbXB0eShTb3VyY2VJUCkKICAgIC8vIEVxdWl2YWxlbnQgdG86IHN0YXRzIGNvdW50IGFzIGZhaWx1cmVzIGRjKHNyY19pcCkgYXMgdW5pcXVlX3NvdXJjZXMgdmFsdWVzKHNyY19pcCkgYXMgc291cmNlcyBieSB1c2VyCiAgICB8IHN1bW1hcml6ZQogICAgICAgIEZhaWx1cmVzICAgICAgPSBjb3VudCgpLAogICAgICAgIFVuaXF1ZVNvdXJjZXMgPSBkY291bnQoU291cmNlSVApLCAgICAgICAgICAvLyBkY291bnQoKSA9PSBkYygpIGluIFNQTAogICAgICAgIFNvdXJjZXMgICAgICAgPSBtYWtlX3NldChTb3VyY2VJUCkgICAgICAgICAgLy8gbWFrZV9zZXQoKSA9PSB2YWx1ZXMoKSBpbiBTUEwg4oCUIHVuaXF1ZSBJUHMgYXMgYXJyYXkKICAgICAgYnkgVGFyZ2V0VXNlcgogICAgLy8gRXF1aXZhbGVudCB0bzogd2hlcmUgZmFpbHVyZXMgPiAyMCBBTkQgdW5pcXVlX3NvdXJjZXMgPiAzCiAgICB8IHdoZXJlIEZhaWx1cmVzID4gZmFpbHVyZVRocmVzaG9sZCBhbmQgVW5pcXVlU291cmNlcyA+IHVuaXF1ZVNvdXJjZU1pbjsKCi8vIFN0ZXAgMjogQWdncmVnYXRlIHN1Y2Nlc3NmdWwgU1NIIGxvZ2lucyBwZXIgdXNlciAocmlnaHQtc2lkZSBvZiBTUEwgaW5uZXIgam9pbikKbGV0IHN1Y2Nlc3NmdWxMb2dpbnMgPQogICAgU3lzbG9nCiAgICB8IHdoZXJlIFRpbWVHZW5lcmF0ZWQgPiBhZ28obG9va2JhY2tXaW5kb3cpCiAgICB8IHdoZXJlIEZhY2lsaXR5ID09ICJhdXRoIiBvciBQcm9jZXNzTmFtZSBoYXMgInNzaGQiCiAgICAvLyBFcXVpdmFsZW50IHRvOiBzZWFyY2ggIkFjY2VwdGVkIHBhc3N3b3JkIgogICAgfCB3aGVyZSBTeXNsb2dNZXNzYWdlIGhhcyAiQWNjZXB0ZWQgcGFzc3dvcmQiCiAgICB8IGV4dGVuZAogICAgICAgIFRhcmdldFVzZXIgPSBleHRyYWN0KEAiQWNjZXB0ZWQgcGFzc3dvcmQgZm9yIChcUyspIGZyb20iLCAxLCBTeXNsb2dNZXNzYWdlKQogICAgfCB3aGVyZSBpc25vdGVtcHR5KFRhcmdldFVzZXIpCiAgICAvLyBFcXVpdmFsZW50IHRvOiBzdGF0cyBjb3VudCBhcyBzdWNjZXNzZXMgbGF0ZXN0KF90aW1lKSBhcyBsYXN0X3N1Y2Nlc3MgYnkgdXNlcgogICAgfCBzdW1tYXJpemUKICAgICAgICBTdWNjZXNzZXMgICA9IGNvdW50KCksCiAgICAgICAgTGFzdFN1Y2Nlc3MgPSBtYXgoVGltZUdlbmVyYXRlZCkgICAgLy8gbWF4KFRpbWVHZW5lcmF0ZWQpID09IGxhdGVzdChfdGltZSkgaW4gU1BMCiAgICAgIGJ5IFRhcmdldFVzZXI7CgovLyBTdGVwIDM6IElubmVyIGpvaW4g4oCUIG9ubHkgdXNlcnMgd2l0aCBib3RoIGZhaWx1cmVzIEFORCBzdWNjZXNzZXMgKFNQTCBqb2luIHR5cGU9aW5uZXIpCmZhaWxlZEF0dGVtcHRzCnwgam9pbiBraW5kPWlubmVyIHN1Y2Nlc3NmdWxMb2dpbnMgb24gVGFyZ2V0VXNlcgovLyBTdGVwIDQ6IEZsYWcgd2hldGhlciB0aGUgbGFzdCBzdWNjZXNzZnVsIGxvZ2luIG9jY3VycmVkIHdpdGhpbiB0aGUgc3VjY2VzcyBkZXRlY3Rpb24gd2luZG93Ci8vIEVxdWl2YWxlbnQgdG86IGV2YWwgc3VjY2Vzc19hZnRlcl9icnV0ZWZvcmNlPWlmKGxhc3Rfc3VjY2VzcyA+IHJlbGF0aXZlX3RpbWUobm93KCksICItMWgiKSwgIllFUyIsICJOTyIpCnwgZXh0ZW5kIFN1Y2Nlc3NBZnRlckJydXRlRm9yY2UgPSBpZmYoTGFzdFN1Y2Nlc3MgPiBhZ28oc3VjY2Vzc1dpbmRvdyksICJZRVMiLCAiTk8iKQovLyBFcXVpdmFsZW50IHRvOiBzb3J0IC1mYWlsdXJlcwp8IHNvcnQgYnkgRmFpbHVyZXMgZGVzYwovLyBFcXVpdmFsZW50IHRvOiB0YWJsZSB1c2VyIGZhaWx1cmVzIHVuaXF1ZV9zb3VyY2VzIHNvdXJjZXMgc3VjY2Vzc2VzIHN1Y2Nlc3NfYWZ0ZXJfYnJ1dGVmb3JjZQp8IHByb2plY3QKICAgIFVzZXIgICAgICAgICAgICAgICAgICA9IFRhcmdldFVzZXIsCiAgICBGYWlsdXJlcywKICAgIFVuaXF1ZVNvdXJjZXMsCiAgICBTb3VyY2VzLCAgICAgICAgICAgICAgLy8gZHluYW1pYyBhcnJheSBvZiBzb3VyY2UgSVBzIOKAlCB1c2UgbXYtZXhwYW5kIHRvIGZsYXR0ZW4gaWYgbmVlZGVkCiAgICBTdWNjZXNzZXMsCiAgICBMYXN0U3VjY2VzcywKICAgIFN1Y2Nlc3NBZnRlckJydXRlRm9yY2UK"}], "grading": {"eval_id": 6, "eval_name": "splunk-spl-brute-force-migration", "configuration": "with_skill", "expectations": [{"text": "Output includes standard .kql comment header block", "passed": true, "evidence": "File opens with '// ===...===' block containing Title, Service: Sentinel, Tables: Syslog, Description (noting translation from Splunk SPL), Parameters (lookbackWindow, failureThreshold, uniqueSourceMin, successWindow), Complexity: Intermediate"}, {"text": "Uses Syslog table for Linux authentication logs", "passed": true, "evidence": "Both failedAttempts and successfulLogins subqueries use 'Syslog' table with 'Facility == \"auth\" or ProcessName has \"sshd\"'"}, {"text": "Maps Splunk dc() to KQL dcount()", "passed": true, "evidence": "'UniqueSources = dcount(SourceIP)' with inline comment '// dcount() == dc() in SPL'"}, {"text": "Maps Splunk values() to KQL make_set()", "passed": true, "evidence": "'Sources = make_set(SourceIP)' with inline comment '// make_set() == values() in SPL \u2014 unique IPs as array'"}, {"text": "Uses join to correlate failed logins with successful logins by user", "passed": true, "evidence": "'failedAttempts | join kind=inner successfulLogins on TargetUser' \u2014 inner join correlates users with both failure and success records"}, {"text": "Uses iff() or case() instead of Splunk eval/if syntax", "passed": true, "evidence": "'SuccessAfterBruteForce = iff(LastSuccess > ago(successWindow), \"YES\", \"NO\")' with comment '// Equivalent to: eval success_after_bruteforce=if(...)'"}, {"text": "Includes TimeGenerated filter", "passed": true, "evidence": "'| where TimeGenerated > ago(lookbackWindow)' in both failedAttempts and successfulLogins subqueries"}], "pass_rate": 1.0, "summary": {"passed": 7, "failed": 0, "total": 7, "pass_rate": 1.0}, "timing": {"executor_duration_seconds": 64.8, "total_duration_seconds": 64.8}, "claims": [{"claim": "Uses regex extract to parse TargetUser and SourceIP from SyslogMessage", "type": "process", "verified": true, "evidence": "extract(@\"Failed password for (?:invalid user )?(\\ S+) from\", 1, SyslogMessage) handles both 'Failed password for user' and 'Failed password for invalid user' patterns"}, {"claim": "Documents SPL-to-KQL mapping with inline comments throughout", "type": "quality", "verified": true, "evidence": "Every significant aggregation has an SPL equivalent comment, e.g., '// Equivalent to: stats count as failures dc(src_ip) as unique_sources values(src_ip) as sources by user'"}], "eval_feedback": {"suggestions": [], "overall": "All 7 assertions pass. The inline SPL mapping comments are thorough and add significant value. No suggestions."}}}, {"id": "eval-6-splunk-migration-without_skill", "prompt": "Convert Splunk SPL brute-force correlation search to KQL for Sentinel", "eval_id": 6, "outputs": [{"name": "brute_force_with_success.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gQnJ1dGUgRm9yY2UgRGV0ZWN0aW9uIHdpdGggU3VjY2Vzc2Z1bCBBdXRoZW50aWNhdGlvbiDigJQgQ29udmVydGVkIGZyb20gU3BsdW5rIFNQTCB0byBLUUwKLy8gU291cmNlOiBpbmRleD1hdXRoIHNvdXJjZXR5cGU9bGludXhfc2VjdXJlIGNvcnJlbGF0aW9uIHNlYXJjaAovLyBTZW50aW5lbCB0YWJsZTogU3lzbG9nIChsaW51eF9zZWN1cmUgbWFwcyB0byBTeXNsb2cgd2l0aCBGYWNpbGl0eS9Qcm9jZXNzTmFtZSBmaWx0ZXJzKQoKbGV0IExvb2tiYWNrV2luZG93ID0gMWg7CmxldCBGYWlsdXJlVGhyZXNob2xkID0gMjA7CmxldCBVbmlxdWVTb3VyY2VUaHJlc2hvbGQgPSAzOwoKLy8gU3RlcCAxIOKAlCBBZ2dyZWdhdGUgZmFpbGVkIHBhc3N3b3JkIGF0dGVtcHRzIHBlciB1c2VyCmxldCBGYWlsZWRBdHRlbXB0cyA9CiAgICBTeXNsb2cKICAgIHwgd2hlcmUgVGltZUdlbmVyYXRlZCA+PSBhZ28oTG9va2JhY2tXaW5kb3cpCiAgICB8IHdoZXJlIEZhY2lsaXR5ID09ICJhdXRoIiBvciBQcm9jZXNzTmFtZSBpbiAoInNzaGQiLCAic3UiLCAic3VkbyIpCiAgICB8IHdoZXJlIFN5c2xvZ01lc3NhZ2UgaGFzICJGYWlsZWQgcGFzc3dvcmQiCiAgICB8IGV4dGVuZAogICAgICAgIHNyY19pcCA9IGV4dHJhY3QoQCJmcm9tXHMrKFxkezEsM31cLlxkezEsM31cLlxkezEsM31cLlxkezEsM30pIiwgMSwgU3lzbG9nTWVzc2FnZSksCiAgICAgICAgdXNlciAgICA9IGV4dHJhY3QoQCJmb3JccysoPzppbnZhbGlkIHVzZXJccyspPyhcUyspXHMrZnJvbSIsIDEsIFN5c2xvZ01lc3NhZ2UpCiAgICB8IHdoZXJlIGlzbm90ZW1wdHkodXNlcikgYW5kIGlzbm90ZW1wdHkoc3JjX2lwKQogICAgfCBzdW1tYXJpemUKICAgICAgICBmYWlsdXJlcyAgICAgICA9IGNvdW50KCksCiAgICAgICAgdW5pcXVlX3NvdXJjZXMgPSBkY291bnQoc3JjX2lwKSwKICAgICAgICBzb3VyY2VzICAgICAgICA9IG1ha2Vfc2V0KHNyY19pcCkKICAgICAgYnkgdXNlcgogICAgfCB3aGVyZSBmYWlsdXJlcyA+IEZhaWx1cmVUaHJlc2hvbGQgYW5kIHVuaXF1ZV9zb3VyY2VzID4gVW5pcXVlU291cmNlVGhyZXNob2xkCiAgICB8IHNvcnQgYnkgZmFpbHVyZXMgZGVzYzsKCi8vIFN0ZXAgMiDigJQgQWdncmVnYXRlIHN1Y2Nlc3NmdWwgYXV0aGVudGljYXRpb25zIHBlciB1c2VyCmxldCBTdWNjZXNzZnVsTG9naW5zID0KICAgIFN5c2xvZwogICAgfCB3aGVyZSBUaW1lR2VuZXJhdGVkID49IGFnbyhMb29rYmFja1dpbmRvdykKICAgIHwgd2hlcmUgRmFjaWxpdHkgPT0gImF1dGgiIG9yIFByb2Nlc3NOYW1lIGluICgic3NoZCIsICJzdSIsICJzdWRvIikKICAgIHwgd2hlcmUgU3lzbG9nTWVzc2FnZSBoYXMgIkFjY2VwdGVkIHBhc3N3b3JkIgogICAgfCBleHRlbmQKICAgICAgICB1c2VyID0gZXh0cmFjdChAImZvclxzKyhcUyspXHMrZnJvbSIsIDEsIFN5c2xvZ01lc3NhZ2UpCiAgICB8IHdoZXJlIGlzbm90ZW1wdHkodXNlcikKICAgIHwgc3VtbWFyaXplCiAgICAgICAgc3VjY2Vzc2VzICAgID0gY291bnQoKSwKICAgICAgICBsYXN0X3N1Y2Nlc3MgPSBtYXgoVGltZUdlbmVyYXRlZCkKICAgICAgYnkgdXNlcjsKCi8vIFN0ZXAgMyDigJQgSW5uZXIgam9pbiBvbiB1c2VyLCBldmFsdWF0ZSBzdWNjZXNzLWFmdGVyLWJydXRlZm9yY2UgZmxhZywgcHJvamVjdCBmaW5hbCBjb2x1bW5zCkZhaWxlZEF0dGVtcHRzCnwgam9pbiBraW5kPWlubmVyIFN1Y2Nlc3NmdWxMb2dpbnMgb24gdXNlcgp8IGV4dGVuZAogICAgc3VjY2Vzc19hZnRlcl9icnV0ZWZvcmNlID0gaWlmKGxhc3Rfc3VjY2VzcyA+PSBhZ28oMWgpLCAiWUVTIiwgIk5PIikKfCBwcm9qZWN0CiAgICB1c2VyLAogICAgZmFpbHVyZXMsCiAgICB1bmlxdWVfc291cmNlcywKICAgIHNvdXJjZXMsCiAgICBzdWNjZXNzZXMsCiAgICBzdWNjZXNzX2FmdGVyX2JydXRlZm9yY2UK"}], "grading": {"eval_id": 6, "eval_name": "splunk-spl-brute-force-migration", "configuration": "without_skill", "expectations": [{"text": "Output includes standard .kql comment header block", "passed": false, "evidence": "File has a two-line comment header ('// Brute Force Detection with Successful Authentication \u2014 Converted from Splunk SPL to KQL', '// Source: index=auth sourcetype=linux_secure...', '// Sentinel table: Syslog...') but NOT the structured header block with labeled Title, Service, Tables, Description, Parameters, and Complexity fields."}, {"text": "Uses Syslog table for Linux authentication logs", "passed": true, "evidence": "Both FailedAttempts and SuccessfulLogins subqueries use 'Syslog' table with 'Facility == \"auth\" or ProcessName in (\"sshd\", \"su\", \"sudo\")'"}, {"text": "Maps Splunk dc() to KQL dcount()", "passed": true, "evidence": "'unique_sources = dcount(src_ip)'"}, {"text": "Maps Splunk values() to KQL make_set()", "passed": true, "evidence": "'sources = make_set(src_ip)'"}, {"text": "Uses join to correlate failed logins with successful logins by user", "passed": true, "evidence": "'FailedAttempts | join kind=inner SuccessfulLogins on user'"}, {"text": "Uses iff() or case() instead of Splunk eval/if syntax", "passed": true, "evidence": "'success_after_bruteforce = iif(last_success >= ago(1h), \"YES\", \"NO\")' \u2014 uses iif() which is an alias for iff() in KQL"}, {"text": "Includes TimeGenerated filter", "passed": true, "evidence": "'| where TimeGenerated >= ago(LookbackWindow)' in both FailedAttempts and SuccessfulLogins"}], "pass_rate": 0.857, "summary": {"passed": 6, "failed": 1, "total": 7, "pass_rate": 0.857}, "timing": {"executor_duration_seconds": 35.6, "total_duration_seconds": 35.6}, "claims": [{"claim": "Uses hardcoded ago(1h) for the success_after_bruteforce check instead of a parameter", "type": "quality", "verified": true, "evidence": "'success_after_bruteforce = iif(last_success >= ago(1h), ...)' \u2014 the 1h is hardcoded, not parameterized, unlike the with_skill output which uses 'let successWindow = 1h'"}], "eval_feedback": {"suggestions": [{"reason": "The without_skill output uses LookbackWindow = 1h (only 1 hour lookback) whereas with_skill uses 24h. The short lookback is functionally limited for brute force detection, but no assertion checks the lookback duration adequacy. Consider asserting 'Uses lookback of at least 1 hour for failed attempts'."}], "overall": "Header assertion is the key differentiator. The without_skill output uses only 1h lookback for failures, which may miss attacks \u2014 a quality gap no assertion currently catches."}}}, {"id": "eval-7-reservation-consumption-with_skill", "prompt": "Query Azure reservations with consumed usage via ARM/Resource Graph, with CLI commands", "eval_id": 7, "outputs": [{"name": "reservation-consumption-analysis.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIFRpdGxlOiBBenVyZSBSZXNlcnZhdGlvbnMgQ29uc3VtcHRpb24gJiBVdGlsaXphdGlvbiBBbmFseXNpcwovLyBTZXJ2aWNlOiBBenVyZSBSZXNvdXJjZSBHcmFwaCAoQVJHKSB2aWEgQXp1cmUgTW9uaXRvciAvIExvZyBBbmFseXRpY3MKLy8gVGFibGVzOiBhcmcoIiIpLlJlc291cmNlcywgYXJnKCIiKS5SZXNvdXJjZUNvbnRhaW5lcnMsCi8vICAgICAgICAgQXp1cmVBY3Rpdml0eSwgQXp1cmVEaWFnbm9zdGljcwovLyBEZXNjcmlwdGlvbjogUXVlcmllcyBBenVyZSBSZXNvdXJjZSBHcmFwaCB0byBzdXJmYWNlIGFsbCBhY3RpdmUKLy8gICByZXNlcnZhdGlvbnMgYWxvbmdzaWRlIHRoZWlyIHV0aWxpemF0aW9uIHBlcmNlbnRhZ2VzLiBBIHNlY29uZGFyeQovLyAgIHF1ZXJ5IGpvaW5zIHJlc2VydmF0aW9uIHNjb3BlIGRhdGEgd2l0aCBhY3R1YWwgY29uc3VtaW5nIHJlc291cmNlcwovLyAgIHRvIHNob3cgd2hpY2ggVk1zLCBTUUwgREJzLCBvciBvdGhlciByZXNvdXJjZXMgYXJlIGJlbmVmaXRpbmcgZnJvbQovLyAgIGVhY2ggcmVzZXJ2YXRpb24uIFVzZWZ1bCBmb3IgRmluT3BzIHJldmlld3MsIGlkbGUtcmVzZXJ2YXRpb24KLy8gICBkZXRlY3Rpb24sIGFuZCBjaGFyZ2ViYWNrIHJlcG9ydGluZy4KLy8gUGFyYW1ldGVyczogcmVzZXJ2YXRpb25TY29wZSAoZGVmYXVsdDogYWxsIHN1YnNjcmlwdGlvbnMgdmlzaWJsZSB0byBjYWxsZXIpLAovLyAgICAgICAgICAgICB1dGlsaXphdGlvblRocmVzaG9sZCAoZmxhZyByZXNlcnZhdGlvbnMgYmVsb3cgdGhpcyAlLCBkZWZhdWx0IDgwKSwKLy8gICAgICAgICAgICAgbG9va2JhY2tEYXlzIChBUkcgcmVzZXJ2YXRpb24gdXRpbGl6YXRpb24gd2luZG93LCBkZWZhdWx0IDdkKQovLyBDb21wbGV4aXR5OiBBZHZhbmNlZAovLyA9PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT0KCi8vIOKUgOKUgCBQYXJ0IDE6IFJlc2VydmF0aW9uIGludmVudG9yeSB3aXRoIHV0aWxpemF0aW9uIOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgOKUgAovLyBVc2VzIEF6dXJlIFJlc291cmNlIEdyYXBoIHRvIGVudW1lcmF0ZSBhbGwgcmVzZXJ2YXRpb25zIGFuZCBwdWxsIHRoZQovLyBidWlsdC1pbiB1dGlsaXphdGlvbiBhZ2dyZWdhdGVzIHN1cmZhY2VkIGJ5IHRoZSBSZXNlcnZhdGlvbnMgUlAuCi8vIE5PVEU6IFJ1biB0aGlzIGluIEF6dXJlIFJlc291cmNlIEdyYXBoIEV4cGxvcmVyIChwb3J0YWwpIG9yIHZpYQovLyAgICAgICBgYXogZ3JhcGggcXVlcnlgIOKAlCBOT1QgaW4gYSBMb2cgQW5hbHl0aWNzIHdvcmtzcGFjZS4KCmxldCB1dGlsaXphdGlvblRocmVzaG9sZCA9IDgwLjA7ICAvLyBmbGFnIHJlc2VydmF0aW9ucyBiZWxvdyB0aGlzICUKCnJlc291cmNlcwp8IHdoZXJlIHR5cGUgPX4gIm1pY3Jvc29mdC5jYXBhY2l0eS9yZXNlcnZhdGlvbm9yZGVycy9yZXNlcnZhdGlvbnMiCnwgZXh0ZW5kCiAgICBSZXNlcnZhdGlvbk9yZGVySWQgICAgPSB0b3N0cmluZyhzcGxpdChpZCwgIi8iKVs4XSksCiAgICBSZXNlcnZhdGlvbklkICAgICAgICAgPSB0b3N0cmluZyhpZCksCiAgICBSZXNlcnZhdGlvbk5hbWUgICAgICAgPSB0b3N0cmluZyhuYW1lKSwKICAgIFNrdSAgICAgICAgICAgICAgICAgICA9IHRvc3RyaW5nKHNrdS5uYW1lKSwKICAgIFF1YW50aXR5ICAgICAgICAgICAgICA9IHRvaW50KHByb3BlcnRpZXMucXVhbnRpdHkpLAogICAgUmVzZXJ2YXRpb25TdGF0ZSAgICAgID0gdG9zdHJpbmcocHJvcGVydGllcy5wcm92aXNpb25pbmdTdGF0ZSksCiAgICBFeHBpcnlEYXRlICAgICAgICAgICAgPSB0b2RhdGV0aW1lKHByb3BlcnRpZXMuZXhwaXJ5RGF0ZSksCiAgICBQdXJjaGFzZURhdGUgICAgICAgICAgPSB0b2RhdGV0aW1lKHByb3BlcnRpZXMucHVyY2hhc2VEYXRlKSwKICAgIFJlc2VydmVkUmVzb3VyY2VUeXBlICA9IHRvc3RyaW5nKHByb3BlcnRpZXMucmVzZXJ2ZWRSZXNvdXJjZVR5cGUpLAogICAgLy8gU2NvcGUgY2FuIGJlICJTaW5nbGUgc3Vic2NyaXB0aW9uIiwgIlNoYXJlZCIsIG9yIGEgbWFuYWdlbWVudCBncm91cCBwYXRoCiAgICBTY29wZSAgICAgICAgICAgICAgICAgPSB0b3N0cmluZyhwcm9wZXJ0aWVzLmFwcGxpZWRTY29wZVR5cGUpLAogICAgQXBwbGllZFNjb3BlcyAgICAgICAgID0gdG9zdHJpbmcocHJvcGVydGllcy5hcHBsaWVkU2NvcGVzKSwKICAgIC8vIHV0aWxpemF0aW9uIGlzIG5lc3RlZCB1bmRlciBwcm9wZXJ0aWVzLnV0aWxpemF0aW9uQWdncmVnYXRlcyAoYXJyYXkpCiAgICBVdGlsaXphdGlvblJhdyAgICAgICAgPSBwcm9wZXJ0aWVzLnV0aWxpemF0aW9uQWdncmVnYXRlcwp8IG12LWV4cGFuZCBVdGlsaXphdGlvbkVudHJ5ID0gVXRpbGl6YXRpb25SYXcKLy8gS2VlcCB0aGUgNy1kYXkgcm9sbGluZyB1dGlsaXphdGlvbiBncmFpbiAoZ3JhaW4gPT0gIlA3RCIpCnwgd2hlcmUgdG9zdHJpbmcoVXRpbGl6YXRpb25FbnRyeS5ncmFpbikgPX4gIlA3RCIgb3IgaXNudWxsKFV0aWxpemF0aW9uRW50cnkpCnwgZXh0ZW5kCiAgICBVdGlsaXphdGlvblBjdCAgICAgICAgPSByb3VuZCh0b2RvdWJsZShVdGlsaXphdGlvbkVudHJ5LnZhbHVlKSAqIDEwMCwgMiksCiAgICBVdGlsaXphdGlvbkdyYWluICAgICAgPSB0b3N0cmluZyhVdGlsaXphdGlvbkVudHJ5LmdyYWluKQp8IGV4dGVuZAogICAgSXNVbmRlcnV0aWxpemVkICAgICAgID0gaWZmKFV0aWxpemF0aW9uUGN0IDwgdXRpbGl6YXRpb25UaHJlc2hvbGQsIHRydWUsIGZhbHNlKSwKICAgIERheXNVbnRpbEV4cGlyeSAgICAgICA9IGRhdGV0aW1lX2RpZmYoImRheSIsIEV4cGlyeURhdGUsIG5vdygpKQp8IHByb2plY3QKICAgIFJlc2VydmF0aW9uTmFtZSwKICAgIFJlc2VydmF0aW9uSWQsCiAgICBSZXNlcnZhdGlvbk9yZGVySWQsCiAgICBTa3UsCiAgICBSZXNlcnZlZFJlc291cmNlVHlwZSwKICAgIFF1YW50aXR5LAogICAgU2NvcGUsCiAgICBBcHBsaWVkU2NvcGVzLAogICAgUmVzZXJ2YXRpb25TdGF0ZSwKICAgIFV0aWxpemF0aW9uUGN0LAogICAgVXRpbGl6YXRpb25HcmFpbiwKICAgIElzVW5kZXJ1dGlsaXplZCwKICAgIFB1cmNoYXNlRGF0ZSwKICAgIEV4cGlyeURhdGUsCiAgICBEYXlzVW50aWxFeHBpcnkKfCBzb3J0IGJ5IFV0aWxpemF0aW9uUGN0IGFzYwoKCi8vIOKUgOKUgCBQYXJ0IDI6IFJlc291cmNlcyBjb25zdW1pbmcgZWFjaCByZXNlcnZhdGlvbiDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIDilIAKLy8gQ3Jvc3MtcmVmZXJlbmNlcyByZXNlcnZhdGlvbiBhcHBsaWVkIHNjb3BlcyB3aXRoIGFjdHVhbCBydW5uaW5nIHJlc291cmNlcy4KLy8gVGhpcyBzdXJmYWNlcyB3aGljaCByZXNvdXJjZSBJRHMgYXJlIHdpdGhpbiB0aGUgcmVzZXJ2YXRpb24ncyBhcHBsaWVkIHNjb3BlLAovLyBzZXJ2aW5nIGFzIGEgcHJveHkgZm9yIHJlc2VydmF0aW9uIGNvbnN1bWVycyB3aGVuIGRpcmVjdCBiaWxsaW5nIGxpbmthZ2UKLy8gaXMgbm90IGF2YWlsYWJsZSBpbiBBUkcuCi8vCi8vIEZvciBleGFjdCBwZXItcmVzb3VyY2UgY29uc3VtcHRpb24gYW1vdW50cywgcGFpciB0aGlzIHdpdGggQ29zdCBNYW5hZ2VtZW50Ci8vIGV4cG9ydHMgb3IgdGhlIENvbnN1bXB0aW9uIEFQSSAoVXNhZ2VEZXRhaWxzIC8gUmVzZXJ2YXRpb25EZXRhaWxzIGVuZHBvaW50cykuCgpsZXQgcmVzZXJ2YXRpb25zID0gbWF0ZXJpYWxpemUoCiAgICByZXNvdXJjZXMKICAgIHwgd2hlcmUgdHlwZSA9fiAibWljcm9zb2Z0LmNhcGFjaXR5L3Jlc2VydmF0aW9ub3JkZXJzL3Jlc2VydmF0aW9ucyIKICAgIHwgZXh0ZW5kCiAgICAgICAgUmVzZXJ2YXRpb25OYW1lICAgICAgPSB0b3N0cmluZyhuYW1lKSwKICAgICAgICBSZXNlcnZhdGlvbklkICAgICAgICA9IHRvc3RyaW5nKGlkKSwKICAgICAgICBSZXNlcnZlZFJlc291cmNlVHlwZSA9IHRvc3RyaW5nKHByb3BlcnRpZXMucmVzZXJ2ZWRSZXNvdXJjZVR5cGUpLAogICAgICAgIFNrdSAgICAgICAgICAgICAgICAgID0gdG9zdHJpbmcoc2t1Lm5hbWUpLAogICAgICAgIFF1YW50aXR5ICAgICAgICAgICAgID0gdG9pbnQocHJvcGVydGllcy5xdWFudGl0eSksCiAgICAgICAgU2NvcGUgICAgICAgICAgICAgICAgPSB0b3N0cmluZyhwcm9wZXJ0aWVzLmFwcGxpZWRTY29wZVR5cGUpLAogICAgICAgIEFwcGxpZWRTY29wZXMgICAgICAgID0gdG9zdHJpbmcocHJvcGVydGllcy5hcHBsaWVkU2NvcGVzKSwKICAgICAgICBVdGlsaXphdGlvblJhdyAgICAgICA9IHByb3BlcnRpZXMudXRpbGl6YXRpb25BZ2dyZWdhdGVzCiAgICB8IG12LWV4cGFuZCBVdGlsaXphdGlvbkVudHJ5ID0gVXRpbGl6YXRpb25SYXcKICAgIHwgd2hlcmUgdG9zdHJpbmcoVXRpbGl6YXRpb25FbnRyeS5ncmFpbikgPX4gIlA3RCIgb3IgaXNudWxsKFV0aWxpemF0aW9uRW50cnkpCiAgICB8IGV4dGVuZCBVdGlsaXphdGlvblBjdCA9IHJvdW5kKHRvZG91YmxlKFV0aWxpemF0aW9uRW50cnkudmFsdWUpICogMTAwLCAyKQogICAgfCBwcm9qZWN0IFJlc2VydmF0aW9uTmFtZSwgUmVzZXJ2YXRpb25JZCwgUmVzZXJ2ZWRSZXNvdXJjZVR5cGUsIFNrdSwKICAgICAgICAgICAgICBRdWFudGl0eSwgU2NvcGUsIEFwcGxpZWRTY29wZXMsIFV0aWxpemF0aW9uUGN0Cik7CgovLyBNYXAgcmVzZXJ2YXRpb24gcmVzb3VyY2UgdHlwZSDihpIgQVJNIHJlc291cmNlIHR5cGUgZm9yIHRoZSBjb25zdW1lciBsb29rdXAKbGV0IHR5cGVNYXAgPSBkYXRhdGFibGUoUmVzZXJ2ZWRSZXNvdXJjZVR5cGU6c3RyaW5nLCBBcm1UeXBlOnN0cmluZykgWwogICAgIlZpcnR1YWxNYWNoaW5lcyIsICAgICAgICAgICAibWljcm9zb2Z0LmNvbXB1dGUvdmlydHVhbG1hY2hpbmVzIiwKICAgICJTcWxEYXRhYmFzZXMiLCAgICAgICAgICAgICAgIm1pY3Jvc29mdC5zcWwvc2VydmVycy9kYXRhYmFzZXMiLAogICAgIlNxbE1hbmFnZWRJbnN0YW5jZXMiLCAgICAgICAibWljcm9zb2Z0LnNxbC9tYW5hZ2VkaW5zdGFuY2VzIiwKICAgICJQb3N0Z3JlU3FsIiwgICAgICAgICAgICAgICAgIm1pY3Jvc29mdC5kYmZvcnBvc3RncmVzcWwvc2VydmVycyIsCiAgICAiTXlTcWwiLCAgICAgICAgICAgICAgICAgICAgICJtaWNyb3NvZnQuZGJmb3JteXNxbC9zZXJ2ZXJzIiwKICAgICJDb3Ntb3NEYiIsICAgICAgICAgICAgICAgICAgIm1pY3Jvc29mdC5kb2N1bWVudGRiL2RhdGFiYXNlYWNjb3VudHMiLAogICAgIlJlZEhhdCIsICAgICAgICAgICAgICAgICAgICAibWljcm9zb2Z0LmNvbXB1dGUvdmlydHVhbG1hY2hpbmVzIiwKICAgICJTdXNlTGludXgiLCAgICAgICAgICAgICAgICAgIm1pY3Jvc29mdC5jb21wdXRlL3ZpcnR1YWxtYWNoaW5lcyIsCiAgICAiQXBwU2VydmljZSIsICAgICAgICAgICAgICAgICJtaWNyb3NvZnQud2ViL3NpdGVzIiwKICAgICJNYW5hZ2VkRGlzayIsICAgICAgICAgICAgICAgIm1pY3Jvc29mdC5jb21wdXRlL2Rpc2tzIiwKICAgICJCbG9ja0Jsb2IiLCAgICAgICAgICAgICAgICAgIm1pY3Jvc29mdC5zdG9yYWdlL3N0b3JhZ2VhY2NvdW50cyIsCiAgICAiQXp1cmVEYXRhRmFjdG9yeSIsICAgICAgICAgICJtaWNyb3NvZnQuZGF0YWZhY3RvcnkvZmFjdG9yaWVzIiwKICAgICJEYXRhYnJpY2tzIiwgICAgICAgICAgICAgICAgIm1pY3Jvc29mdC5kYXRhYnJpY2tzL3dvcmtzcGFjZXMiLAogICAgIkhESW5zaWdodCIsICAgICAgICAgICAgICAgICAibWljcm9zb2Z0LmhkaW5zaWdodC9jbHVzdGVycyIsCiAgICAiRGVkaWNhdGVkSG9zdCIsICAgICAgICAgICAgICJtaWNyb3NvZnQuY29tcHV0ZS9ob3N0Z3JvdXBzL2hvc3RzIiwKICAgICJBenVyZVZNd2FyZUNsb3VkIiwgICAgICAgICAgIm1pY3Jvc29mdC5hdnMvcHJpdmF0ZWNsb3VkcyIsCiAgICAiU3FsRWRnZSIsICAgICAgICAgICAgICAgICAgICJtaWNyb3NvZnQuYXp1cmVzcWx2bS9zcWx2aXJ0dWFsbWFjaGluZXMiLAogICAgIlNhcEhhbmEiLCAgICAgICAgICAgICAgICAgICAibWljcm9zb2Z0LmNvbXB1dGUvdmlydHVhbG1hY2hpbmVzIgpdOwoKLy8gRW51bWVyYXRlIHJlc291cmNlcyBvZiB0aGUgdHlwZXMgY292ZXJlZCBieSBhY3RpdmUgcmVzZXJ2YXRpb25zCmxldCBjb25zdW1pbmdSZXNvdXJjZXMgPSBtYXRlcmlhbGl6ZSgKICAgIHJlc291cmNlcwogICAgfCB3aGVyZSB0eXBlIGlufiAodHlwZU1hcCB8IHByb2plY3QgQXJtVHlwZSkKICAgIHwgcHJvamVjdAogICAgICAgIFJlc291cmNlSWQgICAgICAgPSB0b2xvd2VyKGlkKSwKICAgICAgICBSZXNvdXJjZU5hbWUgICAgID0gdG9zdHJpbmcobmFtZSksCiAgICAgICAgUmVzb3VyY2VUeXBlICAgICA9IHRvbG93ZXIodHlwZSksCiAgICAgICAgUmVzb3VyY2VMb2NhdGlvbiA9IHRvc3RyaW5nKGxvY2F0aW9uKSwKICAgICAgICBSZXNvdXJjZUdyb3VwICAgID0gdG9zdHJpbmcocmVzb3VyY2VHcm91cCksCiAgICAgICAgU3Vic2NyaXB0aW9uSWQgICA9IHRvc3RyaW5nKHN1YnNjcmlwdGlvbklkKSwKICAgICAgICBTa3UgICAgICAgICAgICAgID0gdG9zdHJpbmcoc2t1Lm5hbWUpLAogICAgICAgIFRhZ3MgICAgICAgICAgICAgPSB0b3N0cmluZyh0YWdzKQopOwoKLy8gSm9pbiByZXNlcnZhdGlvbnMg4oaSIHR5cGUgbWFwIOKGkiBjb25zdW1pbmcgcmVzb3VyY2VzCnJlc2VydmF0aW9ucwp8IGpvaW4ga2luZD1pbm5lciB0eXBlTWFwIG9uIFJlc2VydmVkUmVzb3VyY2VUeXBlCnwgam9pbiBraW5kPWxlZnRvdXRlciAoCiAgICBjb25zdW1pbmdSZXNvdXJjZXMKICAgIHwgcHJvamVjdCBSZXNvdXJjZUlkLCBSZXNvdXJjZU5hbWUsIFJlc291cmNlVHlwZSwgUmVzb3VyY2VMb2NhdGlvbiwKICAgICAgICAgICAgICBSZXNvdXJjZUdyb3VwLCBTdWJzY3JpcHRpb25JZCwgUmVzb3VyY2VTa3U9U2t1LCBUYWdzLAogICAgICAgICAgICAgIEFybVR5cGU9UmVzb3VyY2VUeXBlCikgb24gQXJtVHlwZQovLyBGb3IgIlNoYXJlZCIgc2NvcGUgcmVzZXJ2YXRpb25zLCBhbGwgcmVzb3VyY2VzIG9mIHRoZSBtYXRjaGluZyB0eXBlIHF1YWxpZnkuCi8vIEZvciAiU2luZ2xlIiBzY29wZSwgcmVzdHJpY3QgdG8gdGhlIHN1YnNjcmlwdGlvbiBlbWJlZGRlZCBpbiBBcHBsaWVkU2NvcGVzLgp8IHdoZXJlIFNjb3BlID1+ICJTaGFyZWQiCiAgICBvciAoU2NvcGUgPX4gIlNpbmdsZSIgYW5kIFN1YnNjcmlwdGlvbklkID1+IGV4dHJhY3QoIi9zdWJzY3JpcHRpb25zLyhbXi9dKykiLCAxLCBBcHBsaWVkU2NvcGVzKSkKfCBwcm9qZWN0CiAgICBSZXNlcnZhdGlvbk5hbWUsCiAgICBSZXNlcnZhdGlvbklkLAogICAgUmVzZXJ2ZWRSZXNvdXJjZVR5cGUsCiAgICBSZXNlcnZhdGlvblNrdSAgICAgICA9IFNrdSwKICAgIFJlc2VydmF0aW9uUXVhbnRpdHkgID0gUXVhbnRpdHksCiAgICBVdGlsaXphdGlvblBjdCwKICAgIENvbnN1bWluZ1Jlc291cmNlICAgID0gUmVzb3VyY2VOYW1lLAogICAgQ29uc3VtaW5nUmVzb3VyY2VJZCAgPSBSZXNvdXJjZUlkLAogICAgUmVzb3VyY2VUeXBlLAogICAgUmVzb3VyY2VMb2NhdGlvbiwKICAgIFJlc291cmNlR3JvdXAsCiAgICBTdWJzY3JpcHRpb25JZCwKICAgIFJlc291cmNlU2t1LAogICAgVGFncwp8IHNvcnQgYnkgUmVzZXJ2YXRpb25OYW1lIGFzYywgQ29uc3VtaW5nUmVzb3VyY2UgYXNjCg=="}, {"name": "run-via-azure-cli.sh", "type": "text", "content": "#!/usr/bin/env bash\n# =============================================================================\n# Azure Reservations Consumption \u2014 Azure CLI Execution Guide\n# =============================================================================\n# Prerequisites:\n#   - Azure CLI >= 2.50.0\n#   - az extension: resource-graph  (`az extension add --name resource-graph`)\n#   - Authenticated: `az login` (or service principal / managed identity)\n#   - Role: Reader on the reservation orders OR Reservation Reader built-in role\n# =============================================================================\n\n# ---------------------------------------------------------------------------\n# 0. Install the Resource Graph extension (one-time)\n# ---------------------------------------------------------------------------\naz extension add --name resource-graph --upgrade\n\n# ---------------------------------------------------------------------------\n# 1. Run Part 1 \u2014 Reservation inventory with utilization\n#    Output the top-level reservation list with utilization % to a JSON file\n# ---------------------------------------------------------------------------\nQUERY_PART1='\nresources\n| where type =~ \"microsoft.capacity/reservationorders/reservations\"\n| extend\n    ReservationName      = tostring(name),\n    ReservationId        = tostring(id),\n    Sku                  = tostring(sku.name),\n    Quantity             = toint(properties.quantity),\n    ReservationState     = tostring(properties.provisioningState),\n    ExpiryDate           = todatetime(properties.expiryDate),\n    PurchaseDate         = todatetime(properties.purchaseDate),\n    ReservedResourceType = tostring(properties.reservedResourceType),\n    Scope                = tostring(properties.appliedScopeType),\n    AppliedScopes        = tostring(properties.appliedScopes),\n    UtilizationRaw       = properties.utilizationAggregates\n| mv-expand UtilizationEntry = UtilizationRaw\n| where tostring(UtilizationEntry.grain) =~ \"P7D\" or isnull(UtilizationEntry)\n| extend UtilizationPct = round(todouble(UtilizationEntry.value) * 100, 2)\n| extend IsUnderutilized = iff(UtilizationPct < 80, true, false)\n| project ReservationName, Sku, ReservedResourceType, Quantity,\n          Scope, AppliedScopes, ReservationState,\n          UtilizationPct, IsUnderutilized, PurchaseDate, ExpiryDate\n| sort by UtilizationPct asc\n'\n\naz graph query \\\n  --graph-query \"$QUERY_PART1\" \\\n  --output json \\\n  > reservation-inventory.json\n\necho \"Reservation inventory written to reservation-inventory.json\"\n\n# ---------------------------------------------------------------------------\n# 2. Run Part 1 from a .kql file (cleaner for CI/automation)\n#    Extract just the Part 1 block from the full .kql file, or keep a\n#    dedicated single-query file.\n# ---------------------------------------------------------------------------\n# az graph query \\\n#   --graph-query \"$(cat reservation-inventory-only.kql)\" \\\n#   --output json > reservation-inventory.json\n\n# ---------------------------------------------------------------------------\n# 3. Paginate large result sets (ARG returns max 1,000 rows per call)\n#    Use --skip-token returned from the previous response.\n# ---------------------------------------------------------------------------\nFIRST_PAGE=$(az graph query \\\n  --graph-query \"$QUERY_PART1\" \\\n  --output json)\n\necho \"$FIRST_PAGE\" | jq '.data' > page1.json\n\nSKIP_TOKEN=$(echo \"$FIRST_PAGE\" | jq -r '.\"$skipToken\" // empty')\n\nif [ -n \"$SKIP_TOKEN\" ]; then\n  az graph query \\\n    --graph-query \"$QUERY_PART1\" \\\n    --skip-token \"$SKIP_TOKEN\" \\\n    --output json | jq '.data' >> page1.json\n  echo \"Additional page retrieved with skip token.\"\nfi\n\n# ---------------------------------------------------------------------------\n# 4. Filter to a specific subscription (narrow scope)\n# ---------------------------------------------------------------------------\nSUBSCRIPTION_ID=\"<your-subscription-id>\"\n\naz graph query \\\n  --graph-query \"$QUERY_PART1\" \\\n  --subscriptions \"$SUBSCRIPTION_ID\" \\\n  --output table\n\n# ---------------------------------------------------------------------------\n# 5. Output as table for quick review in terminal\n# ---------------------------------------------------------------------------\naz graph query \\\n  --graph-query \"$QUERY_PART1\" \\\n  --output table\n\n# ---------------------------------------------------------------------------\n# 6. Export to CSV using jq post-processing\n# ---------------------------------------------------------------------------\naz graph query \\\n  --graph-query \"$QUERY_PART1\" \\\n  --output json \\\n  | jq -r '\n      .data\n      | (.[0] | keys_unsorted) as $cols\n      | [$cols | join(\",\")],\n        (.[] | [.[$cols[]]] | @csv)\n      | .\n    ' \\\n  > reservation-inventory.csv\n\necho \"CSV exported to reservation-inventory.csv\"\n\n# ---------------------------------------------------------------------------\n# 7. Run Part 2 \u2014 Resources consuming each reservation\n#    (Shared-scope example: all VMs in tenant)\n# ---------------------------------------------------------------------------\nQUERY_PART2='\nlet reservations = materialize(\n    resources\n    | where type =~ \"microsoft.capacity/reservationorders/reservations\"\n    | extend\n        ReservationName      = tostring(name),\n        ReservationId        = tostring(id),\n        ReservedResourceType = tostring(properties.reservedResourceType),\n        Sku                  = tostring(sku.name),\n        Quantity             = toint(properties.quantity),\n        Scope                = tostring(properties.appliedScopeType),\n        AppliedScopes        = tostring(properties.appliedScopes),\n        UtilizationRaw       = properties.utilizationAggregates\n    | mv-expand UtilizationEntry = UtilizationRaw\n    | where tostring(UtilizationEntry.grain) =~ \"P7D\" or isnull(UtilizationEntry)\n    | extend UtilizationPct = round(todouble(UtilizationEntry.value) * 100, 2)\n    | project ReservationName, ReservationId, ReservedResourceType, Sku,\n              Quantity, Scope, AppliedScopes, UtilizationPct\n);\nlet typeMap = datatable(ReservedResourceType:string, ArmType:string) [\n    \"VirtualMachines\", \"microsoft.compute/virtualmachines\",\n    \"SqlDatabases\",    \"microsoft.sql/servers/databases\",\n    \"SqlManagedInstances\", \"microsoft.sql/managedinstances\",\n    \"CosmosDb\",        \"microsoft.documentdb/databaseaccounts\"\n];\nreservations\n| join kind=inner typeMap on ReservedResourceType\n| join kind=leftouter (\n    resources\n    | project ResourceId=tolower(id), ResourceName=tostring(name),\n              ResourceType=tolower(type), ResourceLocation=tostring(location),\n              ResourceGroup=tostring(resourceGroup), SubscriptionId=tostring(subscriptionId)\n    | extend ArmType=ResourceType\n) on ArmType\n| where Scope =~ \"Shared\"\n    or (Scope =~ \"Single\" and SubscriptionId =~ extract(\"/subscriptions/([^/]+)\", 1, AppliedScopes))\n| project ReservationName, ReservationId, ReservedResourceType,\n          ReservationSku=Sku, ReservationQuantity=Quantity, UtilizationPct,\n          ConsumingResource=ResourceName, ConsumingResourceId=ResourceId,\n          ResourceType, ResourceLocation, ResourceGroup, SubscriptionId\n| sort by ReservationName asc, ConsumingResource asc\n'\n\naz graph query \\\n  --graph-query \"$QUERY_PART2\" \\\n  --output json \\\n  > reservation-consumers.json\n\necho \"Reservation consumer mapping written to reservation-consumers.json\"\n\n# ---------------------------------------------------------------------------\n# 8. Validate query syntax before running at scale\n#    Append \"| take 0\" to check parsing without data transfer\n# ---------------------------------------------------------------------------\naz graph query \\\n  --graph-query 'resources | where type =~ \"microsoft.capacity/reservationorders/reservations\" | take 0' \\\n  --output json\n\n# ---------------------------------------------------------------------------\n# 9. Get utilization via the Consumption API (exact per-reservation usage)\n#    This is more precise than ARG for billing-grade consumption data.\n# ---------------------------------------------------------------------------\nRESERVATION_ORDER_ID=\"<reservation-order-id>\"\nRESERVATION_ID=\"<reservation-id>\"\n\n# List reservation summaries (daily grain)\naz consumption reservation summary list \\\n  --reservation-order-id \"$RESERVATION_ORDER_ID\" \\\n  --reservation-id \"$RESERVATION_ID\" \\\n  --grain daily \\\n  --output table\n\n# List reservation details (per-instance consumption)\naz consumption reservation detail list \\\n  --reservation-order-id \"$RESERVATION_ORDER_ID\" \\\n  --reservation-id \"$RESERVATION_ID\" \\\n  --start-date \"$(date -u -v-7d +%Y-%m-%d)\" \\\n  --end-date \"$(date -u +%Y-%m-%d)\" \\\n  --output json > reservation-details.json\n\necho \"Reservation details (per-resource usage) written to reservation-details.json\"\n\n# ---------------------------------------------------------------------------\n# 10. List all reservation orders in the tenant\n# ---------------------------------------------------------------------------\naz reservations reservation-order list --output table\n\n# List reservations within an order\naz reservations reservation list \\\n  --reservation-order-id \"$RESERVATION_ORDER_ID\" \\\n  --output table\n"}], "grading": {"eval_id": 7, "eval_name": "azure-reservation-consumption", "configuration": "with_skill", "expectations": [{"text": "Targets Azure Resource Graph tables or consumption/billing tables", "passed": true, "evidence": "Part 1 uses 'resources' table in Azure Resource Graph querying 'microsoft.capacity/reservationorders/reservations'. Part 2 also uses 'resources' and references consumption via CLI commands. The header explicitly states 'Run this in Azure Resource Graph Explorer (portal) or via az graph query'."}, {"text": "Projects reservation name/display name in results", "passed": true, "evidence": "'ReservationName = tostring(name)' is projected in both Part 1 and Part 2 of the query"}, {"text": "Shows utilization percentage for each reservation", "passed": true, "evidence": "'UtilizationPct = round(todouble(UtilizationEntry.value) * 100, 2)' derived from properties.utilizationAggregates with P7D grain filter"}, {"text": "Shows which resources are consuming each reservation", "passed": true, "evidence": "Part 2 joins reservations with 'consumingResources' via typeMap, projecting 'ConsumingResource = ResourceName' and 'ConsumingResourceId = ResourceId'"}, {"text": "Includes Azure CLI commands (az graph query or az consumption) to run the query", "passed": true, "evidence": "run-via-azure-cli.sh includes 10 sections with 'az graph query' commands, 'az consumption reservation summary list', 'az consumption reservation detail list', and 'az reservations reservation-order list'"}, {"text": "Output includes .kql file with comment header", "passed": true, "evidence": "reservation-consumption-analysis.kql opens with structured header block containing Title, Service, Tables, Description, Parameters (reservationScope, utilizationThreshold, lookbackDays), Complexity: Advanced"}], "pass_rate": 1.0, "summary": {"passed": 6, "failed": 0, "total": 6, "pass_rate": 1.0}, "timing": {"executor_duration_seconds": 120.4, "total_duration_seconds": 120.4}, "claims": [{"claim": "Includes IsUnderutilized flag and configurable utilizationThreshold", "type": "quality", "verified": true, "evidence": "'let utilizationThreshold = 80.0;' and 'IsUnderutilized = iff(UtilizationPct < utilizationThreshold, true, false)'"}, {"claim": "Includes typeMap datatable to map reservation types to ARM resource types", "type": "quality", "verified": true, "evidence": "datatable(ReservedResourceType:string, ArmType:string) with 18 resource type mappings (VMs, SQL, PostgreSQL, CosmosDB, AppService, etc.)"}, {"claim": "CLI script includes pagination handling with --skip-token", "type": "process", "verified": true, "evidence": "Section 3 of run-via-azure-cli.sh handles ARG's 1000-row limit with skip token iteration"}], "eval_feedback": {"suggestions": [], "overall": "All 6 assertions pass. The output is thorough with a comprehensive typeMap, CLI pagination, and scope-based resource filtering. No suggestions."}}}, {"id": "eval-7-reservation-consumption-without_skill", "prompt": "Query Azure reservations with consumed usage via ARM/Resource Graph, with CLI commands", "eval_id": 7, "outputs": [{"name": "cli_commands.sh", "type": "text", "content": "#!/usr/bin/env bash\n# ============================================================\n# Azure Reservations Consumption \u2014 Azure CLI Commands\n# Requires: az CLI + resource-graph extension\n# ============================================================\n\n# Install the resource-graph extension if not already present\naz extension add --name resource-graph --only-show-errors\n\n# Login (skip if already authenticated)\n# az login\n\n# ============================================================\n# 1. Reservation Utilization Summary (all reservations)\n# ============================================================\necho \"=== Reservation Utilization Summary ===\"\naz graph query -q \"\nreservationsresources\n| where type =~ 'microsoft.capacity/reservationorders/reservations'\n| extend\n    reservationName   = tostring(name),\n    skuName           = tostring(sku.name),\n    location          = tostring(location),\n    reservedFor       = tostring(properties.reservedResourceType),\n    appliedScopeType  = tostring(properties.appliedScopeType),\n    quantity          = toint(properties.quantity),\n    provisioningState = tostring(properties.provisioningState),\n    expiryDate        = tostring(properties.expiryDate),\n    utilization_1d    = todouble(properties.utilization.aggregates[0].value),\n    utilization_7d    = todouble(properties.utilization.aggregates[1].value),\n    utilization_30d   = todouble(properties.utilization.aggregates[2].value)\n| project\n    reservationName, skuName, location, reservedFor,\n    appliedScopeType, quantity, provisioningState, expiryDate,\n    utilization_1d_pct=round(utilization_1d,2),\n    utilization_7d_pct=round(utilization_7d,2),\n    utilization_30d_pct=round(utilization_30d,2)\n| order by utilization_30d_pct asc\" \\\n--output table\n\n\n# ============================================================\n# 2. Reservations with Utilization Status Flag\n# ============================================================\necho \"\"\necho \"=== Reservation Utilization Status (Healthy/Warning/Critical) ===\"\naz graph query -q \"\nreservationsresources\n| where type =~ 'microsoft.capacity/reservationorders/reservations'\n| extend\n    reservationName  = tostring(name),\n    skuName          = tostring(sku.name),\n    location         = tostring(location),\n    reservedFor      = tostring(properties.reservedResourceType),\n    utilization_30d  = todouble(properties.utilization.aggregates[2].value),\n    expiryDate       = tostring(properties.expiryDate)\n| extend utilizationStatus = case(\n    utilization_30d >= 90, 'Healthy',\n    utilization_30d >= 70, 'Warning',\n    'Critical')\n| project\n    reservationName, skuName, location, reservedFor,\n    utilization_30d_pct=round(utilization_30d,2),\n    utilizationStatus, expiryDate\n| order by utilization_30d_pct asc\" \\\n--output table\n\n\n# ============================================================\n# 3. Resources Consuming Each Reservation (scope join)\n# ============================================================\necho \"\"\necho \"=== Resources Consuming Each Reservation ===\"\naz graph query -q \"\nreservationsresources\n| where type =~ 'microsoft.capacity/reservationorders/reservations'\n| extend\n    reservationName      = tostring(name),\n    reservedResourceType = tostring(properties.reservedResourceType),\n    appliedScopeType     = tostring(properties.appliedScopeType),\n    appliedScopes        = properties.appliedScopes,\n    skuName              = tostring(sku.name),\n    utilization_30d      = todouble(properties.utilization.aggregates[2].value)\n| mv-expand appliedScope = appliedScopes\n| extend appliedScopeStr = tolower(tostring(appliedScope))\n| extend\n    scopeSubscriptionId = extract('/subscriptions/([^/]+)', 1, appliedScopeStr),\n    scopeResourceGroup  = extract('/resourcegroups/([^/]+)', 1, appliedScopeStr)\n| join kind=leftouter (\n    resources\n    | extend\n        resourceName   = tostring(name),\n        resourceType   = tostring(type),\n        resourceRG     = tolower(tostring(resourceGroup)),\n        resourceSubId  = tolower(tostring(subscriptionId)),\n        resourceSku    = tostring(sku.name),\n        resourceRegion = tostring(location)\n    | project resourceName, resourceType, resourceRG, resourceSubId, resourceSku, resourceRegion\n) on \\$left.scopeSubscriptionId == \\$right.resourceSubId\n| where isnotempty(resourceName)\n| project\n    reservationName, skuName, reservedResourceType,\n    utilization_30d_pct=round(utilization_30d,2),\n    scopeSubscriptionId, scopeResourceGroup,\n    resourceName, resourceType, resourceSku, resourceRegion, resourceRG\n| order by reservationName asc, resourceName asc\" \\\n--output table\n\n\n# ============================================================\n# 4. Reservation Orders Summary\n# ============================================================\necho \"\"\necho \"=== Reservation Orders ===\"\naz graph query -q \"\nreservationsresources\n| where type =~ 'microsoft.capacity/reservationorders'\n| extend\n    orderName        = tostring(name),\n    displayName      = tostring(properties.displayName),\n    term             = tostring(properties.term),\n    billingPlan      = tostring(properties.billingPlan),\n    expiryDate       = tostring(properties.expiryDate),\n    requestDateTime  = tostring(properties.requestDateTime),\n    reservationCount = array_length(properties.reservations)\n| project orderName, displayName, term, billingPlan, reservationCount, expiryDate, requestDateTime\n| order by requestDateTime desc\" \\\n--output table\n\n\n# ============================================================\n# 5. Reservations Expiring Within 90 Days\n# ============================================================\necho \"\"\necho \"=== Reservations Expiring in Next 90 Days ===\"\naz graph query -q \"\nreservationsresources\n| where type =~ 'microsoft.capacity/reservationorders/reservations'\n| extend\n    reservationName = tostring(name),\n    skuName         = tostring(sku.name),\n    location        = tostring(location),\n    reservedFor     = tostring(properties.reservedResourceType),\n    expiryDate      = todatetime(properties.expiryDate),\n    quantity        = toint(properties.quantity),\n    utilization_30d = todouble(properties.utilization.aggregates[2].value)\n| where expiryDate >= now() and expiryDate <= now() + 90d\n| extend daysUntilExpiry = datetime_diff('day', expiryDate, now())\n| project\n    reservationName, skuName, location, reservedFor, quantity,\n    utilization_30d_pct=round(utilization_30d,2),\n    expiryDate, daysUntilExpiry\n| order by daysUntilExpiry asc\" \\\n--output table\n\n\n# ============================================================\n# 6. Export all results to JSON (for further processing)\n# ============================================================\necho \"\"\necho \"=== Exporting full utilization data to JSON ===\"\naz graph query -q \"\nreservationsresources\n| where type =~ 'microsoft.capacity/reservationorders/reservations'\n| extend\n    reservationName  = tostring(name),\n    skuName          = tostring(sku.name),\n    location         = tostring(location),\n    reservedFor      = tostring(properties.reservedResourceType),\n    appliedScopeType = tostring(properties.appliedScopeType),\n    quantity         = toint(properties.quantity),\n    expiryDate       = tostring(properties.expiryDate),\n    utilization_1d   = todouble(properties.utilization.aggregates[0].value),\n    utilization_7d   = todouble(properties.utilization.aggregates[1].value),\n    utilization_30d  = todouble(properties.utilization.aggregates[2].value)\n| extend utilizationStatus = case(\n    utilization_30d >= 90, 'Healthy',\n    utilization_30d >= 70, 'Warning',\n    'Critical')\n| project reservationName, skuName, location, reservedFor, appliedScopeType,\n    quantity, expiryDate,\n    utilization_1d_pct=round(utilization_1d,2),\n    utilization_7d_pct=round(utilization_7d,2),\n    utilization_30d_pct=round(utilization_30d,2),\n    utilizationStatus\" \\\n--output json > reservation_utilization_export.json\n\necho \"Exported to reservation_utilization_export.json\"\n"}, {"name": "reservation_consumption.kql", "type": "binary", "mime": "application/octet-stream", "data_uri": "data:application/octet-stream;base64,Ly8gPT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09Ci8vIEF6dXJlIFJlc2VydmF0aW9ucyBDb25zdW1wdGlvbiBRdWVyeQovLyBUYWJsZXM6IE1pY3Jvc29mdC5Db25zdW1wdGlvbi9yZXNlcnZhdGlvbkRldGFpbHMgKHZpYSBBUkcpCi8vICAgICAgICAgcmVzZXJ2YXRpb25zcmVzb3VyY2VzLCBiaWxsaW5ncmVzb3VyY2VzCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKLy8gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQovLyBRdWVyeSAxOiBSZXNlcnZhdGlvbiBVdGlsaXphdGlvbiBTdW1tYXJ5Ci8vIFNob3dzIHJlc2VydmF0aW9uIG5hbWUsIHNjb3BlLCB1dGlsaXphdGlvbiAlLCBhbmQgc3RhdHVzCi8vIHZpYSBBenVyZSBSZXNvdXJjZSBHcmFwaAovLyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCnJlc2VydmF0aW9uc3Jlc291cmNlcwp8IHdoZXJlIHR5cGUgPX4gIm1pY3Jvc29mdC5jYXBhY2l0eS9yZXNlcnZhdGlvbm9yZGVycy9yZXNlcnZhdGlvbnMiCnwgZXh0ZW5kCiAgICByZXNlcnZhdGlvbk5hbWUgICAgPSB0b3N0cmluZyhuYW1lKSwKICAgIHJlc2VydmF0aW9uT3JkZXJJZCA9IHRvc3RyaW5nKHByb3BlcnRpZXMucmVzZXJ2YXRpb25PcmRlcklkKSwKICAgIHJlc2VydmF0aW9uSWQgICAgICA9IHRvc3RyaW5nKGlkKSwKICAgIHNrdU5hbWUgICAgICAgICAgICA9IHRvc3RyaW5nKHNrdS5uYW1lKSwKICAgIGxvY2F0aW9uICAgICAgICAgICA9IHRvc3RyaW5nKGxvY2F0aW9uKSwKICAgIHJlc2VydmVkRm9yICAgICAgICA9IHRvc3RyaW5nKHByb3BlcnRpZXMucmVzZXJ2ZWRSZXNvdXJjZVR5cGUpLAogICAgYXBwbGllZFNjb3BlVHlwZSAgID0gdG9zdHJpbmcocHJvcGVydGllcy5hcHBsaWVkU2NvcGVUeXBlKSwKICAgIHF1YW50aXR5ICAgICAgICAgICA9IHRvaW50KHByb3BlcnRpZXMucXVhbnRpdHkpLAogICAgcHJvdmlzaW9uaW5nU3RhdGUgID0gdG9zdHJpbmcocHJvcGVydGllcy5wcm92aXNpb25pbmdTdGF0ZSksCiAgICBleHBpcnlEYXRlICAgICAgICAgPSB0b3N0cmluZyhwcm9wZXJ0aWVzLmV4cGlyeURhdGUpLAogICAgLy8gVXRpbGl6YXRpb24gZmllbGRzIGZyb20gdGhlIHJlc2VydmF0aW9uIHJlc291cmNlCiAgICB1dGlsaXphdGlvbkFnZ3IxRGF5ICAgPSB0b2RvdWJsZShwcm9wZXJ0aWVzLnV0aWxpemF0aW9uLmFnZ3JlZ2F0ZXNbMF0udmFsdWUpLAogICAgdXRpbGl6YXRpb25BZ2dyN0RheSAgID0gdG9kb3VibGUocHJvcGVydGllcy51dGlsaXphdGlvbi5hZ2dyZWdhdGVzWzFdLnZhbHVlKSwKICAgIHV0aWxpemF0aW9uQWdncjMwRGF5ICA9IHRvZG91YmxlKHByb3BlcnRpZXMudXRpbGl6YXRpb24uYWdncmVnYXRlc1syXS52YWx1ZSkKfCBwcm9qZWN0CiAgICByZXNlcnZhdGlvbk5hbWUsCiAgICBza3VOYW1lLAogICAgbG9jYXRpb24sCiAgICByZXNlcnZlZEZvciwKICAgIGFwcGxpZWRTY29wZVR5cGUsCiAgICBxdWFudGl0eSwKICAgIHByb3Zpc2lvbmluZ1N0YXRlLAogICAgZXhwaXJ5RGF0ZSwKICAgIHV0aWxpemF0aW9uXzFkX3BjdCAgPSByb3VuZCh1dGlsaXphdGlvbkFnZ3IxRGF5LCAyKSwKICAgIHV0aWxpemF0aW9uXzdkX3BjdCAgPSByb3VuZCh1dGlsaXphdGlvbkFnZ3I3RGF5LCAyKSwKICAgIHV0aWxpemF0aW9uXzMwZF9wY3QgPSByb3VuZCh1dGlsaXphdGlvbkFnZ3IzMERheSwgMiksCiAgICByZXNlcnZhdGlvbklkLAogICAgcmVzZXJ2YXRpb25PcmRlcklkCnwgb3JkZXIgYnkgdXRpbGl6YXRpb25fMzBkX3BjdCBhc2MKCgovLyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCi8vIFF1ZXJ5IDI6IFJlc2VydmF0aW9ucyB3aXRoIFVuZGVyLVV0aWxpemF0aW9uIEZsYWcKLy8gSGlnaGxpZ2h0cyByZXNlcnZhdGlvbnMgYmVsb3cgODAlIHV0aWxpemF0aW9uIChsYXN0IDMwZCkKLy8gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQpyZXNlcnZhdGlvbnNyZXNvdXJjZXMKfCB3aGVyZSB0eXBlID1+ICJtaWNyb3NvZnQuY2FwYWNpdHkvcmVzZXJ2YXRpb25vcmRlcnMvcmVzZXJ2YXRpb25zIgp8IGV4dGVuZAogICAgcmVzZXJ2YXRpb25OYW1lICAgPSB0b3N0cmluZyhuYW1lKSwKICAgIHNrdU5hbWUgICAgICAgICAgID0gdG9zdHJpbmcoc2t1Lm5hbWUpLAogICAgbG9jYXRpb24gICAgICAgICAgPSB0b3N0cmluZyhsb2NhdGlvbiksCiAgICByZXNlcnZlZEZvciAgICAgICA9IHRvc3RyaW5nKHByb3BlcnRpZXMucmVzZXJ2ZWRSZXNvdXJjZVR5cGUpLAogICAgYXBwbGllZFNjb3BlVHlwZSAgPSB0b3N0cmluZyhwcm9wZXJ0aWVzLmFwcGxpZWRTY29wZVR5cGUpLAogICAgcXVhbnRpdHkgICAgICAgICAgPSB0b2ludChwcm9wZXJ0aWVzLnF1YW50aXR5KSwKICAgIHV0aWxpemF0aW9uXzMwZCAgID0gdG9kb3VibGUocHJvcGVydGllcy51dGlsaXphdGlvbi5hZ2dyZWdhdGVzWzJdLnZhbHVlKSwKICAgIGV4cGlyeURhdGUgICAgICAgID0gdG9zdHJpbmcocHJvcGVydGllcy5leHBpcnlEYXRlKQp8IGV4dGVuZAogICAgdXRpbGl6YXRpb25TdGF0dXMgPSBjYXNlKAogICAgICAgIHV0aWxpemF0aW9uXzMwZCA+PSA5MCwgIkhlYWx0aHkiLAogICAgICAgIHV0aWxpemF0aW9uXzMwZCA+PSA3MCwgIldhcm5pbmciLAogICAgICAgICJDcml0aWNhbCIKICAgICkKfCBwcm9qZWN0CiAgICByZXNlcnZhdGlvbk5hbWUsCiAgICBza3VOYW1lLAogICAgbG9jYXRpb24sCiAgICByZXNlcnZlZEZvciwKICAgIGFwcGxpZWRTY29wZVR5cGUsCiAgICBxdWFudGl0eSwKICAgIHV0aWxpemF0aW9uXzMwZF9wY3QgPSByb3VuZCh1dGlsaXphdGlvbl8zMGQsIDIpLAogICAgdXRpbGl6YXRpb25TdGF0dXMsCiAgICBleHBpcnlEYXRlCnwgb3JkZXIgYnkgdXRpbGl6YXRpb25fMzBkIGFzYwoKCi8vIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KLy8gUXVlcnkgMzogUmVzb3VyY2VzIENvbnN1bWluZyBFYWNoIFJlc2VydmF0aW9uCi8vIEpvaW4gcmVzZXJ2YXRpb24gZGV0YWlscyB3aXRoIHJlc291cmNlIGRhdGEKLy8gVXNlcyByZXNlcnZhdGlvbnNyZXNvdXJjZXMgKyByZXNvdXJjZXMgdGFibGVzCi8vIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KcmVzZXJ2YXRpb25zcmVzb3VyY2VzCnwgd2hlcmUgdHlwZSA9fiAibWljcm9zb2Z0LmNhcGFjaXR5L3Jlc2VydmF0aW9ub3JkZXJzL3Jlc2VydmF0aW9ucyIKfCBleHRlbmQKICAgIHJlc2VydmF0aW9uTmFtZSAgICAgID0gdG9zdHJpbmcobmFtZSksCiAgICByZXNlcnZhdGlvbklkICAgICAgICA9IHRvbG93ZXIodG9zdHJpbmcoaWQpKSwKICAgIHJlc2VydmVkUmVzb3VyY2VUeXBlID0gdG9zdHJpbmcocHJvcGVydGllcy5yZXNlcnZlZFJlc291cmNlVHlwZSksCiAgICBhcHBsaWVkU2NvcGVUeXBlICAgICA9IHRvc3RyaW5nKHByb3BlcnRpZXMuYXBwbGllZFNjb3BlVHlwZSksCiAgICBhcHBsaWVkU2NvcGVzICAgICAgICA9IHByb3BlcnRpZXMuYXBwbGllZFNjb3BlcywKICAgIHNrdU5hbWUgICAgICAgICAgICAgID0gdG9zdHJpbmcoc2t1Lm5hbWUpLAogICAgbG9jYXRpb24gICAgICAgICAgICAgPSB0b3N0cmluZyhsb2NhdGlvbiksCiAgICB1dGlsaXphdGlvbl8zMGQgICAgICA9IHRvZG91YmxlKHByb3BlcnRpZXMudXRpbGl6YXRpb24uYWdncmVnYXRlc1syXS52YWx1ZSkKLy8gRXhwYW5kIGFwcGxpZWQgc2NvcGVzIHRvIGZpbmQgd2hpY2ggc3Vic2NyaXB0aW9ucy9SR3MgdGhlIHJlc2VydmF0aW9uIGNvdmVycwp8IG12LWV4cGFuZCBhcHBsaWVkU2NvcGUgPSBhcHBsaWVkU2NvcGVzCnwgZXh0ZW5kIGFwcGxpZWRTY29wZVN0ciA9IHRvbG93ZXIodG9zdHJpbmcoYXBwbGllZFNjb3BlKSkKfCBleHRlbmQKICAgIC8vIEV4dHJhY3Qgc3Vic2NyaXB0aW9uIElEIGZyb20gc2NvcGUgcGF0aAogICAgc2NvcGVTdWJzY3JpcHRpb25JZCA9IGV4dHJhY3QoIi9zdWJzY3JpcHRpb25zLyhbXi9dKykiLCAxLCBhcHBsaWVkU2NvcGVTdHIpLAogICAgLy8gRXh0cmFjdCByZXNvdXJjZSBncm91cCBmcm9tIHNjb3BlIHBhdGggKGlmIHNjb3BlZCB0byBSRykKICAgIHNjb3BlUmVzb3VyY2VHcm91cCAgPSBleHRyYWN0KCIvcmVzb3VyY2Vncm91cHMvKFteL10rKSIsIDEsIGFwcGxpZWRTY29wZVN0cikKfCBqb2luIGtpbmQ9bGVmdG91dGVyICgKICAgIHJlc291cmNlcwogICAgfCBleHRlbmQKICAgICAgICByZXNvdXJjZUlkICAgICA9IHRvbG93ZXIodG9zdHJpbmcoaWQpKSwKICAgICAgICByZXNvdXJjZU5hbWUgICA9IHRvc3RyaW5nKG5hbWUpLAogICAgICAgIHJlc291cmNlVHlwZSAgID0gdG9zdHJpbmcodHlwZSksCiAgICAgICAgcmVzb3VyY2VSRyAgICAgPSB0b2xvd2VyKHRvc3RyaW5nKHJlc291cmNlR3JvdXApKSwKICAgICAgICByZXNvdXJjZVN1YklkICA9IHRvbG93ZXIodG9zdHJpbmcoc3Vic2NyaXB0aW9uSWQpKSwKICAgICAgICByZXNvdXJjZVNrdSAgICA9IHRvc3RyaW5nKHNrdS5uYW1lKSwKICAgICAgICByZXNvdXJjZVJlZ2lvbiA9IHRvc3RyaW5nKGxvY2F0aW9uKQogICAgfCBwcm9qZWN0IHJlc291cmNlSWQsIHJlc291cmNlTmFtZSwgcmVzb3VyY2VUeXBlLCByZXNvdXJjZVJHLCByZXNvdXJjZVN1YklkLCByZXNvdXJjZVNrdSwgcmVzb3VyY2VSZWdpb24KKSBvbiAkbGVmdC5zY29wZVN1YnNjcmlwdGlvbklkID09ICRyaWdodC5yZXNvdXJjZVN1YklkCnwgd2hlcmUgaXNub3RlbXB0eShyZXNvdXJjZU5hbWUpCnwgcHJvamVjdAogICAgcmVzZXJ2YXRpb25OYW1lLAogICAgc2t1TmFtZSwKICAgIGxvY2F0aW9uLAogICAgcmVzZXJ2ZWRSZXNvdXJjZVR5cGUsCiAgICBhcHBsaWVkU2NvcGVUeXBlLAogICAgdXRpbGl6YXRpb25fMzBkX3BjdCA9IHJvdW5kKHV0aWxpemF0aW9uXzMwZCwgMiksCiAgICBzY29wZVN1YnNjcmlwdGlvbklkLAogICAgc2NvcGVSZXNvdXJjZUdyb3VwLAogICAgcmVzb3VyY2VOYW1lLAogICAgcmVzb3VyY2VUeXBlLAogICAgcmVzb3VyY2VTa3UsCiAgICByZXNvdXJjZVJlZ2lvbiwKICAgIHJlc291cmNlUkcKfCBvcmRlciBieSByZXNlcnZhdGlvbk5hbWUgYXNjLCByZXNvdXJjZU5hbWUgYXNjCgoKLy8gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQovLyBRdWVyeSA0OiBSZXNlcnZhdGlvbiBPcmRlcnMgU3VtbWFyeQovLyBUb3AtbGV2ZWwgcmVzZXJ2YXRpb24gb3JkZXIgdmlldyB3aXRoIGNoaWxkIHJlc2VydmF0aW9ucwovLyAtLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tCnJlc2VydmF0aW9uc3Jlc291cmNlcwp8IHdoZXJlIHR5cGUgPX4gIm1pY3Jvc29mdC5jYXBhY2l0eS9yZXNlcnZhdGlvbm9yZGVycyIKfCBleHRlbmQKICAgIG9yZGVyTmFtZSAgICAgICAgID0gdG9zdHJpbmcobmFtZSksCiAgICBvcmRlcklkICAgICAgICAgICA9IHRvc3RyaW5nKGlkKSwKICAgIGRpc3BsYXlOYW1lICAgICAgID0gdG9zdHJpbmcocHJvcGVydGllcy5kaXNwbGF5TmFtZSksCiAgICB0ZXJtICAgICAgICAgICAgICA9IHRvc3RyaW5nKHByb3BlcnRpZXMudGVybSksCiAgICBiaWxsaW5nUGxhbiAgICAgICA9IHRvc3RyaW5nKHByb3BlcnRpZXMuYmlsbGluZ1BsYW4pLAogICAgZXhwaXJ5RGF0ZSAgICAgICAgPSB0b3N0cmluZyhwcm9wZXJ0aWVzLmV4cGlyeURhdGUpLAogICAgcmVxdWVzdERhdGVUaW1lICAgPSB0b3N0cmluZyhwcm9wZXJ0aWVzLnJlcXVlc3REYXRlVGltZSksCiAgICByZXNlcnZhdGlvbkNvdW50ICA9IGFycmF5X2xlbmd0aChwcm9wZXJ0aWVzLnJlc2VydmF0aW9ucykKfCBwcm9qZWN0CiAgICBvcmRlck5hbWUsCiAgICBkaXNwbGF5TmFtZSwKICAgIHRlcm0sCiAgICBiaWxsaW5nUGxhbiwKICAgIHJlc2VydmF0aW9uQ291bnQsCiAgICBleHBpcnlEYXRlLAogICAgcmVxdWVzdERhdGVUaW1lLAogICAgb3JkZXJJZAp8IG9yZGVyIGJ5IHJlcXVlc3REYXRlVGltZSBkZXNjCgoKLy8gLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLQovLyBRdWVyeSA1OiBSZXNlcnZhdGlvbnMgRXhwaXJpbmcgV2l0aGluIDkwIERheXMKLy8gVXNlZnVsIGZvciBwcm9hY3RpdmUgcmVuZXdhbCBtYW5hZ2VtZW50Ci8vIC0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0KcmVzZXJ2YXRpb25zcmVzb3VyY2VzCnwgd2hlcmUgdHlwZSA9fiAibWljcm9zb2Z0LmNhcGFjaXR5L3Jlc2VydmF0aW9ub3JkZXJzL3Jlc2VydmF0aW9ucyIKfCBleHRlbmQKICAgIHJlc2VydmF0aW9uTmFtZSAgPSB0b3N0cmluZyhuYW1lKSwKICAgIHNrdU5hbWUgICAgICAgICAgPSB0b3N0cmluZyhza3UubmFtZSksCiAgICBsb2NhdGlvbiAgICAgICAgID0gdG9zdHJpbmcobG9jYXRpb24pLAogICAgcmVzZXJ2ZWRGb3IgICAgICA9IHRvc3RyaW5nKHByb3BlcnRpZXMucmVzZXJ2ZWRSZXNvdXJjZVR5cGUpLAogICAgZXhwaXJ5RGF0ZSAgICAgICA9IHRvZGF0ZXRpbWUocHJvcGVydGllcy5leHBpcnlEYXRlKSwKICAgIHF1YW50aXR5ICAgICAgICAgPSB0b2ludChwcm9wZXJ0aWVzLnF1YW50aXR5KSwKICAgIHV0aWxpemF0aW9uXzMwZCAgPSB0b2RvdWJsZShwcm9wZXJ0aWVzLnV0aWxpemF0aW9uLmFnZ3JlZ2F0ZXNbMl0udmFsdWUpCnwgd2hlcmUgZXhwaXJ5RGF0ZSA8PSBhZ28oLTFkKSBhbmQgZXhwaXJ5RGF0ZSA8PSBub3coKSArIDkwZAp8IGV4dGVuZCBkYXlzVW50aWxFeHBpcnkgPSBkYXRldGltZV9kaWZmKCJkYXkiLCBleHBpcnlEYXRlLCBub3coKSkKfCBwcm9qZWN0CiAgICByZXNlcnZhdGlvbk5hbWUsCiAgICBza3VOYW1lLAogICAgbG9jYXRpb24sCiAgICByZXNlcnZlZEZvciwKICAgIHF1YW50aXR5LAogICAgdXRpbGl6YXRpb25fMzBkX3BjdCA9IHJvdW5kKHV0aWxpemF0aW9uXzMwZCwgMiksCiAgICBleHBpcnlEYXRlLAogICAgZGF5c1VudGlsRXhwaXJ5Cnwgb3JkZXIgYnkgZGF5c1VudGlsRXhwaXJ5IGFzYwoKCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQovLyBDTEkgQ09NTUFORFMg4oCUIFJ1biB0aGVzZSBxdWVyaWVzIHZpYSBBenVyZSBDTEkKLy8gUmVxdWlyZXM6IGF6IGV4dGVuc2lvbiBhZGQgLS1uYW1lIHJlc291cmNlLWdyYXBoCi8vID09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PT09PQoKLy8gLS0gQ0xJIENvbW1hbmQgMTogUmVzZXJ2YXRpb24gVXRpbGl6YXRpb24gU3VtbWFyeSAtLS0tLS0tLS0tCi8vIGF6IGdyYXBoIHF1ZXJ5IC1xICIKLy8gcmVzZXJ2YXRpb25zcmVzb3VyY2VzCi8vIHwgd2hlcmUgdHlwZSA9fiAnbWljcm9zb2Z0LmNhcGFjaXR5L3Jlc2VydmF0aW9ub3JkZXJzL3Jlc2VydmF0aW9ucycKLy8gfCBleHRlbmQKLy8gICAgIHJlc2VydmF0aW9uTmFtZSAgID0gdG9zdHJpbmcobmFtZSksCi8vICAgICBza3VOYW1lICAgICAgICAgICA9IHRvc3RyaW5nKHNrdS5uYW1lKSwKLy8gICAgIGxvY2F0aW9uICAgICAgICAgID0gdG9zdHJpbmcobG9jYXRpb24pLAovLyAgICAgcmVzZXJ2ZWRGb3IgICAgICAgPSB0b3N0cmluZyhwcm9wZXJ0aWVzLnJlc2VydmVkUmVzb3VyY2VUeXBlKSwKLy8gICAgIHV0aWxpemF0aW9uXzFkICAgID0gdG9kb3VibGUocHJvcGVydGllcy51dGlsaXphdGlvbi5hZ2dyZWdhdGVzWzBdLnZhbHVlKSwKLy8gICAgIHV0aWxpemF0aW9uXzdkICAgID0gdG9kb3VibGUocHJvcGVydGllcy51dGlsaXphdGlvbi5hZ2dyZWdhdGVzWzFdLnZhbHVlKSwKLy8gICAgIHV0aWxpemF0aW9uXzMwZCAgID0gdG9kb3VibGUocHJvcGVydGllcy51dGlsaXphdGlvbi5hZ2dyZWdhdGVzWzJdLnZhbHVlKQovLyB8IHByb2plY3QgcmVzZXJ2YXRpb25OYW1lLCBza3VOYW1lLCBsb2NhdGlvbiwgcmVzZXJ2ZWRGb3IsCi8vICAgICB1dGlsaXphdGlvbl8xZF9wY3Q9cm91bmQodXRpbGl6YXRpb25fMWQsMiksCi8vICAgICB1dGlsaXphdGlvbl83ZF9wY3Q9cm91bmQodXRpbGl6YXRpb25fN2QsMiksCi8vICAgICB1dGlsaXphdGlvbl8zMGRfcGN0PXJvdW5kKHV0aWxpemF0aW9uXzMwZCwyKQovLyB8IG9yZGVyIGJ5IHV0aWxpemF0aW9uXzMwZF9wY3QgYXNjIgoKLy8gLS0gQ0xJIENvbW1hbmQgMjogVW5kZXItdXRpbGlzZWQgUmVzZXJ2YXRpb25zICg8ODAlKSAtLS0tLS0tCi8vIGF6IGdyYXBoIHF1ZXJ5IC1xICIKLy8gcmVzZXJ2YXRpb25zcmVzb3VyY2VzCi8vIHwgd2hlcmUgdHlwZSA9fiAnbWljcm9zb2Z0LmNhcGFjaXR5L3Jlc2VydmF0aW9ub3JkZXJzL3Jlc2VydmF0aW9ucycKLy8gfCBleHRlbmQKLy8gICAgIHJlc2VydmF0aW9uTmFtZSA9IHRvc3RyaW5nKG5hbWUpLAovLyAgICAgc2t1TmFtZSAgICAgICAgID0gdG9zdHJpbmcoc2t1Lm5hbWUpLAovLyAgICAgdXRpbGl6YXRpb25fMzBkID0gdG9kb3VibGUocHJvcGVydGllcy51dGlsaXphdGlvbi5hZ2dyZWdhdGVzWzJdLnZhbHVlKQovLyB8IGV4dGVuZCB1dGlsaXphdGlvblN0YXR1cyA9IGNhc2UoCi8vICAgICB1dGlsaXphdGlvbl8zMGQgPj0gOTAsICdIZWFsdGh5JywKLy8gICAgIHV0aWxpemF0aW9uXzMwZCA+PSA3MCwgJ1dhcm5pbmcnLAovLyAgICAgJ0NyaXRpY2FsJykKLy8gfCBwcm9qZWN0IHJlc2VydmF0aW9uTmFtZSwgc2t1TmFtZSwgdXRpbGl6YXRpb25fMzBkX3BjdD1yb3VuZCh1dGlsaXphdGlvbl8zMGQsMiksIHV0aWxpemF0aW9uU3RhdHVzCi8vIHwgb3JkZXIgYnkgdXRpbGl6YXRpb25fMzBkX3BjdCBhc2MiCgovLyAtLSBDTEkgQ29tbWFuZCAzOiBSZXNlcnZhdGlvbnMgRXhwaXJpbmcgaW4gOTAgRGF5cyAtLS0tLS0tLS0KLy8gYXogZ3JhcGggcXVlcnkgLXEgIgovLyByZXNlcnZhdGlvbnNyZXNvdXJjZXMKLy8gfCB3aGVyZSB0eXBlID1+ICdtaWNyb3NvZnQuY2FwYWNpdHkvcmVzZXJ2YXRpb25vcmRlcnMvcmVzZXJ2YXRpb25zJwovLyB8IGV4dGVuZAovLyAgICAgcmVzZXJ2YXRpb25OYW1lID0gdG9zdHJpbmcobmFtZSksCi8vICAgICBza3VOYW1lICAgICAgICAgPSB0b3N0cmluZyhza3UubmFtZSksCi8vICAgICBleHBpcnlEYXRlICAgICAgPSB0b2RhdGV0aW1lKHByb3BlcnRpZXMuZXhwaXJ5RGF0ZSksCi8vICAgICB1dGlsaXphdGlvbl8zMGQgPSB0b2RvdWJsZShwcm9wZXJ0aWVzLnV0aWxpemF0aW9uLmFnZ3JlZ2F0ZXNbMl0udmFsdWUpCi8vIHwgd2hlcmUgZXhwaXJ5RGF0ZSA8PSBub3coKSArIDkwZAovLyB8IGV4dGVuZCBkYXlzVW50aWxFeHBpcnkgPSBkYXRldGltZV9kaWZmKCdkYXknLCBleHBpcnlEYXRlLCBub3coKSkKLy8gfCBwcm9qZWN0IHJlc2VydmF0aW9uTmFtZSwgc2t1TmFtZSwgZXhwaXJ5RGF0ZSwKLy8gICAgIHV0aWxpemF0aW9uXzMwZF9wY3Q9cm91bmQodXRpbGl6YXRpb25fMzBkLDIpLCBkYXlzVW50aWxFeHBpcnkKLy8gfCBvcmRlciBieSBkYXlzVW50aWxFeHBpcnkgYXNjIgo="}], "grading": {"eval_id": 7, "eval_name": "azure-reservation-consumption", "configuration": "without_skill", "expectations": [{"text": "Targets Azure Resource Graph tables or consumption/billing tables", "passed": true, "evidence": "Uses 'reservationsresources' table (ARG-specific table for reservations) across 5 queries in reservation_consumption.kql"}, {"text": "Projects reservation name/display name in results", "passed": true, "evidence": "'reservationName = tostring(name)' projected in Query 1 and all subsequent queries"}, {"text": "Shows utilization percentage for each reservation", "passed": true, "evidence": "'utilizationAggr7Day = todouble(properties.utilization.aggregates[1].value)' and 'utilization_7d_pct = round(utilizationAggr7Day, 2)' in Query 1; also utilization_1d and utilization_30d variants"}, {"text": "Shows which resources are consuming each reservation", "passed": true, "evidence": "Query 3 joins reservationsresources with resources table via scope subscription ID, projecting resourceName, resourceType, resourceRG, and other consumer fields"}, {"text": "Includes Azure CLI commands (az graph query or az consumption) to run the query", "passed": true, "evidence": "cli_commands.sh contains 6 'az graph query -q' sections with actual inline KQL, covering utilization summary, status flags, consumer join, expiry, and JSON export"}, {"text": "Output includes .kql file with comment header", "passed": true, "evidence": "reservation_consumption.kql has a structured comment block: '// ===...===' with Tables, description of queries. Not the exact skill-standard format but clearly a structured header with Title, Tables, and description fields."}], "pass_rate": 1.0, "summary": {"passed": 6, "failed": 0, "total": 6, "pass_rate": 1.0}, "timing": {"executor_duration_seconds": 83.0, "total_duration_seconds": 83.0}, "claims": [{"claim": "Uses reservationsresources (ARG-specific table) rather than the generic resources table", "type": "factual", "verified": true, "evidence": "All 5 queries in reservation_consumption.kql use 'reservationsresources' \u2014 a specialized ARG table for reservation data. The with_skill output uses the generic 'resources' table with type filter instead."}, {"claim": "Includes 5 distinct queries covering utilization, status, consumers, orders, and expiry", "type": "quality", "verified": true, "evidence": "reservation_consumption.kql contains Query 1 (utilization summary), Query 2 (under-utilization flag), Query 3 (consuming resources), Query 4 (reservation orders), Query 5 (expiring in 90 days)"}], "eval_feedback": {"suggestions": [{"assertion": "Output includes .kql file with comment header", "reason": "The without_skill output passes this assertion with a structured '// ===...===' header that lacks the skill-standard labeled fields (Service, Parameters, Complexity). If the intent is to check for the skill's specific format, the assertion should be more precise about required fields."}], "overall": "Both configurations pass all 6 assertions, making eval-7 unable to differentiate skill vs no-skill quality. The header assertion is weaker here because the without_skill output happens to use a similar comment style. Consider tightening the header assertion to require all six labeled fields."}}}], "previous_feedback": {}, "previous_outputs": {}, "benchmark": {"metadata": {"skill_name": "kql-skill", "skill_path": "/Users/juliano.barbosa/Repos/github/claude-code-skills/skills/kql-skill", "executor_model": "claude-sonnet-4-6", "timestamp": "2026-04-02T17:40:00Z", "evals_run": [1, 2, 3, 4, 5, 6, 7], "runs_per_configuration": 1}, "runs": [{"eval_id": 1, "eval_name": "capacity-planning-high-memory-vms", "configuration": "with_skill", "pass_rate": 1.0, "time_seconds": 60.6, "total_tokens": 24249}, {"eval_id": 1, "eval_name": "capacity-planning-high-memory-vms", "configuration": "without_skill", "pass_rate": 0.833, "time_seconds": 37.9, "total_tokens": 14257}, {"eval_id": 2, "eval_name": "sql-to-kql-port-scan-detection", "configuration": "with_skill", "pass_rate": 0.857, "time_seconds": 43.6, "total_tokens": 19021}, {"eval_id": 2, "eval_name": "sql-to-kql-port-scan-detection", "configuration": "without_skill", "pass_rate": 0.857, "time_seconds": 20.3, "total_tokens": 13555}, {"eval_id": 3, "eval_name": "optimize-slow-sentinel-query", "configuration": "with_skill", "pass_rate": 1.0, "time_seconds": 79.5, "total_tokens": 22054}, {"eval_id": 3, "eval_name": "optimize-slow-sentinel-query", "configuration": "without_skill", "pass_rate": 1.0, "time_seconds": 43.3, "total_tokens": 14884}, {"eval_id": 4, "eval_name": "lateral-movement-detection", "configuration": "with_skill", "pass_rate": 1.0, "time_seconds": 59.9, "total_tokens": 23751}, {"eval_id": 4, "eval_name": "lateral-movement-detection", "configuration": "without_skill", "pass_rate": 0.833, "time_seconds": 38.0, "total_tokens": 14102}, {"eval_id": 5, "eval_name": "app-insights-dependency-degradation", "configuration": "with_skill", "pass_rate": 1.0, "time_seconds": 49.5, "total_tokens": 20561}, {"eval_id": 5, "eval_name": "app-insights-dependency-degradation", "configuration": "without_skill", "pass_rate": 0.857, "time_seconds": 30.5, "total_tokens": 14184}, {"eval_id": 6, "eval_name": "splunk-spl-brute-force-migration", "configuration": "with_skill", "pass_rate": 1.0, "time_seconds": 64.8, "total_tokens": 26524}, {"eval_id": 6, "eval_name": "splunk-spl-brute-force-migration", "configuration": "without_skill", "pass_rate": 0.857, "time_seconds": 35.6, "total_tokens": 14016}, {"eval_id": 7, "eval_name": "azure-reservation-consumption", "configuration": "with_skill", "pass_rate": 1.0, "time_seconds": 120.4, "total_tokens": 29533}, {"eval_id": 7, "eval_name": "azure-reservation-consumption", "configuration": "without_skill", "pass_rate": 1.0, "time_seconds": 83.0, "total_tokens": 19016}], "run_summary": {"with_skill": {"mean_pass_rate": 0.98, "mean_time_seconds": 68.3, "mean_tokens": 23670}, "without_skill": {"mean_pass_rate": 0.891, "mean_time_seconds": 41.2, "mean_tokens": 14859}, "delta": {"pass_rate": "+0.089", "time_seconds": "+27.1", "tokens": "+8811"}}, "notes": ["Primary differentiator: structured .kql comment header (Title/Service/Tables/Description/Parameters/Complexity) consistently produced by skill runs", "Eval 3 (optimization): with_skill caught a logic bug (Account vs UPN join mismatch) that without_skill missed \u2014 not captured by current assertions", "Eval 2 (SQL translation): tied score \u2014 with_skill chose AzureFirewallNetworkRule (valid but unlisted table), assertion too narrow", "With-skill runs average ~65% more tokens and ~65% longer runtime due to reading skill references", "Eval 7 (reservations): both configs pass all assertions \u2014 hard to differentiate on this task"]}};
+
+    // ---- State ----
+    let feedbackMap = {};  // run_id -> feedback text
+    let currentIndex = 0;
+    let visitedRuns = new Set();
+
+    // ---- Init ----
+    async function init() {
+      // Load saved feedback from server — but only if this isn't a fresh
+      // iteration (indicated by previous_feedback being present). When
+      // previous feedback exists, the feedback.json on disk is stale from
+      // the prior iteration and should not pre-fill the textareas.
+      const hasPrevious = Object.keys(EMBEDDED_DATA.previous_feedback || {}).length > 0
+        || Object.keys(EMBEDDED_DATA.previous_outputs || {}).length > 0;
+      if (!hasPrevious) {
+        try {
+          const resp = await fetch("/api/feedback");
+          const data = await resp.json();
+          if (data.reviews) {
+            for (const r of data.reviews) feedbackMap[r.run_id] = r.feedback;
+          }
+        } catch { /* first run, no feedback yet */ }
+      }
+
+      document.getElementById("skill-name").textContent = EMBEDDED_DATA.skill_name;
+      showRun(0);
+
+      // Wire up feedback auto-save
+      const textarea = document.getElementById("feedback");
+      let saveTimeout = null;
+      textarea.addEventListener("input", () => {
+        clearTimeout(saveTimeout);
+        document.getElementById("feedback-status").textContent = "";
+        saveTimeout = setTimeout(() => saveCurrentFeedback(), 800);
+      });
+    }
+
+    // ---- Navigation ----
+    function navigate(delta) {
+      const newIndex = currentIndex + delta;
+      if (newIndex >= 0 && newIndex < EMBEDDED_DATA.runs.length) {
+        saveCurrentFeedback();
+        showRun(newIndex);
+      }
+    }
+
+    function updateNavButtons() {
+      document.getElementById("prev-btn").disabled = currentIndex === 0;
+      document.getElementById("next-btn").disabled =
+        currentIndex === EMBEDDED_DATA.runs.length - 1;
+    }
+
+    // ---- Show a run ----
+    function showRun(index) {
+      currentIndex = index;
+      const run = EMBEDDED_DATA.runs[index];
+
+      // Progress
+      document.getElementById("progress").textContent =
+        `${index + 1} of ${EMBEDDED_DATA.runs.length}`;
+
+      // Prompt
+      document.getElementById("prompt-text").textContent = run.prompt;
+
+      // Config badge
+      const badge = document.getElementById("config-badge");
+      const configMatch = run.id.match(/(with_skill|without_skill|new_skill|old_skill)/);
+      if (configMatch) {
+        const config = configMatch[1];
+        const isBaseline = config === "without_skill" || config === "old_skill";
+        badge.textContent = config.replace(/_/g, " ");
+        badge.className = "config-badge " + (isBaseline ? "config-baseline" : "config-primary");
+        badge.style.display = "inline-block";
+      } else {
+        badge.style.display = "none";
+      }
+
+      // Outputs
+      renderOutputs(run);
+
+      // Previous outputs
+      renderPrevOutputs(run);
+
+      // Grades
+      renderGrades(run);
+
+      // Previous feedback
+      const prevFb = (EMBEDDED_DATA.previous_feedback || {})[run.id];
+      const prevEl = document.getElementById("prev-feedback");
+      if (prevFb) {
+        document.getElementById("prev-feedback-text").textContent = prevFb;
+        prevEl.style.display = "block";
+      } else {
+        prevEl.style.display = "none";
+      }
+
+      // Feedback
+      document.getElementById("feedback").value = feedbackMap[run.id] || "";
+      document.getElementById("feedback-status").textContent = "";
+
+      updateNavButtons();
+
+      // Track visited runs and promote done button when all visited
+      visitedRuns.add(index);
+      const doneBtn = document.getElementById("done-btn");
+      if (visitedRuns.size >= EMBEDDED_DATA.runs.length) {
+        doneBtn.classList.add("ready");
+      }
+
+      // Scroll main content to top
+      document.querySelector(".main").scrollTop = 0;
+    }
+
+    // ---- Render outputs ----
+    function renderOutputs(run) {
+      const container = document.getElementById("outputs-body");
+      container.innerHTML = "";
+
+      const outputs = run.outputs || [];
+      if (outputs.length === 0) {
+        container.innerHTML = '<div class="empty-state">No output files</div>';
+        return;
+      }
+
+      for (const file of outputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        // Always show file header with download link
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const content = document.createElement("div");
+        content.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          content.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          content.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          content.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(content, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          content.appendChild(a);
+        } else if (file.type === "error") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          pre.style.color = "var(--red)";
+          content.appendChild(pre);
+        }
+
+        fileDiv.appendChild(content);
+        container.appendChild(fileDiv);
+      }
+    }
+
+    // ---- XLSX rendering via SheetJS ----
+    function renderXlsx(container, b64Data) {
+      try {
+        const raw = Uint8Array.from(atob(b64Data), c => c.charCodeAt(0));
+        const wb = XLSX.read(raw, { type: "array" });
+
+        for (let i = 0; i < wb.SheetNames.length; i++) {
+          const sheetName = wb.SheetNames[i];
+          const ws = wb.Sheets[sheetName];
+
+          if (wb.SheetNames.length > 1) {
+            const sheetLabel = document.createElement("div");
+            sheetLabel.style.cssText =
+              "font-weight:600; font-size:0.8rem; color:#b0aea5; margin-top:0.5rem; margin-bottom:0.25rem;";
+            sheetLabel.textContent = "Sheet: " + sheetName;
+            container.appendChild(sheetLabel);
+          }
+
+          const htmlStr = XLSX.utils.sheet_to_html(ws, { editable: false });
+          const wrapper = document.createElement("div");
+          wrapper.innerHTML = htmlStr;
+          container.appendChild(wrapper);
+        }
+      } catch (err) {
+        container.textContent = "Error rendering spreadsheet: " + err.message;
+      }
+    }
+
+    // ---- Grades ----
+    function renderGrades(run) {
+      const section = document.getElementById("grades-section");
+      const content = document.getElementById("grades-content");
+
+      if (!run.grading) {
+        section.style.display = "none";
+        return;
+      }
+
+      const grading = run.grading;
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("grades-arrow").classList.remove("open");
+
+      const summary = grading.summary || {};
+      const expectations = grading.expectations || [];
+
+      let html = '<div style="padding: 1rem;">';
+
+      // Summary line
+      const passRate = summary.pass_rate != null
+        ? Math.round(summary.pass_rate * 100) + "%"
+        : "?";
+      const badgeClass = summary.pass_rate >= 0.8 ? "grade-pass" : summary.pass_rate >= 0.5 ? "" : "grade-fail";
+      html += '<div class="grades-summary">';
+      html += '<span class="grade-badge ' + badgeClass + '">' + passRate + '</span>';
+      html += '<span>' + (summary.passed || 0) + ' passed, ' + (summary.failed || 0) + ' failed of ' + (summary.total || 0) + '</span>';
+      html += '</div>';
+
+      // Assertions list
+      html += '<ul class="assertion-list">';
+      for (const exp of expectations) {
+        const statusClass = exp.passed ? "pass" : "fail";
+        const statusIcon = exp.passed ? "\u2713" : "\u2717";
+        html += '<li class="assertion-item">';
+        html += '<span class="assertion-status ' + statusClass + '">' + statusIcon + '</span>';
+        html += '<span>' + escapeHtml(exp.text) + '</span>';
+        if (exp.evidence) {
+          html += '<div class="assertion-evidence">' + escapeHtml(exp.evidence) + '</div>';
+        }
+        html += '</li>';
+      }
+      html += '</ul>';
+
+      html += '</div>';
+      content.innerHTML = html;
+    }
+
+    function toggleGrades() {
+      const content = document.getElementById("grades-content");
+      const arrow = document.getElementById("grades-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Previous outputs (collapsible) ----
+    function renderPrevOutputs(run) {
+      const section = document.getElementById("prev-outputs-section");
+      const content = document.getElementById("prev-outputs-content");
+      const prevOutputs = (EMBEDDED_DATA.previous_outputs || {})[run.id];
+
+      if (!prevOutputs || prevOutputs.length === 0) {
+        section.style.display = "none";
+        return;
+      }
+
+      section.style.display = "block";
+      // Reset to collapsed
+      content.classList.remove("open");
+      document.getElementById("prev-outputs-arrow").classList.remove("open");
+
+      // Render the files into the content area
+      content.innerHTML = "";
+      const wrapper = document.createElement("div");
+      wrapper.style.padding = "1rem";
+
+      for (const file of prevOutputs) {
+        const fileDiv = document.createElement("div");
+        fileDiv.className = "output-file";
+
+        const header = document.createElement("div");
+        header.className = "output-file-header";
+        const nameSpan = document.createElement("span");
+        nameSpan.textContent = file.name;
+        header.appendChild(nameSpan);
+        const dlBtn = document.createElement("a");
+        dlBtn.className = "dl-btn";
+        dlBtn.textContent = "Download";
+        dlBtn.download = file.name;
+        dlBtn.href = getDownloadUri(file);
+        header.appendChild(dlBtn);
+        fileDiv.appendChild(header);
+
+        const fc = document.createElement("div");
+        fc.className = "output-file-content";
+
+        if (file.type === "text") {
+          const pre = document.createElement("pre");
+          pre.textContent = file.content;
+          fc.appendChild(pre);
+        } else if (file.type === "image") {
+          const img = document.createElement("img");
+          img.src = file.data_uri;
+          img.alt = file.name;
+          fc.appendChild(img);
+        } else if (file.type === "pdf") {
+          const iframe = document.createElement("iframe");
+          iframe.src = file.data_uri;
+          fc.appendChild(iframe);
+        } else if (file.type === "xlsx") {
+          renderXlsx(fc, file.data_b64);
+        } else if (file.type === "binary") {
+          const a = document.createElement("a");
+          a.className = "download-link";
+          a.href = file.data_uri;
+          a.download = file.name;
+          a.textContent = "Download " + file.name;
+          fc.appendChild(a);
+        }
+
+        fileDiv.appendChild(fc);
+        wrapper.appendChild(fileDiv);
+      }
+
+      content.appendChild(wrapper);
+    }
+
+    function togglePrevOutputs() {
+      const content = document.getElementById("prev-outputs-content");
+      const arrow = document.getElementById("prev-outputs-arrow");
+      content.classList.toggle("open");
+      arrow.classList.toggle("open");
+    }
+
+    // ---- Feedback (saved to server -> feedback.json) ----
+    function saveCurrentFeedback() {
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // Build reviews array from map
+      const reviews = [];
+      for (const [run_id, feedback] of Object.entries(feedbackMap)) {
+        if (feedback.trim()) {
+          reviews.push({ run_id, feedback, timestamp: new Date().toISOString() });
+        }
+      }
+
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviews, status: "in_progress" }),
+      }).then(() => {
+        document.getElementById("feedback-status").textContent = "Saved";
+      }).catch(() => {
+        // Static mode or server unavailable — no-op on auto-save,
+        // feedback will be downloaded on final submit
+        document.getElementById("feedback-status").textContent = "Will download on submit";
+      });
+    }
+
+    // ---- Done ----
+    function showDoneDialog() {
+      // Save current textarea to feedbackMap (but don't POST yet)
+      const run = EMBEDDED_DATA.runs[currentIndex];
+      const text = document.getElementById("feedback").value;
+      if (text.trim() === "") {
+        delete feedbackMap[run.id];
+      } else {
+        feedbackMap[run.id] = text;
+      }
+
+      // POST once with status: complete — include ALL runs so the model
+      // can distinguish "no feedback" (looks good) from "not reviewed"
+      const reviews = [];
+      const ts = new Date().toISOString();
+      for (const r of EMBEDDED_DATA.runs) {
+        reviews.push({ run_id: r.id, feedback: feedbackMap[r.id] || "", timestamp: ts });
+      }
+      const payload = JSON.stringify({ reviews, status: "complete" }, null, 2);
+      fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+      }).then(() => {
+        document.getElementById("done-overlay").classList.add("visible");
+      }).catch(() => {
+        // Server not available (static mode) — download as file
+        const blob = new Blob([payload], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "feedback.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        document.getElementById("done-overlay").classList.add("visible");
+      });
+    }
+
+    function closeDoneDialog() {
+      // Reset status back to in_progress
+      saveCurrentFeedback();
+      document.getElementById("done-overlay").classList.remove("visible");
+    }
+
+    // ---- Toast ----
+    function showToast(message) {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.classList.add("visible");
+      setTimeout(() => toast.classList.remove("visible"), 2000);
+    }
+
+    // ---- Keyboard nav ----
+    document.addEventListener("keydown", (e) => {
+      // Don't capture when typing in textarea
+      if (e.target.tagName === "TEXTAREA") return;
+
+      if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+        e.preventDefault();
+        navigate(-1);
+      } else if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+        e.preventDefault();
+        navigate(1);
+      }
+    });
+
+    // ---- Util ----
+    function getDownloadUri(file) {
+      if (file.data_uri) return file.data_uri;
+      if (file.data_b64) return "data:application/octet-stream;base64," + file.data_b64;
+      if (file.type === "text") return "data:text/plain;charset=utf-8," + encodeURIComponent(file.content);
+      return "#";
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement("div");
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ---- View switching ----
+    function switchView(view) {
+      document.querySelectorAll(".view-tab").forEach(t => t.classList.remove("active"));
+      document.querySelectorAll(".view-panel").forEach(p => p.classList.remove("active"));
+      document.querySelector(`[onclick="switchView('${view}')"]`).classList.add("active");
+      document.getElementById("panel-" + view).classList.add("active");
+    }
+
+    // ---- Benchmark rendering ----
+    function renderBenchmark() {
+      const data = EMBEDDED_DATA.benchmark;
+      if (!data) return;
+
+      // Show the tabs
+      document.getElementById("view-tabs").style.display = "flex";
+
+      const container = document.getElementById("benchmark-content");
+      const summary = data.run_summary || {};
+      const metadata = data.metadata || {};
+      const notes = data.notes || [];
+
+      let html = "";
+
+      // Header
+      html += "<h2 style='font-family: Poppins, sans-serif; margin-bottom: 0.5rem;'>Benchmark Results</h2>";
+      html += "<p style='color: var(--text-muted); font-size: 0.875rem; margin-bottom: 1.25rem;'>";
+      if (metadata.skill_name) html += "<strong>" + escapeHtml(metadata.skill_name) + "</strong> &mdash; ";
+      if (metadata.timestamp) html += metadata.timestamp + " &mdash; ";
+      if (metadata.evals_run) html += "Evals: " + metadata.evals_run.join(", ") + " &mdash; ";
+      html += (metadata.runs_per_configuration || "?") + " runs per configuration";
+      html += "</p>";
+
+      // Summary table
+      html += '<table class="benchmark-table">';
+
+      function fmtStat(stat, pct) {
+        if (!stat) return "—";
+        const suffix = pct ? "%" : "";
+        const m = pct ? (stat.mean * 100).toFixed(0) : stat.mean.toFixed(1);
+        const s = pct ? (stat.stddev * 100).toFixed(0) : stat.stddev.toFixed(1);
+        return m + suffix + " ± " + s + suffix;
+      }
+
+      function deltaClass(val) {
+        if (!val) return "";
+        const n = parseFloat(val);
+        if (n > 0) return "benchmark-delta-positive";
+        if (n < 0) return "benchmark-delta-negative";
+        return "";
+      }
+
+      // Discover config names dynamically (everything except "delta")
+      const configs = Object.keys(summary).filter(k => k !== "delta");
+      const configA = configs[0] || "config_a";
+      const configB = configs[1] || "config_b";
+      const labelA = configA.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const labelB = configB.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+      const a = summary[configA] || {};
+      const b = summary[configB] || {};
+      const delta = summary.delta || {};
+
+      html += "<thead><tr><th>Metric</th><th>" + escapeHtml(labelA) + "</th><th>" + escapeHtml(labelB) + "</th><th>Delta</th></tr></thead>";
+      html += "<tbody>";
+
+      html += "<tr><td><strong>Pass Rate</strong></td>";
+      html += "<td>" + fmtStat(a.pass_rate, true) + "</td>";
+      html += "<td>" + fmtStat(b.pass_rate, true) + "</td>";
+      html += '<td class="' + deltaClass(delta.pass_rate) + '">' + (delta.pass_rate || "—") + "</td></tr>";
+
+      // Time (only show row if data exists)
+      if (a.time_seconds || b.time_seconds) {
+        html += "<tr><td><strong>Time (s)</strong></td>";
+        html += "<td>" + fmtStat(a.time_seconds, false) + "</td>";
+        html += "<td>" + fmtStat(b.time_seconds, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.time_seconds) + '">' + (delta.time_seconds ? delta.time_seconds + "s" : "—") + "</td></tr>";
+      }
+
+      // Tokens (only show row if data exists)
+      if (a.tokens || b.tokens) {
+        html += "<tr><td><strong>Tokens</strong></td>";
+        html += "<td>" + fmtStat(a.tokens, false) + "</td>";
+        html += "<td>" + fmtStat(b.tokens, false) + "</td>";
+        html += '<td class="' + deltaClass(delta.tokens) + '">' + (delta.tokens || "—") + "</td></tr>";
+      }
+
+      html += "</tbody></table>";
+
+      // Per-eval breakdown (if runs data available)
+      const runs = data.runs || [];
+      if (runs.length > 0) {
+        const evalIds = [...new Set(runs.map(r => r.eval_id))].sort((a, b) => a - b);
+
+        html += "<h3 style='font-family: Poppins, sans-serif; margin-bottom: 0.75rem;'>Per-Eval Breakdown</h3>";
+
+        const hasTime = runs.some(r => r.result && r.result.time_seconds != null);
+        const hasErrors = runs.some(r => r.result && r.result.errors > 0);
+
+        for (const evalId of evalIds) {
+          const evalRuns = runs.filter(r => r.eval_id === evalId);
+          const evalName = evalRuns[0] && evalRuns[0].eval_name ? evalRuns[0].eval_name : "Eval " + evalId;
+
+          html += "<h4 style='font-family: Poppins, sans-serif; margin: 1rem 0 0.5rem; color: var(--text);'>" + escapeHtml(evalName) + "</h4>";
+          html += '<table class="benchmark-table">';
+          html += "<thead><tr><th>Config</th><th>Run</th><th>Pass Rate</th>";
+          if (hasTime) html += "<th>Time (s)</th>";
+          if (hasErrors) html += "<th>Crashes During Execution</th>";
+          html += "</tr></thead>";
+          html += "<tbody>";
+
+          // Group by config and render with average rows
+          const configGroups = [...new Set(evalRuns.map(r => r.configuration))];
+          for (let ci = 0; ci < configGroups.length; ci++) {
+            const config = configGroups[ci];
+            const configRuns = evalRuns.filter(r => r.configuration === config);
+            if (configRuns.length === 0) continue;
+
+            const rowClass = ci === 0 ? "benchmark-row-with" : "benchmark-row-without";
+            const configLabel = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+
+            for (const run of configRuns) {
+              const r = run.result || {};
+              const prClass = r.pass_rate >= 0.8 ? "benchmark-delta-positive" : r.pass_rate < 0.5 ? "benchmark-delta-negative" : "";
+              html += '<tr class="' + rowClass + '">';
+              html += "<td>" + configLabel + "</td>";
+              html += "<td>" + run.run_number + "</td>";
+              html += '<td class="' + prClass + '">' + ((r.pass_rate || 0) * 100).toFixed(0) + "% (" + (r.passed || 0) + "/" + (r.total || 0) + ")</td>";
+              if (hasTime) html += "<td>" + (r.time_seconds != null ? r.time_seconds.toFixed(1) : "—") + "</td>";
+              if (hasErrors) html += "<td>" + (r.errors || 0) + "</td>";
+              html += "</tr>";
+            }
+
+            // Average row
+            const rates = configRuns.map(r => (r.result || {}).pass_rate || 0);
+            const avgRate = rates.reduce((a, b) => a + b, 0) / rates.length;
+            const avgPrClass = avgRate >= 0.8 ? "benchmark-delta-positive" : avgRate < 0.5 ? "benchmark-delta-negative" : "";
+            html += '<tr class="benchmark-row-avg ' + rowClass + '">';
+            html += "<td>" + configLabel + "</td>";
+            html += "<td>Avg</td>";
+            html += '<td class="' + avgPrClass + '">' + (avgRate * 100).toFixed(0) + "%</td>";
+            if (hasTime) {
+              const times = configRuns.map(r => (r.result || {}).time_seconds).filter(t => t != null);
+              html += "<td>" + (times.length ? (times.reduce((a, b) => a + b, 0) / times.length).toFixed(1) : "—") + "</td>";
+            }
+            if (hasErrors) html += "<td></td>";
+            html += "</tr>";
+          }
+          html += "</tbody></table>";
+
+          // Per-assertion detail for this eval
+          const runsWithExpectations = {};
+          for (const config of configGroups) {
+            runsWithExpectations[config] = evalRuns.filter(r => r.configuration === config && r.expectations && r.expectations.length > 0);
+          }
+          const hasAnyExpectations = Object.values(runsWithExpectations).some(runs => runs.length > 0);
+          if (hasAnyExpectations) {
+            // Collect all unique assertion texts across all configs
+            const allAssertions = [];
+            const seen = new Set();
+            for (const config of configGroups) {
+              for (const run of runsWithExpectations[config]) {
+                for (const exp of (run.expectations || [])) {
+                  if (!seen.has(exp.text)) {
+                    seen.add(exp.text);
+                    allAssertions.push(exp.text);
+                  }
+                }
+              }
+            }
+
+            html += '<table class="benchmark-table" style="margin-top: 0.5rem;">';
+            html += "<thead><tr><th>Assertion</th>";
+            for (const config of configGroups) {
+              const label = config.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
+              html += "<th>" + escapeHtml(label) + "</th>";
+            }
+            html += "</tr></thead><tbody>";
+
+            for (const assertionText of allAssertions) {
+              html += "<tr><td>" + escapeHtml(assertionText) + "</td>";
+
+              for (const config of configGroups) {
+                html += "<td>";
+                for (const run of runsWithExpectations[config]) {
+                  const exp = (run.expectations || []).find(e => e.text === assertionText);
+                  if (exp) {
+                    const cls = exp.passed ? "benchmark-delta-positive" : "benchmark-delta-negative";
+                    const icon = exp.passed ? "\u2713" : "\u2717";
+                    html += '<span class="' + cls + '" title="Run ' + run.run_number + ': ' + escapeHtml(exp.evidence || "") + '">' + icon + "</span> ";
+                  } else {
+                    html += "— ";
+                  }
+                }
+                html += "</td>";
+              }
+              html += "</tr>";
+            }
+            html += "</tbody></table>";
+          }
+        }
+      }
+
+      // Notes
+      if (notes.length > 0) {
+        html += '<div class="benchmark-notes">';
+        html += "<h3>Analysis Notes</h3>";
+        html += "<ul>";
+        for (const note of notes) {
+          html += "<li>" + escapeHtml(note) + "</li>";
+        }
+        html += "</ul></div>";
+      }
+
+      container.innerHTML = html;
+    }
+
+    // ---- Start ----
+    init();
+    renderBenchmark();
+  </script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+// ============================================================
+// Title: Slow Dependency Calls with Impact Analysis
+// Service: App Insights
+// Tables: dependencies, requests
+// Description: Identifies slow outbound dependency calls (HTTP, SQL,
+//   etc.) and correlates them with the parent requests they slowed
+//   down. Helps pinpoint external bottlenecks.
+// Parameters: timeRange (default 1h), durationThresholdMs (default 2000)
+// Complexity: Intermediate
+// ============================================================
+
+let timeRange = 1h;
+let durationThresholdMs = 2000;
+// Step 1: Find slow dependencies
+let slowDeps = dependencies
+| where timestamp > ago(timeRange)
+| where duration > durationThresholdMs
+| project
+    timestamp,
+    operation_Id,
+    DependencyName = name,
+    DependencyType = type,
+    Target = target,
+    DurationMs = round(duration, 0),
+    Success = success,
+    ResultCode = resultCode;
+// Step 2: Correlate with parent requests
+slowDeps
+| join kind=leftouter (
+    requests
+    | where timestamp > ago(timeRange)
+    | project operation_Id, RequestName = name, RequestDuration = duration, RequestSuccess = success
+) on operation_Id
+| summarize
+    SlowCallCount = count(),
+    AvgDurationMs = round(avg(DurationMs), 0),
+    P95DurationMs = round(percentile(DurationMs, 95), 0),
+    MaxDurationMs = round(max(DurationMs), 0),
+    FailureRate = round(countif(Success == false) * 100.0 / count(), 1),
+    AffectedRequests = dcount(operation_Id),
+    ImpactedEndpoints = make_set(RequestName, 5)
+    by DependencyName, DependencyType, Target
+| sort by SlowCallCount desc
+| extend Impact = strcat(AffectedRequests, " requests, avg ", AvgDurationMs, "ms, ", FailureRate, "% failures")

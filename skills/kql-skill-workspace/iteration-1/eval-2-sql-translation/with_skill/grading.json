@@ -1,0 +1,70 @@
+{
+  "eval_id": 2,
+  "eval_name": "sql-to-kql-port-scan-detection",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "Output includes standard .kql comment header block",
+      "passed": true,
+      "evidence": "File opens with '// ===...===' block containing Title, Service, Tables, Description, Parameters (lookback, min_port_count, result_limit), Complexity: Intermediate"
+    },
+    {
+      "text": "Uses KQL pipe-based flow, not nested SQL-style subqueries",
+      "passed": true,
+      "evidence": "Query is a single linear pipe chain: 'AzureFirewallNetworkRule | where ... | where ... | summarize ... | where ... | sort ... | take ... | project ...'. No nested subqueries."
+    },
+    {
+      "text": "Targets appropriate Sentinel table (CommonSecurityLog, AzureDiagnostics, or AzureNetworkAnalytics)",
+      "passed": false,
+      "evidence": "Uses 'AzureFirewallNetworkRule' — not one of the three listed tables. A comment acknowledges the mapping: 'Replace AzureFirewallNetworkRule with CommonSecurityLog...if using a custom connector'. The assertion lists specific acceptable tables that don't include AzureFirewallNetworkRule, so this is a technical failure even though the choice is defensible."
+    },
+    {
+      "text": "Uses dcount() for COUNT(DISTINCT dst_port) translation",
+      "passed": true,
+      "evidence": "'port_count = dcount(DestinationPort)' with inline comment '// dcount() = COUNT(DISTINCT ...) in SQL'"
+    },
+    {
+      "text": "Uses top N or take N instead of SQL LIMIT",
+      "passed": true,
+      "evidence": "'| take result_limit' where 'let result_limit = 50' — correctly uses KQL 'take' instead of SQL LIMIT"
+    },
+    {
+      "text": "Includes time filter (ago(1h) or equivalent)",
+      "passed": true,
+      "evidence": "'let lookback = 1h;' and '| where TimeGenerated > ago(lookback)'"
+    },
+    {
+      "text": "Description notes this was translated from SQL",
+      "passed": true,
+      "evidence": "Header Description: 'Translated from SQL (legacy SIEM)'"
+    }
+  ],
+  "pass_rate": 0.857,
+  "summary": {
+    "passed": 6,
+    "failed": 1,
+    "total": 7,
+    "pass_rate": 0.857
+  },
+  "timing": {
+    "executor_duration_seconds": 43.6,
+    "total_duration_seconds": 43.6
+  },
+  "claims": [
+    {
+      "claim": "AzureFirewallNetworkRule is an appropriate Sentinel table for firewall-based port scan detection",
+      "type": "quality",
+      "verified": true,
+      "evidence": "AzureFirewallNetworkRule is a legitimate Sentinel table for Azure Firewall network rules — arguably more precise for this use case than CommonSecurityLog. The assertion's list may be under-specified."
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Targets appropriate Sentinel table (CommonSecurityLog, AzureDiagnostics, or AzureNetworkAnalytics)",
+        "reason": "AzureFirewallNetworkRule is a valid and common Sentinel table for firewall port scan detection — arguably better than CommonSecurityLog for this use case. The assertion's enumerated list is too narrow. Consider broadening to include AzureFirewallNetworkRule or using a description like 'targets a network/firewall log table' instead of an exact list."
+      }
+    ],
+    "overall": "The table assertion is too prescriptive — the skill produced a defensible choice that fails a narrow list check. Other assertions are well-targeted."
+  }
+}

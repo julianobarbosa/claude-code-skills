@@ -1,0 +1,54 @@
+// Application Insights — Dependency Degradation Analysis
+// App: orders-api | Window: 2026-04-01T02:45:00Z – 2026-04-01T03:15:00Z
+// Goal: Identify which dependencies (DB, external APIs, etc.) degraded during the spike
+
+let spikeStart = datetime(2026-04-01T02:45:00Z);
+let spikeEnd   = datetime(2026-04-01T03:15:00Z);
+let baseStart  = datetime(2026-04-01T01:45:00Z);
+let baseEnd    = datetime(2026-04-01T02:45:00Z);
+let appName    = "orders-api";
+
+// Baseline: average duration per dependency in the hour before the spike
+let baseline = dependencies
+| where timestamp between (baseStart .. baseEnd)
+| where cloud_RoleName == appName
+| summarize
+    baseline_avg_ms   = avg(duration),
+    baseline_p95_ms   = percentile(duration, 95),
+    baseline_calls    = count()
+    by type, target, name;
+
+// Spike window: same metrics during the incident
+let spike = dependencies
+| where timestamp between (spikeStart .. spikeEnd)
+| where cloud_RoleName == appName
+| summarize
+    spike_avg_ms      = avg(duration),
+    spike_p95_ms      = percentile(duration, 95),
+    spike_calls       = count(),
+    spike_failure_pct = round(100.0 * countif(success == false) / count(), 2)
+    by type, target, name;
+
+// Join and compute degradation ratio
+spike
+| join kind=leftouter baseline on type, target, name
+| extend
+    avg_degradation_ratio = round(spike_avg_ms / max_of(baseline_avg_ms, 1), 2),
+    p95_degradation_ratio = round(spike_p95_ms / max_of(baseline_p95_ms, 1), 2),
+    avg_delta_ms          = round(spike_avg_ms - coalesce(baseline_avg_ms, 0.0), 1)
+| project
+    DependencyType        = type,
+    Target                = target,
+    OperationName         = name,
+    Spike_Avg_ms          = round(spike_avg_ms, 1),
+    Baseline_Avg_ms       = round(coalesce(baseline_avg_ms, 0.0), 1),
+    Avg_Delta_ms          = avg_delta_ms,
+    Avg_Degradation_Ratio = avg_degradation_ratio,
+    Spike_P95_ms          = round(spike_p95_ms, 1),
+    Baseline_P95_ms       = round(coalesce(baseline_p95_ms, 0.0), 1),
+    P95_Degradation_Ratio = p95_degradation_ratio,
+    Spike_Calls           = spike_calls,
+    Baseline_Calls        = coalesce(baseline_calls, 0),
+    Failure_Pct           = spike_failure_pct
+| where Avg_Degradation_Ratio > 1.5 or Failure_Pct > 5  // surface meaningful regressions only
+| order by Avg_Degradation_Ratio desc

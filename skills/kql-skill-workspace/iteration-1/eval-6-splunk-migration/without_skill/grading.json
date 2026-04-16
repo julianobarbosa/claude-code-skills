@@ -1,0 +1,69 @@
+{
+  "eval_id": 6,
+  "eval_name": "splunk-spl-brute-force-migration",
+  "configuration": "without_skill",
+  "expectations": [
+    {
+      "text": "Output includes standard .kql comment header block",
+      "passed": false,
+      "evidence": "File has a two-line comment header ('// Brute Force Detection with Successful Authentication — Converted from Splunk SPL to KQL', '// Source: index=auth sourcetype=linux_secure...', '// Sentinel table: Syslog...') but NOT the structured header block with labeled Title, Service, Tables, Description, Parameters, and Complexity fields."
+    },
+    {
+      "text": "Uses Syslog table for Linux authentication logs",
+      "passed": true,
+      "evidence": "Both FailedAttempts and SuccessfulLogins subqueries use 'Syslog' table with 'Facility == \"auth\" or ProcessName in (\"sshd\", \"su\", \"sudo\")'"
+    },
+    {
+      "text": "Maps Splunk dc() to KQL dcount()",
+      "passed": true,
+      "evidence": "'unique_sources = dcount(src_ip)'"
+    },
+    {
+      "text": "Maps Splunk values() to KQL make_set()",
+      "passed": true,
+      "evidence": "'sources = make_set(src_ip)'"
+    },
+    {
+      "text": "Uses join to correlate failed logins with successful logins by user",
+      "passed": true,
+      "evidence": "'FailedAttempts | join kind=inner SuccessfulLogins on user'"
+    },
+    {
+      "text": "Uses iff() or case() instead of Splunk eval/if syntax",
+      "passed": true,
+      "evidence": "'success_after_bruteforce = iif(last_success >= ago(1h), \"YES\", \"NO\")' — uses iif() which is an alias for iff() in KQL"
+    },
+    {
+      "text": "Includes TimeGenerated filter",
+      "passed": true,
+      "evidence": "'| where TimeGenerated >= ago(LookbackWindow)' in both FailedAttempts and SuccessfulLogins"
+    }
+  ],
+  "pass_rate": 0.857,
+  "summary": {
+    "passed": 6,
+    "failed": 1,
+    "total": 7,
+    "pass_rate": 0.857
+  },
+  "timing": {
+    "executor_duration_seconds": 35.6,
+    "total_duration_seconds": 35.6
+  },
+  "claims": [
+    {
+      "claim": "Uses hardcoded ago(1h) for the success_after_bruteforce check instead of a parameter",
+      "type": "quality",
+      "verified": true,
+      "evidence": "'success_after_bruteforce = iif(last_success >= ago(1h), ...)' — the 1h is hardcoded, not parameterized, unlike the with_skill output which uses 'let successWindow = 1h'"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "The without_skill output uses LookbackWindow = 1h (only 1 hour lookback) whereas with_skill uses 24h. The short lookback is functionally limited for brute force detection, but no assertion checks the lookback duration adequacy. Consider asserting 'Uses lookback of at least 1 hour for failed attempts'."
+      }
+    ],
+    "overall": "Header assertion is the key differentiator. The without_skill output uses only 1h lookback for failures, which may miss attacks — a quality gap no assertion currently catches."
+  }
+}

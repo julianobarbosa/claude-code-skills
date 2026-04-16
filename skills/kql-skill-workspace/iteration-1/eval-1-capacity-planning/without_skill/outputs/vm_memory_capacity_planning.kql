@@ -1,0 +1,80 @@
+// Azure VM Memory Capacity Planning Query
+// Purpose: Identify VMs with >90% memory usage in the past 3 days,
+//          distinguishing consistently hot VMs from spiking ones.
+// Target:  Log Analytics Workspace (Perf table via Azure Monitor Agent or MMA)
+
+let timeRange = 3d;
+let memThreshold = 90.0;
+let minSamplesForConsistency = 5; // minimum data points to evaluate pattern
+
+// Step 1: Gather all memory usage samples over the past 3 days
+let MemorySamples = Perf
+| where TimeGenerated >= ago(timeRange)
+| where ObjectName == "Memory"
+    and CounterName == "% Committed Bytes In Use"
+| where CounterValue > 0
+| project
+    TimeGenerated,
+    Computer,
+    CounterValue;
+
+// Step 2: Compute per-VM memory statistics
+let MemoryStats = MemorySamples
+| summarize
+    SampleCount       = count(),
+    AvgMemoryPct      = round(avg(CounterValue), 2),
+    MaxMemoryPct      = round(max(CounterValue), 2),
+    MinMemoryPct      = round(min(CounterValue), 2),
+    P50MemoryPct      = round(percentile(CounterValue, 50), 2),
+    P90MemoryPct      = round(percentile(CounterValue, 90), 2),
+    P95MemoryPct      = round(percentile(CounterValue, 95), 2),
+    HotSamples        = countif(CounterValue > memThreshold),
+    FirstSeen         = min(TimeGenerated),
+    LastSeen          = max(TimeGenerated)
+    by Computer
+| where MaxMemoryPct > memThreshold          // only VMs that hit threshold at least once
+| where SampleCount >= minSamplesForConsistency;
+
+// Step 3: Classify VMs as consistently hot vs spiking
+MemoryStats
+| extend
+    HotSamplePct = round(todouble(HotSamples) / todouble(SampleCount) * 100, 1),
+    ObservationWindowHours = round(datetime_diff('minute', LastSeen, FirstSeen) / 60.0, 1)
+| extend
+    MemoryPattern = case(
+        // Consistently hot: median AND average both above threshold → sustained pressure
+        P50MemoryPct >= memThreshold and AvgMemoryPct >= memThreshold,
+            "Consistently Hot",
+        // Frequently hot: P90 above threshold but median below → often high
+        P90MemoryPct >= memThreshold and P50MemoryPct < memThreshold,
+            "Frequently Hot",
+        // Spiking: only max crosses threshold, P90 still below → isolated spikes
+        MaxMemoryPct > memThreshold and P90MemoryPct < memThreshold,
+            "Spiking"
+    ),
+    CapacityRisk = case(
+        P50MemoryPct >= memThreshold, "Critical",
+        AvgMemoryPct >= memThreshold, "High",
+        P90MemoryPct >= memThreshold, "Medium",
+        "Low"
+    )
+| project
+    Computer,
+    MemoryPattern,
+    CapacityRisk,
+    AvgMemoryPct,
+    MaxMemoryPct,
+    MinMemoryPct,
+    P50MemoryPct,
+    P90MemoryPct,
+    P95MemoryPct,
+    HotSamples,
+    SampleCount,
+    HotSamplePct,
+    ObservationWindowHours,
+    FirstSeen,
+    LastSeen
+| order by
+    // Surface consistently hot / critical VMs first, then by avg usage desc
+    CapacityRisk asc,   // "Critical" < "High" < "Low" alphabetically works here
+    AvgMemoryPct desc

@@ -1,0 +1,14 @@
+{
+  "eval_id": 6,
+  "eval_name": "splunk-spl-brute-force-migration",
+  "prompt": "Convert Splunk SPL brute-force correlation search to KQL for Sentinel",
+  "assertions": [
+    {"id": "header", "text": "Output includes standard .kql comment header block"},
+    {"id": "syslog_table", "text": "Uses Syslog table for Linux authentication logs"},
+    {"id": "dcount_mapping", "text": "Maps Splunk dc() to KQL dcount()"},
+    {"id": "make_set_mapping", "text": "Maps Splunk values() to KQL make_set()"},
+    {"id": "join_for_success", "text": "Uses join to correlate failed logins with successful logins by user"},
+    {"id": "iff_not_eval", "text": "Uses iff() or case() instead of Splunk eval/if syntax"},
+    {"id": "time_filter", "text": "Includes TimeGenerated filter"}
+  ]
+}

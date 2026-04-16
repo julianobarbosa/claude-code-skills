@@ -1,0 +1,41 @@
+// ============================================================
+// Title: Port Scan Detection via Denied Firewall Connections
+// Service: Sentinel
+// Tables: AzureFirewallNetworkRule (or custom firewall_logs equivalent)
+// Description: Detects potential port scanning activity by identifying source IPs
+//              that have attempted connections to more than 20 distinct destination
+//              ports within the last hour — all of which were denied. Translated
+//              from SQL (legacy SIEM). Top 50 results ordered by port diversity.
+// Parameters:
+//   lookback       - Time window to analyze (default: 1h)
+//   min_port_count - Minimum distinct destination ports to flag (default: 20)
+//   result_limit   - Maximum number of results to return (default: 50)
+// Complexity: Intermediate
+// ============================================================
+
+// Parameterize thresholds for easy tuning
+let lookback = 1h;
+let min_port_count = 20;
+let result_limit = 50;
+
+// NOTE: Replace 'AzureFirewallNetworkRule' with your actual table name if using
+// a custom connector (e.g., CommonSecurityLog, a custom firewall_logs table, etc.)
+// Field mappings may also differ — adjust SrcIP, DstIP, DstPort, and Action accordingly.
+AzureFirewallNetworkRule
+// Filter to the time window first — this limits data scanned before aggregation
+| where TimeGenerated > ago(lookback)
+// Only look at denied traffic (port scans generate many denied connections)
+| where Action =~ "Deny"
+// Aggregate per source/destination pair: count total connections and distinct ports
+| summarize
+    conn_count = count(),
+    port_count = dcount(DestinationPort)  // dcount() = COUNT(DISTINCT ...) in SQL
+    by SourceIP, DestinationIP
+// HAVING equivalent: filter aggregated results where port diversity exceeds threshold
+| where port_count > min_port_count
+// Sort by port count descending — highest port diversity indicates most aggressive scanning
+| sort by port_count desc
+// Limit output to top N results
+| take result_limit
+// Project final columns in a readable order
+| project SourceIP, DestinationIP, conn_count, port_count

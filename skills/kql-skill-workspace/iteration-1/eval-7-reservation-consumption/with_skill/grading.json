@@ -1,0 +1,72 @@
+{
+  "eval_id": 7,
+  "eval_name": "azure-reservation-consumption",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "Targets Azure Resource Graph tables or consumption/billing tables",
+      "passed": true,
+      "evidence": "Part 1 uses 'resources' table in Azure Resource Graph querying 'microsoft.capacity/reservationorders/reservations'. Part 2 also uses 'resources' and references consumption via CLI commands. The header explicitly states 'Run this in Azure Resource Graph Explorer (portal) or via az graph query'."
+    },
+    {
+      "text": "Projects reservation name/display name in results",
+      "passed": true,
+      "evidence": "'ReservationName = tostring(name)' is projected in both Part 1 and Part 2 of the query"
+    },
+    {
+      "text": "Shows utilization percentage for each reservation",
+      "passed": true,
+      "evidence": "'UtilizationPct = round(todouble(UtilizationEntry.value) * 100, 2)' derived from properties.utilizationAggregates with P7D grain filter"
+    },
+    {
+      "text": "Shows which resources are consuming each reservation",
+      "passed": true,
+      "evidence": "Part 2 joins reservations with 'consumingResources' via typeMap, projecting 'ConsumingResource = ResourceName' and 'ConsumingResourceId = ResourceId'"
+    },
+    {
+      "text": "Includes Azure CLI commands (az graph query or az consumption) to run the query",
+      "passed": true,
+      "evidence": "run-via-azure-cli.sh includes 10 sections with 'az graph query' commands, 'az consumption reservation summary list', 'az consumption reservation detail list', and 'az reservations reservation-order list'"
+    },
+    {
+      "text": "Output includes .kql file with comment header",
+      "passed": true,
+      "evidence": "reservation-consumption-analysis.kql opens with structured header block containing Title, Service, Tables, Description, Parameters (reservationScope, utilizationThreshold, lookbackDays), Complexity: Advanced"
+    }
+  ],
+  "pass_rate": 1.0,
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 120.4,
+    "total_duration_seconds": 120.4
+  },
+  "claims": [
+    {
+      "claim": "Includes IsUnderutilized flag and configurable utilizationThreshold",
+      "type": "quality",
+      "verified": true,
+      "evidence": "'let utilizationThreshold = 80.0;' and 'IsUnderutilized = iff(UtilizationPct < utilizationThreshold, true, false)'"
+    },
+    {
+      "claim": "Includes typeMap datatable to map reservation types to ARM resource types",
+      "type": "quality",
+      "verified": true,
+      "evidence": "datatable(ReservedResourceType:string, ArmType:string) with 18 resource type mappings (VMs, SQL, PostgreSQL, CosmosDB, AppService, etc.)"
+    },
+    {
+      "claim": "CLI script includes pagination handling with --skip-token",
+      "type": "process",
+      "verified": true,
+      "evidence": "Section 3 of run-via-azure-cli.sh handles ARG's 1000-row limit with skip token iteration"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All 6 assertions pass. The output is thorough with a comprehensive typeMap, CLI pagination, and scope-based resource filtering. No suggestions."
+  }
+}

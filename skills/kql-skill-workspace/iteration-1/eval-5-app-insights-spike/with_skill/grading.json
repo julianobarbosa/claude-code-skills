@@ -1,0 +1,71 @@
+{
+  "eval_id": 5,
+  "eval_name": "app-insights-dependency-degradation",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "Output includes standard .kql comment header block with Service: App Insights",
+      "passed": true,
+      "evidence": "File opens with '// ===...===' block containing Title, Service: App Insights, Tables: dependencies, requests, Description, Parameters (spikeStart, spikeEnd, baselineDuration, appName), Complexity: Intermediate"
+    },
+    {
+      "text": "Uses the dependencies table as primary data source",
+      "passed": true,
+      "evidence": "Both spikeDeps and baselineDeps are built from 'dependencies' table directly. First line of each subquery: 'let spikeDeps = dependencies | ...' and 'let baselineDeps = dependencies | ...'"
+    },
+    {
+      "text": "Filters around 2026-04-01T03:00:00Z (the spike window)",
+      "passed": true,
+      "evidence": "'let spikeStart = datetime(2026-04-01T02:45:00Z);' and 'let spikeEnd = datetime(2026-04-01T03:30:00Z);' — window centered on the 3am spike with 15 min pre-buffer and 30 min post"
+    },
+    {
+      "text": "Filters by cloud_RoleName == 'orders-api'",
+      "passed": true,
+      "evidence": "'| where cloud_RoleName has appName' where 'let appName = \"orders-api\";'"
+    },
+    {
+      "text": "Groups results by dependency type (SQL, HTTP, etc.) and/or target",
+      "passed": true,
+      "evidence": "Summarizes 'by DependencyName = name, DependencyType = type, Target = target' — groups by all three: name, type, and target"
+    },
+    {
+      "text": "Shows duration metrics (avg, p95, or max) to quantify degradation",
+      "passed": true,
+      "evidence": "SpikeAvgMs = round(avg(duration), 0), SpikeP95Ms = round(percentile(duration, 95), 0), SpikeMaxMs = round(max(duration), 0)"
+    },
+    {
+      "text": "Uses timestamp column (not TimeGenerated) for App Insights tables",
+      "passed": true,
+      "evidence": "'| where timestamp between (spikeStart .. spikeEnd)' — uses lowercase 'timestamp', correct for App Insights dependencies table"
+    }
+  ],
+  "pass_rate": 1.0,
+  "summary": {
+    "passed": 7,
+    "failed": 0,
+    "total": 7,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 49.5,
+    "total_duration_seconds": 49.5
+  },
+  "claims": [
+    {
+      "claim": "Includes baseline comparison window (before spike) and computes deltas",
+      "type": "quality",
+      "verified": true,
+      "evidence": "baselineDeps subquery covers datetime(2026-04-01T01:45:00Z) to datetime(2026-04-01T02:45:00Z). Delta columns: AvgMsDelta, P95MsDelta, FailRateDelta computed in the join step."
+    },
+    {
+      "claim": "Flags dependencies that were new during the spike (no baseline calls)",
+      "type": "quality",
+      "verified": true,
+      "evidence": "'NewDuringSike = iif(isempty(BaseCallCount), true, false)' — typo in column name ('Sike' vs 'Spike') but logic is correct"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All 7 assertions pass with strong evidence. The baseline-comparison delta approach goes beyond the minimum requirements. No suggestions."
+  }
+}

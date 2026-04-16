@@ -1,0 +1,14 @@
+{
+  "eval_id": 5,
+  "eval_name": "app-insights-dependency-degradation",
+  "prompt": "Find degraded dependencies during 3am spike for orders-api in Application Insights",
+  "assertions": [
+    {"id": "header", "text": "Output includes standard .kql comment header block with Service: App Insights"},
+    {"id": "dependencies_table", "text": "Uses the dependencies table as primary data source"},
+    {"id": "time_window", "text": "Filters around 2026-04-01T03:00:00Z (the spike window)"},
+    {"id": "cloud_role", "text": "Filters by cloud_RoleName == 'orders-api'"},
+    {"id": "groups_by_type", "text": "Groups results by dependency type (SQL, HTTP, etc.) and/or target"},
+    {"id": "duration_metrics", "text": "Shows duration metrics (avg, p95, or max) to quantify degradation"},
+    {"id": "uses_timestamp", "text": "Uses timestamp column (not TimeGenerated) for App Insights tables"}
+  ]
+}

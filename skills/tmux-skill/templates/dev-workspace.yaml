@@ -1,0 +1,41 @@
+# Development Workspace Template
+# Usage: Copy and customize for your project
+#
+# Replace:
+#   - session_name: your-project-dev
+#   - start_directory: path to your project
+#   - Commands: match your tech stack (npm/pip/cargo/go/etc.)
+
+session_name: project-dev
+start_directory: ~/Projects/my-project
+
+windows:
+  - window_name: editor
+    focus: true
+    layout: main-vertical
+    options:
+      main-pane-width: 70%
+    panes:
+      - focus: true
+        shell_command:
+          - vim .
+      - shell_command:
+          - echo "Test runner pane"
+          - echo "Run: npm test / pytest / cargo test"
+      - shell_command:
+          - watch -n 5 "git status -sb && echo '' && git log --oneline -5"
+
+  - window_name: server
+    layout: even-horizontal
+    panes:
+      - shell_command:
+          - echo "Dev server pane"
+          - echo "Run: npm run dev / python manage.py runserver"
+      - shell_command:
+          - echo "Logs pane"
+          - echo "Run: tail -f logs/dev.log"
+
+  - window_name: terminal
+    panes:
+      - shell_command:
+          - echo "General purpose terminal"

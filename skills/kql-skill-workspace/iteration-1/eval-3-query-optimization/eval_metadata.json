@@ -1,0 +1,13 @@
+{
+  "eval_id": 3,
+  "eval_name": "optimize-slow-sentinel-query",
+  "prompt": "Optimize a slow Sentinel query with multiple anti-patterns",
+  "assertions": [
+    {"id": "adds_time_filter", "text": "Adds TimeGenerated filter that was missing in the original"},
+    {"id": "removes_tolower", "text": "Removes unnecessary tolower() call"},
+    {"id": "replaces_contains", "text": "Replaces contains with has or =~ for the admin string match"},
+    {"id": "filters_before_join", "text": "Filters both sides of the join before joining (adds where to SigninLogs subquery)"},
+    {"id": "explains_changes", "text": "Provides explanation of each optimization and why it improves performance"},
+    {"id": "projects_columns", "text": "Adds project to reduce column transfer before join or summarize"}
+  ]
+}

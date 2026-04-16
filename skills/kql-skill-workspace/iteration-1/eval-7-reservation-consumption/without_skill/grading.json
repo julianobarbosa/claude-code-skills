@@ -1,0 +1,71 @@
+{
+  "eval_id": 7,
+  "eval_name": "azure-reservation-consumption",
+  "configuration": "without_skill",
+  "expectations": [
+    {
+      "text": "Targets Azure Resource Graph tables or consumption/billing tables",
+      "passed": true,
+      "evidence": "Uses 'reservationsresources' table (ARG-specific table for reservations) across 5 queries in reservation_consumption.kql"
+    },
+    {
+      "text": "Projects reservation name/display name in results",
+      "passed": true,
+      "evidence": "'reservationName = tostring(name)' projected in Query 1 and all subsequent queries"
+    },
+    {
+      "text": "Shows utilization percentage for each reservation",
+      "passed": true,
+      "evidence": "'utilizationAggr7Day = todouble(properties.utilization.aggregates[1].value)' and 'utilization_7d_pct = round(utilizationAggr7Day, 2)' in Query 1; also utilization_1d and utilization_30d variants"
+    },
+    {
+      "text": "Shows which resources are consuming each reservation",
+      "passed": true,
+      "evidence": "Query 3 joins reservationsresources with resources table via scope subscription ID, projecting resourceName, resourceType, resourceRG, and other consumer fields"
+    },
+    {
+      "text": "Includes Azure CLI commands (az graph query or az consumption) to run the query",
+      "passed": true,
+      "evidence": "cli_commands.sh contains 6 'az graph query -q' sections with actual inline KQL, covering utilization summary, status flags, consumer join, expiry, and JSON export"
+    },
+    {
+      "text": "Output includes .kql file with comment header",
+      "passed": true,
+      "evidence": "reservation_consumption.kql has a structured comment block: '// ===...===' with Tables, description of queries. Not the exact skill-standard format but clearly a structured header with Title, Tables, and description fields."
+    }
+  ],
+  "pass_rate": 1.0,
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 83.0,
+    "total_duration_seconds": 83.0
+  },
+  "claims": [
+    {
+      "claim": "Uses reservationsresources (ARG-specific table) rather than the generic resources table",
+      "type": "factual",
+      "verified": true,
+      "evidence": "All 5 queries in reservation_consumption.kql use 'reservationsresources' — a specialized ARG table for reservation data. The with_skill output uses the generic 'resources' table with type filter instead."
+    },
+    {
+      "claim": "Includes 5 distinct queries covering utilization, status, consumers, orders, and expiry",
+      "type": "quality",
+      "verified": true,
+      "evidence": "reservation_consumption.kql contains Query 1 (utilization summary), Query 2 (under-utilization flag), Query 3 (consuming resources), Query 4 (reservation orders), Query 5 (expiring in 90 days)"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Output includes .kql file with comment header",
+        "reason": "The without_skill output passes this assertion with a structured '// ===...===' header that lacks the skill-standard labeled fields (Service, Parameters, Complexity). If the intent is to check for the skill's specific format, the assertion should be more precise about required fields."
+      }
+    ],
+    "overall": "Both configurations pass all 6 assertions, making eval-7 unable to differentiate skill vs no-skill quality. The header assertion is weaker here because the without_skill output happens to use a similar comment style. Consider tightening the header assertion to require all six labeled fields."
+  }
+}

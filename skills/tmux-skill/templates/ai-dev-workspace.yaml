@@ -1,0 +1,45 @@
+# AI-Assisted Development Workspace Template
+# Usage: Copy and customize for AI agent development workflows
+#
+# Replace:
+#   - session_name: your-project-ai
+#   - start_directory: your project path
+#   - AI tool: claude / aider / copilot-chat / etc.
+
+session_name: ai-dev
+start_directory: ~/Projects/my-project
+
+windows:
+  - window_name: ai-agent
+    focus: true
+    layout: main-horizontal
+    options:
+      main-pane-height: 70%
+    panes:
+      - focus: true
+        shell_command:
+          - echo "AI Agent workspace"
+          - claude
+      - shell_command:
+          - echo "Validation pane"
+          - echo "Run tests, check output, verify changes"
+
+  - window_name: editor
+    layout: main-vertical
+    options:
+      main-pane-width: 70%
+    panes:
+      - shell_command:
+          - vim .
+      - shell_command:
+          - watch -n 5 "git status -sb"
+
+  - window_name: server
+    panes:
+      - shell_command:
+          - echo "Dev server / test runner"
+
+  - window_name: terminal
+    panes:
+      - shell_command:
+          - echo "General terminal"

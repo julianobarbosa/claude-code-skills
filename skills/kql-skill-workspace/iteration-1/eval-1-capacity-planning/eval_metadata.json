@@ -1,0 +1,13 @@
+{
+  "eval_id": 1,
+  "eval_name": "capacity-planning-high-memory-vms",
+  "prompt": "I need to find all Azure VMs that had more than 90% memory usage in the past 3 days, and I want to see which ones are consistently running hot versus just spiking. This is for a capacity planning review we're doing next week. Target: Log Analytics.",
+  "assertions": [
+    {"id": "header", "text": "Output includes standard .kql comment header block (Title, Service, Tables, Description, Parameters, Complexity)"},
+    {"id": "correct_table", "text": "Uses Perf table (or InsightsMetrics) for memory counters"},
+    {"id": "time_filter", "text": "Includes TimeGenerated filter for 3 days (ago(3d) or equivalent)"},
+    {"id": "let_params", "text": "Uses let statements for parameterized values (time range, threshold)"},
+    {"id": "sustained_vs_spike", "text": "Distinguishes between sustained high memory and temporary spikes (e.g., via binned aggregation, percentiles, or duration counting)"},
+    {"id": "memory_counter", "text": "Uses correct memory performance counter (% Committed Bytes In Use or Available MBytes)"}
+  ]
+}

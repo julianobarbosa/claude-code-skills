@@ -1,0 +1,71 @@
+{
+  "eval_id": 6,
+  "eval_name": "splunk-spl-brute-force-migration",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "Output includes standard .kql comment header block",
+      "passed": true,
+      "evidence": "File opens with '// ===...===' block containing Title, Service: Sentinel, Tables: Syslog, Description (noting translation from Splunk SPL), Parameters (lookbackWindow, failureThreshold, uniqueSourceMin, successWindow), Complexity: Intermediate"
+    },
+    {
+      "text": "Uses Syslog table for Linux authentication logs",
+      "passed": true,
+      "evidence": "Both failedAttempts and successfulLogins subqueries use 'Syslog' table with 'Facility == \"auth\" or ProcessName has \"sshd\"'"
+    },
+    {
+      "text": "Maps Splunk dc() to KQL dcount()",
+      "passed": true,
+      "evidence": "'UniqueSources = dcount(SourceIP)' with inline comment '// dcount() == dc() in SPL'"
+    },
+    {
+      "text": "Maps Splunk values() to KQL make_set()",
+      "passed": true,
+      "evidence": "'Sources = make_set(SourceIP)' with inline comment '// make_set() == values() in SPL — unique IPs as array'"
+    },
+    {
+      "text": "Uses join to correlate failed logins with successful logins by user",
+      "passed": true,
+      "evidence": "'failedAttempts | join kind=inner successfulLogins on TargetUser' — inner join correlates users with both failure and success records"
+    },
+    {
+      "text": "Uses iff() or case() instead of Splunk eval/if syntax",
+      "passed": true,
+      "evidence": "'SuccessAfterBruteForce = iff(LastSuccess > ago(successWindow), \"YES\", \"NO\")' with comment '// Equivalent to: eval success_after_bruteforce=if(...)'"
+    },
+    {
+      "text": "Includes TimeGenerated filter",
+      "passed": true,
+      "evidence": "'| where TimeGenerated > ago(lookbackWindow)' in both failedAttempts and successfulLogins subqueries"
+    }
+  ],
+  "pass_rate": 1.0,
+  "summary": {
+    "passed": 7,
+    "failed": 0,
+    "total": 7,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 64.8,
+    "total_duration_seconds": 64.8
+  },
+  "claims": [
+    {
+      "claim": "Uses regex extract to parse TargetUser and SourceIP from SyslogMessage",
+      "type": "process",
+      "verified": true,
+      "evidence": "extract(@\"Failed password for (?:invalid user )?(\\ S+) from\", 1, SyslogMessage) handles both 'Failed password for user' and 'Failed password for invalid user' patterns"
+    },
+    {
+      "claim": "Documents SPL-to-KQL mapping with inline comments throughout",
+      "type": "quality",
+      "verified": true,
+      "evidence": "Every significant aggregation has an SPL equivalent comment, e.g., '// Equivalent to: stats count as failures dc(src_ip) as unique_sources values(src_ip) as sources by user'"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All 7 assertions pass. The inline SPL mapping comments are thorough and add significant value. No suggestions."
+  }
+}

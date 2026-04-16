@@ -1,0 +1,47 @@
+{
+  "skill_name": "kql-skill",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to find all Azure VMs that had more than 90% memory usage in the past 3 days, and I want to see which ones are consistently running hot versus just spiking. This is for a capacity planning review we're doing next week. Target: Log Analytics.",
+      "expected_output": "A .kql file targeting the Perf table with the standard comment header, using let statements for the time range and threshold, binned aggregation to distinguish sustained vs spike patterns, sorted by severity.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "We got this SQL query from the old SIEM team and need to convert it to KQL for Sentinel:\n\nSELECT src_ip, dst_ip, COUNT(*) as conn_count, COUNT(DISTINCT dst_port) as port_count\nFROM firewall_logs\nWHERE timestamp > NOW() - INTERVAL 1 HOUR\nAND action = 'denied'\nGROUP BY src_ip, dst_ip\nHAVING port_count > 20\nORDER BY port_count DESC\nLIMIT 50;\n\nThis is for detecting port scanning activity.",
+      "expected_output": "A .kql file with idiomatic KQL using CommonSecurityLog or AzureDiagnostics (firewall), proper pipe-based flow (not nested SQL style), let parameters, has/== instead of LIKE, summarize with dcount, and the standard file header noting it's a SQL translation.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "This Sentinel query is taking forever — can you optimize it?\n\nSecurityEvent\n| where EventID == 4625\n| where tolower(Account) contains \"admin\"\n| join kind=inner SigninLogs on $left.Account == $right.UserPrincipalName\n| summarize count() by Account, Computer\n| where count_ > 5\n| sort by count_ desc",
+      "expected_output": "An optimized version that: adds TimeGenerated filter, replaces tolower()+contains with has or =~ (case-insensitive), filters both sides before join, projects needed columns, and explains each optimization with before/after comparison.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "I'm a threat hunter and I need to detect lateral movement in our environment. Specifically, I want to find cases where an account authenticated to more than 5 different machines within a 1-hour window in the last 48 hours — this could indicate pass-the-hash or stolen credential use. We use Sentinel with M365 Defender tables.",
+      "expected_output": "A .kql file targeting DeviceLogonEvents or SecurityEvent (Event 4624), using session windowing or time bins to group authentications per account per hour, filtering for accounts hitting >5 distinct devices, with the standard header and risk context.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "Our API response times on the orders service spiked around 3am last night — around 2026-04-01T03:00:00Z. Can you write me a KQL query for Application Insights that shows what dependencies degraded during that window? I want to see if it was the database, an external API, or something else. The app name is 'orders-api'.",
+      "expected_output": "A .kql file targeting dependencies and requests tables, filtered around the 3am window, grouped by dependency type and target, showing duration percentiles and failure rates, with correlation to the orders-api cloud_RoleName.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "prompt": "We're migrating from Splunk and need this correlation search converted to KQL for Sentinel:\n\nindex=auth sourcetype=linux_secure\n| search \"Failed password\"\n| stats count as failures dc(src_ip) as unique_sources values(src_ip) as sources by user\n| where failures > 20 AND unique_sources > 3\n| sort -failures\n| join type=inner user [search index=auth sourcetype=linux_secure \"Accepted password\" | stats count as successes latest(_time) as last_success by user]\n| eval success_after_bruteforce=if(last_success > relative_time(now(), \"-1h\"), \"YES\", \"NO\")\n| table user failures unique_sources sources successes success_after_bruteforce",
+      "expected_output": "Idiomatic KQL targeting Syslog table, using has instead of search, summarize with dcount/make_set, let statements for subqueries, join for success correlation, and the SPL-to-KQL mapping applied correctly.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "prompt": "I need to query Azure reservations consumption data — show me all reservations alongside their actual consumed usage using the ARM/Azure Resource Graph tables. I want to see reservation name, utilization percentage, and which resources are consuming each reservation. Also show me how to run this via Azure CLI.",
+      "expected_output": "A .kql file targeting Azure Resource Graph (resources or advisorresources) or AzureDiagnostics, plus Azure CLI commands to run the query via az graph query. Should cover reservation utilization metrics and consumed resource mapping.",
+      "files": []
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "eval_id": 4,
+  "eval_name": "lateral-movement-detection",
+  "prompt": "Detect lateral movement: accounts authenticating to >5 machines in 1h window over 48h",
+  "assertions": [
+    {"id": "header", "text": "Output includes standard .kql comment header block"},
+    {"id": "correct_table", "text": "Uses DeviceLogonEvents, SecurityEvent (4624), or IdentityLogonEvents"},
+    {"id": "time_window", "text": "Groups by 1-hour time bins (bin(Timestamp, 1h) or equivalent)"},
+    {"id": "device_count", "text": "Counts distinct devices/machines per account per time window"},
+    {"id": "threshold_5", "text": "Filters for accounts hitting more than 5 distinct devices"},
+    {"id": "48h_range", "text": "Covers the last 48 hours as specified"}
+  ]
+}

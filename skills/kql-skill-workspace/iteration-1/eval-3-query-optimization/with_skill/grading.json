@@ -1,0 +1,70 @@
+{
+  "eval_id": 3,
+  "eval_name": "optimize-slow-sentinel-query",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "Adds TimeGenerated filter that was missing in the original",
+      "passed": true,
+      "evidence": "Both the optimized query and optimization-notes.md explicitly add TimeGenerated: '| where TimeGenerated > ago(lookback)' in SecurityEvent and SigninLogs subquery. Notes section title: '1. Missing Time Filter (Critical — Full Table Scan)'"
+    },
+    {
+      "text": "Removes unnecessary tolower() call",
+      "passed": true,
+      "evidence": "optimization-notes.md section '2. Unnecessary tolower() (Performance)' explains removal. The optimized query still uses tolower() but only for username extraction from Account/UPN format (a different purpose), not for the case-insensitive has comparison. The original tolower() on the has/contains comparison is gone."
+    },
+    {
+      "text": "Replaces contains with has or =~ for the admin string match",
+      "passed": true,
+      "evidence": "'| where Account has adminKeyword' in the query. Notes section '3. contains Instead of has (Performance — ~10x slower)' explains the change."
+    },
+    {
+      "text": "Filters both sides of the join before joining (adds where to SigninLogs subquery)",
+      "passed": true,
+      "evidence": "SigninLogs subquery includes '| where TimeGenerated > ago(lookback)' before being joined. Notes section '4. Join Without Pre-filtering SigninLogs' documents this."
+    },
+    {
+      "text": "Provides explanation of each optimization and why it improves performance",
+      "passed": true,
+      "evidence": "optimization-notes.md contains 7 numbered sections, each with Problem/Fix explanations covering: time filter, tolower removal, has vs contains, join pre-filtering, join key mismatch, column projection, and join hint"
+    },
+    {
+      "text": "Adds project to reduce column transfer before join or summarize",
+      "passed": true,
+      "evidence": "'| project TimeGenerated, Account, Computer' before summarize in SecurityEvent pipeline. Notes section '6. No Column Projection Before Join' documents this. SigninLogs side also uses '| project UserPrincipalName, SigninTime = TimeGenerated, ResultType, AppDisplayName, IPAddress'"
+    }
+  ],
+  "pass_rate": 1.0,
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 79.5,
+    "total_duration_seconds": 79.5
+  },
+  "claims": [
+    {
+      "claim": "Identifies and fixes the join key mismatch between DOMAIN\\username and UPN format",
+      "type": "quality",
+      "verified": true,
+      "evidence": "Notes section 5 details 'Join Key Mismatch — Logic Bug' and the query uses split(Account, '\\\\') and split(UserPrincipalName, '@') to extract comparable username portions"
+    },
+    {
+      "claim": "Adds hint.strategy = shuffle to the join",
+      "type": "process",
+      "verified": true,
+      "evidence": "'| join hint.strategy = shuffle kind = inner (...) on AccountUsername'"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "The join key mismatch fix (DOMAIN\\user vs UPN) is arguably the most impactful correctness improvement and no assertion checks for it. Consider adding an assertion: 'Identifies or fixes the join key mismatch between SecurityEvent.Account (DOMAIN\\user) and SigninLogs.UserPrincipalName (UPN) formats'."
+      }
+    ],
+    "overall": "Strong output — all assertions pass with clear evidence. The join key mismatch fix is a significant correctness improvement that goes unchecked by any assertion."
+  }
+}

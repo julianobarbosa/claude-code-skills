@@ -1,0 +1,82 @@
+// ============================================================
+// Title: Lateral Movement — Account Authenticating to 5+ Machines in 1-Hour Window
+// Service: Sentinel
+// Tables: DeviceLogonEvents, IdentityLogonEvents
+// Description: Detects potential pass-the-hash or stolen credential abuse by finding
+//   accounts that successfully authenticated to more than 5 distinct machines within
+//   any 1-hour rolling window in the past 48 hours. High machine-hop counts in short
+//   windows are a strong indicator of lateral movement. Uses M365 Defender tables
+//   available in Sentinel via the unified schema.
+// Parameters: lookbackWindow (default 48h), rollingWindow (default 1h),
+//             machineThreshold (default 5)
+// Complexity: Advanced
+// ============================================================
+
+let lookbackWindow   = 48h;   // How far back to look
+let rollingWindow    = 1h;    // Sliding time window to evaluate per account
+let machineThreshold = 5;     // Minimum distinct machines to flag as suspicious
+
+// --- Step 1: Collect all successful logon events from M365 Defender ---
+// DeviceLogonEvents covers interactive, network, remote-interactive, and batch logons.
+// We exclude SYSTEM and machine accounts (ending in $) to reduce noise.
+let logonEvents = materialize(
+    DeviceLogonEvents
+    | where Timestamp > ago(lookbackWindow)
+    | where ActionType in ("LogonSuccess")
+    // Exclude machine accounts and well-known system identities
+    | where AccountName !endswith "$"
+    | where AccountName !in ("SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE", "")
+    | where isnotempty(AccountName) and isnotempty(DeviceName)
+    // Project only the columns we need to minimize data transfer
+    | project Timestamp, AccountName, AccountDomain, DeviceName, LogonType, RemoteIP = RemoteIPAddress
+);
+
+// --- Step 2: Self-join to find pairs of logons by the same account ---
+// For each logon event, count how many distinct machines the same account touched
+// within the next `rollingWindow` hours (sliding window approach via join).
+// This avoids bin() alignment gaps that could split a real attack across two buckets.
+logonEvents
+| join kind=inner (
+    logonEvents
+    | project
+        AccountName,
+        AccountDomain,
+        WindowStart  = Timestamp,     // Anchor: start of the 1-hour window
+        TargetDevice = DeviceName
+) on AccountName
+// Only consider events that fall within [WindowStart, WindowStart + rollingWindow]
+| where Timestamp >= WindowStart and Timestamp < WindowStart + rollingWindow
+// --- Step 3: Aggregate per account per window anchor ---
+| summarize
+    DistinctMachines  = dcount(DeviceName),
+    MachineList       = make_set(DeviceName, 20),
+    LogonTypes        = make_set(LogonType, 10),
+    SourceIPs         = make_set(RemoteIP, 10),
+    EarliestLogon     = min(Timestamp),
+    LatestLogon       = max(Timestamp),
+    TotalLogonEvents  = count()
+    by AccountName, AccountDomain, WindowStart
+// --- Step 4: Apply the threshold ---
+| where DistinctMachines > machineThreshold
+// --- Step 5: Deduplicate overlapping windows for the same account ---
+// Keep only the peak window (highest machine count) per account per hour to avoid
+// flooding results with overlapping 1-minute-shifted windows.
+| summarize
+    arg_max(DistinctMachines, *),           // Keep the row with the highest distinct machine count
+    PeakWindowCount = count()               // How many overlapping windows exceeded threshold
+    by AccountName, AccountDomain, bin(WindowStart, rollingWindow)
+// --- Step 6: Sort most severe first ---
+| sort by DistinctMachines desc, EarliestLogon asc
+// --- Step 7: Final output projection ---
+| project
+    EarliestLogon,
+    LatestLogon,
+    AccountDomain,
+    AccountName,
+    DistinctMachines,
+    MachineList,
+    LogonTypes,
+    SourceIPs,
+    TotalLogonEvents,
+    PeakWindowCount,
+    WindowStart

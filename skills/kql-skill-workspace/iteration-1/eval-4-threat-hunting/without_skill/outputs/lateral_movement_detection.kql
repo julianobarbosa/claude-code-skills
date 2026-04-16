@@ -1,0 +1,62 @@
+// Lateral Movement Detection — Pass-the-Hash / Stolen Credential Use
+// Detects accounts that authenticated to more than 5 distinct machines
+// within any rolling 1-hour window over the last 48 hours.
+// Tables: DeviceLogonEvents (M365 Defender) surfaced in Microsoft Sentinel
+
+let LookbackWindow = 48h;
+let HopThreshold   = 5;
+let RollingWindow  = 1h;
+
+DeviceLogonEvents
+| where Timestamp > ago(LookbackWindow)
+// Focus on network and interactive logon types most relevant to lateral movement
+| where LogonType in ("Network", "NetworkCleartext", "RemoteInteractive", "Interactive")
+// Exclude machine accounts and well-known service accounts
+| where AccountName !endswith "$"
+| where AccountName !in ("SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE", "")
+// Normalize account identifier (domain\user or UPN)
+| extend AccountId = tolower(strcat(AccountDomain, "\\", AccountName))
+// Keep only the fields we need
+| project Timestamp, AccountId, DeviceName, LogonType, ActionType, RemoteIP
+// For each logon event, look forward 1 hour and count distinct destination machines
+| join kind=inner (
+    DeviceLogonEvents
+    | where Timestamp > ago(LookbackWindow)
+    | where LogonType in ("Network", "NetworkCleartext", "RemoteInteractive", "Interactive")
+    | where AccountName !endswith "$"
+    | where AccountName !in ("SYSTEM", "LOCAL SERVICE", "NETWORK SERVICE", "")
+    | extend AccountId = tolower(strcat(AccountDomain, "\\", AccountName))
+    | project Timestamp2 = Timestamp, AccountId, DeviceName2 = DeviceName
+) on AccountId
+| where Timestamp2 >= Timestamp and Timestamp2 < Timestamp + RollingWindow
+// Count distinct destination machines within each account's 1-hour window
+| summarize
+    UniqueDevices     = dcount(DeviceName2),
+    DeviceList        = make_set(DeviceName2, 20),
+    EarliestLogon     = min(Timestamp2),
+    LatestLogon       = max(Timestamp2),
+    LogonTypes        = make_set(LogonType, 10)
+    by AccountId, WindowStart = Timestamp
+| where UniqueDevices > HopThreshold
+// Keep the worst-case window per account (highest hop count)
+| summarize
+    MaxUniqueDevices  = max(UniqueDevices),
+    WorstWindowStart  = arg_max(UniqueDevices, WindowStart),
+    DeviceList        = arg_max(UniqueDevices, DeviceList),
+    EarliestLogon     = min(EarliestLogon),
+    LatestLogon       = max(LatestLogon),
+    TotalWindowsOver5 = count()
+    by AccountId
+| extend
+    WindowStart       = WorstWindowStart,
+    SpreadMinutes     = datetime_diff("minute", LatestLogon, EarliestLogon)
+| project
+    AccountId,
+    MaxUniqueDevices,
+    TotalWindowsOver5,
+    WindowStart,
+    EarliestLogon,
+    LatestLogon,
+    SpreadMinutes,
+    DeviceList
+| sort by MaxUniqueDevices desc, TotalWindowsOver5 desc

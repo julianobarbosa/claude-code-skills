@@ -1,0 +1,52 @@
+// Brute Force Detection with Successful Authentication — Converted from Splunk SPL to KQL
+// Source: index=auth sourcetype=linux_secure correlation search
+// Sentinel table: Syslog (linux_secure maps to Syslog with Facility/ProcessName filters)
+
+let LookbackWindow = 1h;
+let FailureThreshold = 20;
+let UniqueSourceThreshold = 3;
+
+// Step 1 — Aggregate failed password attempts per user
+let FailedAttempts =
+    Syslog
+    | where TimeGenerated >= ago(LookbackWindow)
+    | where Facility == "auth" or ProcessName in ("sshd", "su", "sudo")
+    | where SyslogMessage has "Failed password"
+    | extend
+        src_ip = extract(@"from\s+(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", 1, SyslogMessage),
+        user    = extract(@"for\s+(?:invalid user\s+)?(\S+)\s+from", 1, SyslogMessage)
+    | where isnotempty(user) and isnotempty(src_ip)
+    | summarize
+        failures       = count(),
+        unique_sources = dcount(src_ip),
+        sources        = make_set(src_ip)
+      by user
+    | where failures > FailureThreshold and unique_sources > UniqueSourceThreshold
+    | sort by failures desc;
+
+// Step 2 — Aggregate successful authentications per user
+let SuccessfulLogins =
+    Syslog
+    | where TimeGenerated >= ago(LookbackWindow)
+    | where Facility == "auth" or ProcessName in ("sshd", "su", "sudo")
+    | where SyslogMessage has "Accepted password"
+    | extend
+        user = extract(@"for\s+(\S+)\s+from", 1, SyslogMessage)
+    | where isnotempty(user)
+    | summarize
+        successes    = count(),
+        last_success = max(TimeGenerated)
+      by user;
+
+// Step 3 — Inner join on user, evaluate success-after-bruteforce flag, project final columns
+FailedAttempts
+| join kind=inner SuccessfulLogins on user
+| extend
+    success_after_bruteforce = iif(last_success >= ago(1h), "YES", "NO")
+| project
+    user,
+    failures,
+    unique_sources,
+    sources,
+    successes,
+    success_after_bruteforce

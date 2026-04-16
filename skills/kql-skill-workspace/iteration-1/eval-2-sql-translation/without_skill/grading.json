@@ -1,0 +1,69 @@
+{
+  "eval_id": 2,
+  "eval_name": "sql-to-kql-port-scan-detection",
+  "configuration": "without_skill",
+  "expectations": [
+    {
+      "text": "Output includes standard .kql comment header block",
+      "passed": false,
+      "evidence": "File has an inline comment block showing the original SQL query and describing the detection, but it is NOT a structured header with labeled Title, Service, Tables, Description, Parameters, and Complexity fields."
+    },
+    {
+      "text": "Uses KQL pipe-based flow, not nested SQL-style subqueries",
+      "passed": true,
+      "evidence": "Linear pipe chain: 'CommonSecurityLog | where ... | where ... | summarize ... | where ... | order by ... | take 50'"
+    },
+    {
+      "text": "Targets appropriate Sentinel table (CommonSecurityLog, AzureDiagnostics, or AzureNetworkAnalytics)",
+      "passed": true,
+      "evidence": "Uses 'CommonSecurityLog' — listed as an acceptable table in the assertion"
+    },
+    {
+      "text": "Uses dcount() for COUNT(DISTINCT dst_port) translation",
+      "passed": true,
+      "evidence": "'port_count = dcount(DestinationPort)'"
+    },
+    {
+      "text": "Uses top N or take N instead of SQL LIMIT",
+      "passed": true,
+      "evidence": "'| take 50' at the end of the pipeline"
+    },
+    {
+      "text": "Includes time filter (ago(1h) or equivalent)",
+      "passed": true,
+      "evidence": "'| where TimeGenerated > ago(1h)'"
+    },
+    {
+      "text": "Description notes this was translated from SQL",
+      "passed": true,
+      "evidence": "Comment block at top includes the original SQL: '// Original SQL: SELECT src_ip, dst_ip, COUNT(*) as conn_count, COUNT(DISTINCT dst_port)...'"
+    }
+  ],
+  "pass_rate": 0.857,
+  "summary": {
+    "passed": 6,
+    "failed": 1,
+    "total": 7,
+    "pass_rate": 0.857
+  },
+  "timing": {
+    "executor_duration_seconds": 20.3,
+    "total_duration_seconds": 20.3
+  },
+  "claims": [
+    {
+      "claim": "Uses DeviceAction =~ 'denied' as the denial filter",
+      "type": "factual",
+      "verified": true,
+      "evidence": "'| where DeviceAction =~ \"denied\"' — correct field name for CommonSecurityLog"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "reason": "Both with_skill and without_skill score identically on all except the header assertion. The header assertion is the primary discriminator. Consider adding an assertion about parameterization (let statements) since the skill uses parameterized thresholds and the no-skill output hardcodes values."
+      }
+    ],
+    "overall": "The header assertion correctly distinguishes the two outputs. A parameterization assertion would better measure skill value."
+  }
+}

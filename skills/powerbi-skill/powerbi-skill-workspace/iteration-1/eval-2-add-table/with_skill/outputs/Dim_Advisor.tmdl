@@ -1,0 +1,45 @@
+table Dim_Advisor
+    lineageTag: t-dim-advisor
+
+    column RecommendationId
+        dataType: string
+        lineageTag: col-advisor-recid
+        summarizeBy: none
+        sourceColumn: RecommendationId
+        isKey: true
+
+    column Category
+        dataType: string
+        lineageTag: col-advisor-category
+        summarizeBy: none
+        sourceColumn: Category
+
+    column Impact
+        dataType: string
+        lineageTag: col-advisor-impact
+        summarizeBy: none
+        sourceColumn: Impact
+
+    column ImpactedResource
+        dataType: string
+        lineageTag: col-advisor-impacted-resource
+        summarizeBy: none
+        sourceColumn: ImpactedResource
+
+    column PotentialSavings
+        dataType: double
+        formatString: R$ #,##0.00
+        lineageTag: col-advisor-potential-savings
+        summarizeBy: sum
+        sourceColumn: PotentialSavings
+
+    column Description
+        dataType: string
+        lineageTag: col-advisor-description
+        summarizeBy: none
+        sourceColumn: Description
+
+    partition Dim_Advisor = m
+        mode: import
+        source =
+            let Source = Expression.Evaluate(#"Dim_Advisor", #shared) in Source

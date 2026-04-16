@@ -1,0 +1,71 @@
+{
+  "eval_id": 1,
+  "eval_name": "capacity-planning-high-memory-vms",
+  "configuration": "without_skill",
+  "expectations": [
+    {
+      "text": "Output includes standard .kql comment header block (Title, Service, Tables, Description, Parameters, Complexity)",
+      "passed": false,
+      "evidence": "File has a brief comment block ('// Azure VM Memory Capacity Planning Query', Purpose, Target) but does NOT follow the standard header structure with labeled fields for Title, Service, Tables, Description, Parameters, and Complexity. No formal structured header block present."
+    },
+    {
+      "text": "Uses Perf table (or InsightsMetrics) for memory counters",
+      "passed": true,
+      "evidence": "Uses 'Perf' table with 'ObjectName == \"Memory\"' and 'CounterName == \"% Committed Bytes In Use\"'"
+    },
+    {
+      "text": "Includes TimeGenerated filter for 3 days (ago(3d) or equivalent)",
+      "passed": true,
+      "evidence": "'let timeRange = 3d;' and 'Perf | where TimeGenerated >= ago(timeRange)'"
+    },
+    {
+      "text": "Uses let statements for parameterized values (time range, threshold)",
+      "passed": true,
+      "evidence": "'let timeRange = 3d;', 'let memThreshold = 90.0;', 'let minSamplesForConsistency = 5;'"
+    },
+    {
+      "text": "Distinguishes between sustained high memory and temporary spikes (e.g., via binned aggregation, percentiles, or duration counting)",
+      "passed": true,
+      "evidence": "Uses P50, P90, P95, AvgMemoryPct, and HotSamples/SampleCount ratio to classify into 'Consistently Hot', 'Frequently Hot', and 'Spiking' categories via case() expression"
+    },
+    {
+      "text": "Uses correct memory performance counter (% Committed Bytes In Use or Available MBytes)",
+      "passed": true,
+      "evidence": "Uses 'CounterName == \"% Committed Bytes In Use\"' which is listed as an acceptable counter in the assertion"
+    }
+  ],
+  "pass_rate": 0.833,
+  "summary": {
+    "passed": 5,
+    "failed": 1,
+    "total": 6,
+    "pass_rate": 0.833
+  },
+  "timing": {
+    "executor_duration_seconds": 37.9,
+    "total_duration_seconds": 37.9
+  },
+  "claims": [
+    {
+      "claim": "Adds 'Frequently Hot' as a third classification category beyond just hot/spiking",
+      "type": "quality",
+      "verified": true,
+      "evidence": "case() expression includes 'Frequently Hot' for P90 >= threshold but median < threshold — a useful extension beyond what was asked"
+    },
+    {
+      "claim": "Adds CapacityRisk column (Critical/High/Medium/Low)",
+      "type": "quality",
+      "verified": true,
+      "evidence": "extend CapacityRisk = case(...) provides an additional risk tier column"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [
+      {
+        "assertion": "Output includes standard .kql comment header block (Title, Service, Tables, Description, Parameters, Complexity)",
+        "reason": "The assertion correctly fails here — the without_skill output has a brief free-form comment, not the structured header. This is a meaningful discriminator for the skill."
+      }
+    ],
+    "overall": "The header assertion is working well as a discriminator between skill and no-skill outputs. Consider whether 'CapacityRisk' tier and '3-category classification' are desirable outcomes worth asserting on."
+  }
+}

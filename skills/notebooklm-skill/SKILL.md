@@ -1,5 +1,5 @@
 ---
-name: NotebookLM
+name: notebooklm-skill
 description: |
   Programmatic access to Google NotebookLM via the notebooklm-py CLI and Python API. Use this skill whenever the user wants to create notebooks, add sources (URLs, YouTube, PDFs, files), generate audio overviews/podcasts, videos, slide decks, quizzes, flashcards, infographics, reports, mind maps, or data tables from their research materials. Also use when the user mentions NotebookLM, wants to turn documents into podcasts, generate study materials, or automate any NotebookLM workflow — even if they don't explicitly say "NotebookLM". Triggers on: podcast from documents, audio overview, NotebookLM, notebook research, generate quiz from PDF, flashcards from notes, study materials, deep dive audio.
 ---

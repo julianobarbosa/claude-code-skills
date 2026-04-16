@@ -1,0 +1,164 @@
+// ============================================================
+// Title: Azure Reservations Consumption & Utilization Analysis
+// Service: Azure Resource Graph (ARG) via Azure Monitor / Log Analytics
+// Tables: arg("").Resources, arg("").ResourceContainers,
+//         AzureActivity, AzureDiagnostics
+// Description: Queries Azure Resource Graph to surface all active
+//   reservations alongside their utilization percentages. A secondary
+//   query joins reservation scope data with actual consuming resources
+//   to show which VMs, SQL DBs, or other resources are benefiting from
+//   each reservation. Useful for FinOps reviews, idle-reservation
+//   detection, and chargeback reporting.
+// Parameters: reservationScope (default: all subscriptions visible to caller),
+//             utilizationThreshold (flag reservations below this %, default 80),
+//             lookbackDays (ARG reservation utilization window, default 7d)
+// Complexity: Advanced
+// ============================================================
+
+// ── Part 1: Reservation inventory with utilization ─────────────────────────
+// Uses Azure Resource Graph to enumerate all reservations and pull the
+// built-in utilization aggregates surfaced by the Reservations RP.
+// NOTE: Run this in Azure Resource Graph Explorer (portal) or via
+//       `az graph query` — NOT in a Log Analytics workspace.
+
+let utilizationThreshold = 80.0;  // flag reservations below this %
+
+resources
+| where type =~ "microsoft.capacity/reservationorders/reservations"
+| extend
+    ReservationOrderId    = tostring(split(id, "/")[8]),
+    ReservationId         = tostring(id),
+    ReservationName       = tostring(name),
+    Sku                   = tostring(sku.name),
+    Quantity              = toint(properties.quantity),
+    ReservationState      = tostring(properties.provisioningState),
+    ExpiryDate            = todatetime(properties.expiryDate),
+    PurchaseDate          = todatetime(properties.purchaseDate),
+    ReservedResourceType  = tostring(properties.reservedResourceType),
+    // Scope can be "Single subscription", "Shared", or a management group path
+    Scope                 = tostring(properties.appliedScopeType),
+    AppliedScopes         = tostring(properties.appliedScopes),
+    // utilization is nested under properties.utilizationAggregates (array)
+    UtilizationRaw        = properties.utilizationAggregates
+| mv-expand UtilizationEntry = UtilizationRaw
+// Keep the 7-day rolling utilization grain (grain == "P7D")
+| where tostring(UtilizationEntry.grain) =~ "P7D" or isnull(UtilizationEntry)
+| extend
+    UtilizationPct        = round(todouble(UtilizationEntry.value) * 100, 2),
+    UtilizationGrain      = tostring(UtilizationEntry.grain)
+| extend
+    IsUnderutilized       = iff(UtilizationPct < utilizationThreshold, true, false),
+    DaysUntilExpiry       = datetime_diff("day", ExpiryDate, now())
+| project
+    ReservationName,
+    ReservationId,
+    ReservationOrderId,
+    Sku,
+    ReservedResourceType,
+    Quantity,
+    Scope,
+    AppliedScopes,
+    ReservationState,
+    UtilizationPct,
+    UtilizationGrain,
+    IsUnderutilized,
+    PurchaseDate,
+    ExpiryDate,
+    DaysUntilExpiry
+| sort by UtilizationPct asc
+
+
+// ── Part 2: Resources consuming each reservation ────────────────────────────
+// Cross-references reservation applied scopes with actual running resources.
+// This surfaces which resource IDs are within the reservation's applied scope,
+// serving as a proxy for reservation consumers when direct billing linkage
+// is not available in ARG.
+//
+// For exact per-resource consumption amounts, pair this with Cost Management
+// exports or the Consumption API (UsageDetails / ReservationDetails endpoints).
+
+let reservations = materialize(
+    resources
+    | where type =~ "microsoft.capacity/reservationorders/reservations"
+    | extend
+        ReservationName      = tostring(name),
+        ReservationId        = tostring(id),
+        ReservedResourceType = tostring(properties.reservedResourceType),
+        Sku                  = tostring(sku.name),
+        Quantity             = toint(properties.quantity),
+        Scope                = tostring(properties.appliedScopeType),
+        AppliedScopes        = tostring(properties.appliedScopes),
+        UtilizationRaw       = properties.utilizationAggregates
+    | mv-expand UtilizationEntry = UtilizationRaw
+    | where tostring(UtilizationEntry.grain) =~ "P7D" or isnull(UtilizationEntry)
+    | extend UtilizationPct = round(todouble(UtilizationEntry.value) * 100, 2)
+    | project ReservationName, ReservationId, ReservedResourceType, Sku,
+              Quantity, Scope, AppliedScopes, UtilizationPct
+);
+
+// Map reservation resource type → ARM resource type for the consumer lookup
+let typeMap = datatable(ReservedResourceType:string, ArmType:string) [
+    "VirtualMachines",           "microsoft.compute/virtualmachines",
+    "SqlDatabases",              "microsoft.sql/servers/databases",
+    "SqlManagedInstances",       "microsoft.sql/managedinstances",
+    "PostgreSql",                "microsoft.dbforpostgresql/servers",
+    "MySql",                     "microsoft.dbformysql/servers",
+    "CosmosDb",                  "microsoft.documentdb/databaseaccounts",
+    "RedHat",                    "microsoft.compute/virtualmachines",
+    "SuseLinux",                 "microsoft.compute/virtualmachines",
+    "AppService",                "microsoft.web/sites",
+    "ManagedDisk",               "microsoft.compute/disks",
+    "BlockBlob",                 "microsoft.storage/storageaccounts",
+    "AzureDataFactory",          "microsoft.datafactory/factories",
+    "Databricks",                "microsoft.databricks/workspaces",
+    "HDInsight",                 "microsoft.hdinsight/clusters",
+    "DedicatedHost",             "microsoft.compute/hostgroups/hosts",
+    "AzureVMwareCloud",          "microsoft.avs/privateclouds",
+    "SqlEdge",                   "microsoft.azuresqlvm/sqlvirtualmachines",
+    "SapHana",                   "microsoft.compute/virtualmachines"
+];
+
+// Enumerate resources of the types covered by active reservations
+let consumingResources = materialize(
+    resources
+    | where type in~ (typeMap | project ArmType)
+    | project
+        ResourceId       = tolower(id),
+        ResourceName     = tostring(name),
+        ResourceType     = tolower(type),
+        ResourceLocation = tostring(location),
+        ResourceGroup    = tostring(resourceGroup),
+        SubscriptionId   = tostring(subscriptionId),
+        Sku              = tostring(sku.name),
+        Tags             = tostring(tags)
+);
+
+// Join reservations → type map → consuming resources
+reservations
+| join kind=inner typeMap on ReservedResourceType
+| join kind=leftouter (
+    consumingResources
+    | project ResourceId, ResourceName, ResourceType, ResourceLocation,
+              ResourceGroup, SubscriptionId, ResourceSku=Sku, Tags,
+              ArmType=ResourceType
+) on ArmType
+// For "Shared" scope reservations, all resources of the matching type qualify.
+// For "Single" scope, restrict to the subscription embedded in AppliedScopes.
+| where Scope =~ "Shared"
+    or (Scope =~ "Single" and SubscriptionId =~ extract("/subscriptions/([^/]+)", 1, AppliedScopes))
+| project
+    ReservationName,
+    ReservationId,
+    ReservedResourceType,
+    ReservationSku       = Sku,
+    ReservationQuantity  = Quantity,
+    UtilizationPct,
+    ConsumingResource    = ResourceName,
+    ConsumingResourceId  = ResourceId,
+    ResourceType,
+    ResourceLocation,
+    ResourceGroup,
+    SubscriptionId,
+    ResourceSku,
+    Tags
+| sort by ReservationName asc, ConsumingResource asc

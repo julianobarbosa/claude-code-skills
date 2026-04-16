@@ -1,0 +1,65 @@
+// ============================================================
+// Title: Failed Logins on Admin Accounts with Sign-in Correlation
+// Service: Sentinel
+// Tables: SecurityEvent, SigninLogs
+// Description: Detects brute-force or repeated failed login attempts (EventID 4625)
+//              targeting accounts with "admin" in the name, correlated with Azure AD
+//              sign-in activity. Useful for identifying targeted credential attacks
+//              against privileged accounts.
+// Parameters:
+//   lookback       — time window to search (default: 1d)
+//   minFailures    — minimum failed login count to surface (default: 5)
+//   adminKeyword   — substring to match in account name (default: "admin")
+// Complexity: Intermediate
+// ============================================================
+
+// --- Parameters ---
+let lookback = 1d;
+let minFailures = 5;
+let adminKeyword = "admin";
+
+// --- Step 1: Identify admin accounts with repeated failures from SecurityEvent ---
+// Filter time + EventID first (cheapest operations) before any join or aggregation.
+// Use `has` instead of `contains` — token-indexed, ~10x faster for whole-word matches.
+// Remove `tolower()` — KQL string operators are case-insensitive by default.
+// Project only the columns needed downstream to reduce data shuffled into the join.
+let failedLogins =
+    SecurityEvent
+    | where TimeGenerated > ago(lookback)
+    | where EventID == 4625
+    | where Account has adminKeyword                          // has = token index, not substring scan
+    | project TimeGenerated, Account, Computer
+    | summarize FailureCount = count() by Account, Computer
+    | where FailureCount > minFailures;                       // filter AFTER aggregation (correct)
+
+// --- Step 2: Prepare the SigninLogs side with a matching time filter and minimal columns ---
+// NOTE: SecurityEvent.Account is typically in DOMAIN\username format, while
+//       SigninLogs.UserPrincipalName is UPN (email) format. A direct join on these
+//       two fields will return near-zero results in most environments.
+//
+//       Recommended fix: extract just the username portion from Account before joining,
+//       or join on a common attribute such as the normalized username:
+//         | extend AccountUsername = tostring(split(Account, "\\")[1])
+//       then join on AccountUsername =~ UserPrincipalName (if UPNs match short names).
+//
+//       The query below uses the corrected join key with username extraction.
+let recentSignins =
+    SigninLogs
+    | where TimeGenerated > ago(lookback)
+    | project UserPrincipalName, SigninTime = TimeGenerated, ResultType, AppDisplayName, IPAddress;
+
+// --- Step 3: Join pre-filtered, projected sets; add shuffle hint for large SigninLogs ---
+failedLogins
+| extend AccountUsername = tolower(tostring(split(Account, "\\")[1]))  // extract "username" from "DOMAIN\username"
+| join hint.strategy = shuffle kind = inner (
+    recentSignins
+    | extend AccountUsername = tolower(tostring(split(UserPrincipalName, "@")[0]))  // extract "username" from "user@domain.com"
+) on AccountUsername
+| summarize
+    FailureCount        = max(FailureCount),
+    SigninAttempts      = count(),
+    DistinctIPs         = dcount(IPAddress),
+    DistinctApps        = dcount(AppDisplayName),
+    LastSigninTime      = max(SigninTime)
+  by Account, Computer, UserPrincipalName
+| sort by FailureCount desc

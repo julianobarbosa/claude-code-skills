@@ -1,0 +1,79 @@
+// ============================================================
+// Title: SSH Brute-Force Detection with Post-Attack Success Indicator
+// Service: Sentinel
+// Tables: Syslog
+// Description: Translated from Splunk SPL correlation search. Detects users targeted
+//              by SSH brute-force attacks (>20 failed password attempts from >3 unique
+//              source IPs) and flags whether a successful login occurred within 1 hour
+//              of the detection window — a potential indicator of credential compromise.
+//              Original source: index=auth sourcetype=linux_secure (Splunk).
+// Parameters:
+//   lookbackWindow     - How far back to look for failed attempts (default: 24h)
+//   failureThreshold   - Minimum failed attempts to qualify (default: 20)
+//   uniqueSourceMin    - Minimum unique source IPs to qualify (default: 3)
+//   successWindow      - How far back to look for a post-attack success (default: 1h)
+// Complexity: Intermediate
+// ============================================================
+
+let lookbackWindow = 24h;
+let failureThreshold = 20;
+let uniqueSourceMin = 3;
+let successWindow = 1h;
+
+// Step 1: Aggregate failed SSH password attempts per user
+let failedAttempts =
+    Syslog
+    | where TimeGenerated > ago(lookbackWindow)
+    // Target SSH auth messages on Linux — equivalent to sourcetype=linux_secure
+    | where Facility == "auth" or ProcessName has "sshd"
+    // Equivalent to | search "Failed password"
+    | where SyslogMessage has "Failed password"
+    // Extract the target username and source IP from the syslog message
+    // Pattern: "Failed password for <user> from <ip> port <port> ..."
+    //          "Failed password for invalid user <user> from <ip> port <port> ..."
+    | extend
+        TargetUser = extract(@"Failed password for (?:invalid user )?(\S+) from", 1, SyslogMessage),
+        SourceIP   = extract(@"from (\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})", 1, SyslogMessage)
+    | where isnotempty(TargetUser) and isnotempty(SourceIP)
+    // Equivalent to: stats count as failures dc(src_ip) as unique_sources values(src_ip) as sources by user
+    | summarize
+        Failures      = count(),
+        UniqueSources = dcount(SourceIP),          // dcount() == dc() in SPL
+        Sources       = make_set(SourceIP)          // make_set() == values() in SPL — unique IPs as array
+      by TargetUser
+    // Equivalent to: where failures > 20 AND unique_sources > 3
+    | where Failures > failureThreshold and UniqueSources > uniqueSourceMin;
+
+// Step 2: Aggregate successful SSH logins per user (right-side of SPL inner join)
+let successfulLogins =
+    Syslog
+    | where TimeGenerated > ago(lookbackWindow)
+    | where Facility == "auth" or ProcessName has "sshd"
+    // Equivalent to: search "Accepted password"
+    | where SyslogMessage has "Accepted password"
+    | extend
+        TargetUser = extract(@"Accepted password for (\S+) from", 1, SyslogMessage)
+    | where isnotempty(TargetUser)
+    // Equivalent to: stats count as successes latest(_time) as last_success by user
+    | summarize
+        Successes   = count(),
+        LastSuccess = max(TimeGenerated)    // max(TimeGenerated) == latest(_time) in SPL
+      by TargetUser;
+
+// Step 3: Inner join — only users with both failures AND successes (SPL join type=inner)
+failedAttempts
+| join kind=inner successfulLogins on TargetUser
+// Step 4: Flag whether the last successful login occurred within the success detection window
+// Equivalent to: eval success_after_bruteforce=if(last_success > relative_time(now(), "-1h"), "YES", "NO")
+| extend SuccessAfterBruteForce = iff(LastSuccess > ago(successWindow), "YES", "NO")
+// Equivalent to: sort -failures
+| sort by Failures desc
+// Equivalent to: table user failures unique_sources sources successes success_after_bruteforce
+| project
+    User                  = TargetUser,
+    Failures,
+    UniqueSources,
+    Sources,              // dynamic array of source IPs — use mv-expand to flatten if needed
+    Successes,
+    LastSuccess,
+    SuccessAfterBruteForce

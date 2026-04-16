@@ -1,0 +1,240 @@
+// ============================================================
+// Azure Reservations Consumption Query
+// Tables: Microsoft.Consumption/reservationDetails (via ARG)
+//         reservationsresources, billingresources
+// ============================================================
+
+// ----------------------------------------------------------
+// Query 1: Reservation Utilization Summary
+// Shows reservation name, scope, utilization %, and status
+// via Azure Resource Graph
+// ----------------------------------------------------------
+reservationsresources
+| where type =~ "microsoft.capacity/reservationorders/reservations"
+| extend
+    reservationName    = tostring(name),
+    reservationOrderId = tostring(properties.reservationOrderId),
+    reservationId      = tostring(id),
+    skuName            = tostring(sku.name),
+    location           = tostring(location),
+    reservedFor        = tostring(properties.reservedResourceType),
+    appliedScopeType   = tostring(properties.appliedScopeType),
+    quantity           = toint(properties.quantity),
+    provisioningState  = tostring(properties.provisioningState),
+    expiryDate         = tostring(properties.expiryDate),
+    // Utilization fields from the reservation resource
+    utilizationAggr1Day   = todouble(properties.utilization.aggregates[0].value),
+    utilizationAggr7Day   = todouble(properties.utilization.aggregates[1].value),
+    utilizationAggr30Day  = todouble(properties.utilization.aggregates[2].value)
+| project
+    reservationName,
+    skuName,
+    location,
+    reservedFor,
+    appliedScopeType,
+    quantity,
+    provisioningState,
+    expiryDate,
+    utilization_1d_pct  = round(utilizationAggr1Day, 2),
+    utilization_7d_pct  = round(utilizationAggr7Day, 2),
+    utilization_30d_pct = round(utilizationAggr30Day, 2),
+    reservationId,
+    reservationOrderId
+| order by utilization_30d_pct asc
+
+
+// ----------------------------------------------------------
+// Query 2: Reservations with Under-Utilization Flag
+// Highlights reservations below 80% utilization (last 30d)
+// ----------------------------------------------------------
+reservationsresources
+| where type =~ "microsoft.capacity/reservationorders/reservations"
+| extend
+    reservationName   = tostring(name),
+    skuName           = tostring(sku.name),
+    location          = tostring(location),
+    reservedFor       = tostring(properties.reservedResourceType),
+    appliedScopeType  = tostring(properties.appliedScopeType),
+    quantity          = toint(properties.quantity),
+    utilization_30d   = todouble(properties.utilization.aggregates[2].value),
+    expiryDate        = tostring(properties.expiryDate)
+| extend
+    utilizationStatus = case(
+        utilization_30d >= 90, "Healthy",
+        utilization_30d >= 70, "Warning",
+        "Critical"
+    )
+| project
+    reservationName,
+    skuName,
+    location,
+    reservedFor,
+    appliedScopeType,
+    quantity,
+    utilization_30d_pct = round(utilization_30d, 2),
+    utilizationStatus,
+    expiryDate
+| order by utilization_30d asc
+
+
+// ----------------------------------------------------------
+// Query 3: Resources Consuming Each Reservation
+// Join reservation details with resource data
+// Uses reservationsresources + resources tables
+// ----------------------------------------------------------
+reservationsresources
+| where type =~ "microsoft.capacity/reservationorders/reservations"
+| extend
+    reservationName      = tostring(name),
+    reservationId        = tolower(tostring(id)),
+    reservedResourceType = tostring(properties.reservedResourceType),
+    appliedScopeType     = tostring(properties.appliedScopeType),
+    appliedScopes        = properties.appliedScopes,
+    skuName              = tostring(sku.name),
+    location             = tostring(location),
+    utilization_30d      = todouble(properties.utilization.aggregates[2].value)
+// Expand applied scopes to find which subscriptions/RGs the reservation covers
+| mv-expand appliedScope = appliedScopes
+| extend appliedScopeStr = tolower(tostring(appliedScope))
+| extend
+    // Extract subscription ID from scope path
+    scopeSubscriptionId = extract("/subscriptions/([^/]+)", 1, appliedScopeStr),
+    // Extract resource group from scope path (if scoped to RG)
+    scopeResourceGroup  = extract("/resourcegroups/([^/]+)", 1, appliedScopeStr)
+| join kind=leftouter (
+    resources
+    | extend
+        resourceId     = tolower(tostring(id)),
+        resourceName   = tostring(name),
+        resourceType   = tostring(type),
+        resourceRG     = tolower(tostring(resourceGroup)),
+        resourceSubId  = tolower(tostring(subscriptionId)),
+        resourceSku    = tostring(sku.name),
+        resourceRegion = tostring(location)
+    | project resourceId, resourceName, resourceType, resourceRG, resourceSubId, resourceSku, resourceRegion
+) on $left.scopeSubscriptionId == $right.resourceSubId
+| where isnotempty(resourceName)
+| project
+    reservationName,
+    skuName,
+    location,
+    reservedResourceType,
+    appliedScopeType,
+    utilization_30d_pct = round(utilization_30d, 2),
+    scopeSubscriptionId,
+    scopeResourceGroup,
+    resourceName,
+    resourceType,
+    resourceSku,
+    resourceRegion,
+    resourceRG
+| order by reservationName asc, resourceName asc
+
+
+// ----------------------------------------------------------
+// Query 4: Reservation Orders Summary
+// Top-level reservation order view with child reservations
+// ----------------------------------------------------------
+reservationsresources
+| where type =~ "microsoft.capacity/reservationorders"
+| extend
+    orderName         = tostring(name),
+    orderId           = tostring(id),
+    displayName       = tostring(properties.displayName),
+    term              = tostring(properties.term),
+    billingPlan       = tostring(properties.billingPlan),
+    expiryDate        = tostring(properties.expiryDate),
+    requestDateTime   = tostring(properties.requestDateTime),
+    reservationCount  = array_length(properties.reservations)
+| project
+    orderName,
+    displayName,
+    term,
+    billingPlan,
+    reservationCount,
+    expiryDate,
+    requestDateTime,
+    orderId
+| order by requestDateTime desc
+
+
+// ----------------------------------------------------------
+// Query 5: Reservations Expiring Within 90 Days
+// Useful for proactive renewal management
+// ----------------------------------------------------------
+reservationsresources
+| where type =~ "microsoft.capacity/reservationorders/reservations"
+| extend
+    reservationName  = tostring(name),
+    skuName          = tostring(sku.name),
+    location         = tostring(location),
+    reservedFor      = tostring(properties.reservedResourceType),
+    expiryDate       = todatetime(properties.expiryDate),
+    quantity         = toint(properties.quantity),
+    utilization_30d  = todouble(properties.utilization.aggregates[2].value)
+| where expiryDate <= ago(-1d) and expiryDate <= now() + 90d
+| extend daysUntilExpiry = datetime_diff("day", expiryDate, now())
+| project
+    reservationName,
+    skuName,
+    location,
+    reservedFor,
+    quantity,
+    utilization_30d_pct = round(utilization_30d, 2),
+    expiryDate,
+    daysUntilExpiry
+| order by daysUntilExpiry asc
+
+
+// ============================================================
+// CLI COMMANDS — Run these queries via Azure CLI
+// Requires: az extension add --name resource-graph
+// ============================================================
+
+// -- CLI Command 1: Reservation Utilization Summary ----------
+// az graph query -q "
+// reservationsresources
+// | where type =~ 'microsoft.capacity/reservationorders/reservations'
+// | extend
+//     reservationName   = tostring(name),
+//     skuName           = tostring(sku.name),
+//     location          = tostring(location),
+//     reservedFor       = tostring(properties.reservedResourceType),
+//     utilization_1d    = todouble(properties.utilization.aggregates[0].value),
+//     utilization_7d    = todouble(properties.utilization.aggregates[1].value),
+//     utilization_30d   = todouble(properties.utilization.aggregates[2].value)
+// | project reservationName, skuName, location, reservedFor,
+//     utilization_1d_pct=round(utilization_1d,2),
+//     utilization_7d_pct=round(utilization_7d,2),
+//     utilization_30d_pct=round(utilization_30d,2)
+// | order by utilization_30d_pct asc"
+
+// -- CLI Command 2: Under-utilised Reservations (<80%) -------
+// az graph query -q "
+// reservationsresources
+// | where type =~ 'microsoft.capacity/reservationorders/reservations'
+// | extend
+//     reservationName = tostring(name),
+//     skuName         = tostring(sku.name),
+//     utilization_30d = todouble(properties.utilization.aggregates[2].value)
+// | extend utilizationStatus = case(
+//     utilization_30d >= 90, 'Healthy',
+//     utilization_30d >= 70, 'Warning',
+//     'Critical')
+// | project reservationName, skuName, utilization_30d_pct=round(utilization_30d,2), utilizationStatus
+// | order by utilization_30d_pct asc"
+
+// -- CLI Command 3: Reservations Expiring in 90 Days ---------
+// az graph query -q "
+// reservationsresources
+// | where type =~ 'microsoft.capacity/reservationorders/reservations'
+// | extend
+//     reservationName = tostring(name),
+//     skuName         = tostring(sku.name),
+//     expiryDate      = todatetime(properties.expiryDate),
+//     utilization_30d = todouble(properties.utilization.aggregates[2].value)
+// | where expiryDate <= now() + 90d
+// | extend daysUntilExpiry = datetime_diff('day', expiryDate, now())
+// | project reservationName, skuName, expiryDate,
+//     utilization_30d_pct=round(utilization_30d,2), daysUntilExpiry
+// | order by daysUntilExpiry asc"

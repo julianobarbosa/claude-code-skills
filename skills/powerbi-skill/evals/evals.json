@@ -1,0 +1,23 @@
+{
+  "skill_name": "powerbi-skill",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I need to add a new DAX measure to our HyperaFinOps PBIP project that calculates the cost per resource group as a percentage of total cost. It should go in the Custo display folder, use BRL formatting, and follow our existing patterns in _Measures.tmdl. The measure name should be 'Custo RG %' and show what percentage each resource group contributes to the total.",
+      "expected_output": "A TMDL measure definition using DIVIDE with ALL() to calculate percentage of total, with correct formatString (0.0%;-0.0%;0.0%), displayFolder (Custo), unique lineageTag (m-custo-rg-pct), and following the VAR/RETURN pattern",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "We're getting a new CSV data source for Azure Advisor recommendations. The files are named like 'AdvisorRecommendations_53329720_YYYYMM.csv' and have columns: RecommendationId, Category, Impact, ImpactedResource, PotentialSavings, Description. I need to add this as a new dimension table called Dim_Advisor to our finops-powerbi PBIP project. Create the PQ expression and TMDL definition files, and add a relationship to Fact_Usage via the InstanceId/ImpactedResource columns.",
+      "expected_output": "Two files: expressions/Dim_Advisor.pq using Folder.Files pattern with filtering, type conversions, and null handling; tables/Dim_Advisor.tmdl with all columns, lineageTags, dataTypes; plus a relationship entry for relationships.tmdl",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "My colleague Rogerio is trying to connect Power BI Desktop directly to Azure Cost Management for our EA enrollment 53329720 but keeps getting 'Access Denied'. He has Cost Management Reader role on the subscription. What's wrong and how do we fix it?",
+      "expected_output": "Explanation that EA connector requires Enterprise Administrator (read-only) at billing account level, not Azure RBAC. Step-by-step to grant the role via ea.azure.com, mention 30-min propagation delay, credential cache clearing, and the alternative export-based approach if EA Admin can't be granted.",
+      "files": []
+    }
+  ]
+}

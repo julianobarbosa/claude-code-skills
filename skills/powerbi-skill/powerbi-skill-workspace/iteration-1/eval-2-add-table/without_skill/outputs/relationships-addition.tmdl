@@ -1,0 +1,6 @@
+// Addition to relationships.tmdl - Advisor to Fact_Usage via InstanceId/ImpactedResource
+
+relationship Fact_Usage_to_Dim_Advisor
+    fromColumn: Fact_Usage.InstanceId
+    toColumn: Dim_Advisor.ImpactedResource
+    crossFilteringBehavior: oneDirection

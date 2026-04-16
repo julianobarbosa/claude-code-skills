@@ -1,0 +1,72 @@
+{
+  "eval_id": 4,
+  "eval_name": "lateral-movement-detection",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "Output includes standard .kql comment header block",
+      "passed": true,
+      "evidence": "File opens with '// ===...===' block containing Title, Service: Sentinel, Tables: DeviceLogonEvents, IdentityLogonEvents, Description, Parameters (lookbackWindow, rollingWindow, machineThreshold), Complexity: Advanced"
+    },
+    {
+      "text": "Uses DeviceLogonEvents, SecurityEvent (4624), or IdentityLogonEvents",
+      "passed": true,
+      "evidence": "Uses 'DeviceLogonEvents' — listed as an acceptable table in the assertion"
+    },
+    {
+      "text": "Groups by 1-hour time bins (bin(Timestamp, 1h) or equivalent)",
+      "passed": true,
+      "evidence": "Uses a self-join approach with rolling window: 'where Timestamp >= WindowStart and Timestamp < WindowStart + rollingWindow' where rollingWindow = 1h. Deduplication uses 'bin(WindowStart, rollingWindow)'. This is a sliding-window approach equivalent to 1h grouping."
+    },
+    {
+      "text": "Counts distinct devices/machines per account per time window",
+      "passed": true,
+      "evidence": "'DistinctMachines = dcount(DeviceName)' in the summarize step, grouped by AccountName, AccountDomain, WindowStart"
+    },
+    {
+      "text": "Filters for accounts hitting more than 5 distinct devices",
+      "passed": true,
+      "evidence": "'let machineThreshold = 5;' and '| where DistinctMachines > machineThreshold'"
+    },
+    {
+      "text": "Covers the last 48 hours as specified",
+      "passed": true,
+      "evidence": "'let lookbackWindow = 48h;' and 'DeviceLogonEvents | where Timestamp > ago(lookbackWindow)'"
+    }
+  ],
+  "pass_rate": 1.0,
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 59.9,
+    "total_duration_seconds": 59.9
+  },
+  "claims": [
+    {
+      "claim": "Uses sliding window join (not fixed bin) to avoid missing attacks that span bin boundaries",
+      "type": "quality",
+      "verified": true,
+      "evidence": "Self-join approach with 'where Timestamp >= WindowStart and Timestamp < WindowStart + rollingWindow' is a true sliding window, not fixed bins"
+    },
+    {
+      "claim": "Deduplicates overlapping windows per account using arg_max",
+      "type": "process",
+      "verified": true,
+      "evidence": "Second summarize uses 'arg_max(DistinctMachines, *)' grouped by AccountName, AccountDomain, bin(WindowStart, rollingWindow)"
+    },
+    {
+      "claim": "Excludes machine accounts (ending in $) and well-known service accounts",
+      "type": "quality",
+      "verified": true,
+      "evidence": "'where AccountName !endswith \"$\"' and 'where AccountName !in (\"SYSTEM\", \"LOCAL SERVICE\", \"NETWORK SERVICE\", \"\")'"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "All assertions pass with strong evidence. The query exceeds requirements with sliding window approach and deduplication logic."
+  }
+}

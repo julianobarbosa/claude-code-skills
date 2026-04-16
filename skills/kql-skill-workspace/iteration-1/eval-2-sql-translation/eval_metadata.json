@@ -1,0 +1,14 @@
+{
+  "eval_id": 2,
+  "eval_name": "sql-to-kql-port-scan-detection",
+  "prompt": "Convert SQL port scan detection query to KQL for Sentinel",
+  "assertions": [
+    {"id": "header", "text": "Output includes standard .kql comment header block"},
+    {"id": "pipe_style", "text": "Uses KQL pipe-based flow, not nested SQL-style subqueries"},
+    {"id": "correct_table", "text": "Targets appropriate Sentinel table (CommonSecurityLog, AzureDiagnostics, or AzureNetworkAnalytics)"},
+    {"id": "dcount_used", "text": "Uses dcount() for COUNT(DISTINCT dst_port) translation"},
+    {"id": "top_not_limit", "text": "Uses top N or take N instead of SQL LIMIT"},
+    {"id": "time_filter", "text": "Includes time filter (ago(1h) or equivalent)"},
+    {"id": "mentions_translation", "text": "Description notes this was translated from SQL"}
+  ]
+}

@@ -1,0 +1,16 @@
+// Port Scan Detection - Converted from SQL to KQL
+// Detects hosts scanning multiple destination ports (>20 distinct ports) within the last hour
+// Original SQL: SELECT src_ip, dst_ip, COUNT(*) as conn_count, COUNT(DISTINCT dst_port) as port_count
+//               FROM firewall_logs WHERE timestamp > NOW() - INTERVAL 1 HOUR AND action = 'denied'
+//               GROUP BY src_ip, dst_ip HAVING port_count > 20 ORDER BY port_count DESC LIMIT 50
+
+CommonSecurityLog
+| where TimeGenerated > ago(1h)
+| where DeviceAction =~ "denied"
+| summarize
+    conn_count = count(),
+    port_count = dcount(DestinationPort)
+    by SourceIP, DestinationIP
+| where port_count > 20
+| order by port_count desc
+| take 50

@@ -1,0 +1,66 @@
+{
+  "eval_id": 1,
+  "eval_name": "capacity-planning-high-memory-vms",
+  "configuration": "with_skill",
+  "expectations": [
+    {
+      "text": "Output includes standard .kql comment header block (Title, Service, Tables, Description, Parameters, Complexity)",
+      "passed": true,
+      "evidence": "File opens with '// ===...===' block containing: Title: High Memory VMs — Sustained vs. Spike Analysis (Last 3 Days), Service: Log Analytics, Tables: Perf, InsightsMetrics, Description, Parameters (timeRange, memThreshold, binSize, sustainedThresholdPct), Complexity: Intermediate"
+    },
+    {
+      "text": "Uses Perf table (or InsightsMetrics) for memory counters",
+      "passed": true,
+      "evidence": "Query uses 'Perf' table directly: 'Perf | where TimeGenerated > ago(timeRange)' with CounterName matching '% Available MBytes', '% Used Memory', etc."
+    },
+    {
+      "text": "Includes TimeGenerated filter for 3 days (ago(3d) or equivalent)",
+      "passed": true,
+      "evidence": "'let timeRange = 3d;' defined as a parameter, used in 'Perf | where TimeGenerated > ago(timeRange)'"
+    },
+    {
+      "text": "Uses let statements for parameterized values (time range, threshold)",
+      "passed": true,
+      "evidence": "Multiple let statements: 'let timeRange = 3d;', 'let memThreshold = 90.0;', 'let binSize = 15m;', 'let sustainedThresholdPct = 0.50;'"
+    },
+    {
+      "text": "Distinguishes between sustained high memory and temporary spikes (e.g., via binned aggregation, percentiles, or duration counting)",
+      "passed": true,
+      "evidence": "Uses bin(TimeGenerated, binSize) for 15-min aggregation buckets, counts BreachingBins vs TotalBins, applies sustainedThresholdPct, and classifies as 'Consistently Hot' vs 'Spiking' using iff()"
+    },
+    {
+      "text": "Uses correct memory performance counter (% Committed Bytes In Use or Available MBytes)",
+      "passed": true,
+      "evidence": "Uses '% Available MBytes' (Windows), '% Used Memory' (Linux), 'Available MBytes', 'MemoryUsedPercentage' — explicitly converts '% Available MBytes' to % used via '100.0 - CounterValue'"
+    }
+  ],
+  "pass_rate": 1.0,
+  "summary": {
+    "passed": 6,
+    "failed": 0,
+    "total": 6,
+    "pass_rate": 1.0
+  },
+  "timing": {
+    "executor_duration_seconds": 60.6,
+    "total_duration_seconds": 60.6
+  },
+  "claims": [
+    {
+      "claim": "Handles both Windows (% Available MBytes) and Linux (% Used Memory) counter formats",
+      "type": "quality",
+      "verified": true,
+      "evidence": "The case() expression handles both counter types with appropriate conversion logic"
+    },
+    {
+      "claim": "Uses materialize() for performance on repeated subquery use",
+      "type": "process",
+      "verified": true,
+      "evidence": "memRaw is wrapped in materialize() before being referenced twice in memBinned"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "No suggestions — assertions are specific and well-discriminating. The header check is appropriately detailed (includes all six fields). The spike vs sustained check correctly requires behavioral logic rather than just a label."
+  }
+}

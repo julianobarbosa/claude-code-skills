@@ -1,0 +1,74 @@
+// ============================================================
+// Title: Dependency Degradation During Response Time Spike
+// Service: App Insights
+// Tables: dependencies, requests
+// Description: Identifies which dependencies (database, external APIs,
+//   or other outbound calls) degraded during a known spike window for
+//   the orders-api service. Compares behavior inside the spike window
+//   versus a baseline period immediately before, to surface what changed.
+// Parameters: spikeStart (spike window start), spikeEnd (spike window end),
+//             baselineDuration (how far back to look for baseline),
+//             appName (cloud_RoleName of the target service)
+// Complexity: Intermediate
+// ============================================================
+
+let spikeStart    = datetime(2026-04-01T02:45:00Z); // ~15 min before reported spike
+let spikeEnd      = datetime(2026-04-01T03:30:00Z); // ~30 min after spike start
+let baselineStart = datetime(2026-04-01T01:45:00Z); // 1h window before the spike
+let baselineEnd   = datetime(2026-04-01T02:45:00Z);
+let appName       = "orders-api";
+
+// Step 1: Aggregate dependency behavior inside the spike window
+let spikeDeps = dependencies
+| where timestamp between (spikeStart .. spikeEnd)
+| where cloud_RoleName has appName
+| summarize
+    SpikeCallCount  = count(),
+    SpikeAvgMs      = round(avg(duration), 0),
+    SpikeP95Ms      = round(percentile(duration, 95), 0),
+    SpikeMaxMs      = round(max(duration), 0),
+    SpikeFailRate   = round(countif(success == false) * 100.0 / count(), 1)
+    by DependencyName = name, DependencyType = type, Target = target;
+
+// Step 2: Aggregate dependency behavior in the baseline window (before spike)
+let baselineDeps = dependencies
+| where timestamp between (baselineStart .. baselineEnd)
+| where cloud_RoleName has appName
+| summarize
+    BaseCallCount   = count(),
+    BaseAvgMs       = round(avg(duration), 0),
+    BaseP95Ms       = round(percentile(duration, 95), 0),
+    BaseMaxMs       = round(max(duration), 0),
+    BaseFailRate    = round(countif(success == false) * 100.0 / count(), 1)
+    by DependencyName = name, DependencyType = type, Target = target;
+
+// Step 3: Join and compute deltas — large positive delta = likely contributor
+spikeDeps
+| join kind=leftouter baselineDeps on DependencyName, DependencyType, Target
+| extend
+    AvgMsDelta      = SpikeAvgMs - coalesce(BaseAvgMs, 0),
+    P95MsDelta      = SpikeP95Ms - coalesce(BaseP95Ms, 0),
+    FailRateDelta   = SpikeFailRate - coalesce(BaseFailRate, 0.0),
+    // Flag dependencies that were new during the spike (no baseline calls)
+    NewDuringSike   = iif(isempty(BaseCallCount), true, false)
+| project
+    DependencyName,
+    DependencyType,
+    Target,
+    // Spike window metrics
+    SpikeCallCount,
+    SpikeAvgMs,
+    SpikeP95Ms,
+    SpikeMaxMs,
+    SpikeFailRate,
+    // Baseline metrics
+    BaseAvgMs       = coalesce(BaseAvgMs, 0),
+    BaseP95Ms       = coalesce(BaseP95Ms, 0),
+    BaseFailRate    = coalesce(BaseFailRate, 0.0),
+    // Change signals
+    AvgMsDelta,
+    P95MsDelta,
+    FailRateDelta,
+    NewDuringSike
+// Sort by worst degradation first (largest avg duration increase)
+| sort by AvgMsDelta desc, SpikeFailRate desc

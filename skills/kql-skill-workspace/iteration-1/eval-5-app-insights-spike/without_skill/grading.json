@@ -1,0 +1,71 @@
+{
+  "eval_id": 5,
+  "eval_name": "app-insights-dependency-degradation",
+  "configuration": "without_skill",
+  "expectations": [
+    {
+      "text": "Output includes standard .kql comment header block with Service: App Insights",
+      "passed": false,
+      "evidence": "File starts with two comment lines ('// Application Insights — Dependency Degradation Analysis', '// App: orders-api | Window: ... | Goal: ...') but NOT the structured header block with labeled Service, Tables, Parameters, and Complexity fields."
+    },
+    {
+      "text": "Uses the dependencies table as primary data source",
+      "passed": true,
+      "evidence": "Both baseline and spike subqueries use 'dependencies' table: 'let baseline = dependencies | ...' and 'let spike = dependencies | ...'"
+    },
+    {
+      "text": "Filters around 2026-04-01T03:00:00Z (the spike window)",
+      "passed": true,
+      "evidence": "'let spikeStart = datetime(2026-04-01T02:45:00Z);' and 'let spikeEnd = datetime(2026-04-01T03:15:00Z);'"
+    },
+    {
+      "text": "Filters by cloud_RoleName == 'orders-api'",
+      "passed": true,
+      "evidence": "'| where cloud_RoleName == appName' where 'let appName = \"orders-api\";'"
+    },
+    {
+      "text": "Groups results by dependency type (SQL, HTTP, etc.) and/or target",
+      "passed": true,
+      "evidence": "Summarizes 'by type, target, name' in both baseline and spike subqueries"
+    },
+    {
+      "text": "Shows duration metrics (avg, p95, or max) to quantify degradation",
+      "passed": true,
+      "evidence": "'spike_avg_ms = avg(duration)', 'spike_p95_ms = percentile(duration, 95)' in spike subquery"
+    },
+    {
+      "text": "Uses timestamp column (not TimeGenerated) for App Insights tables",
+      "passed": true,
+      "evidence": "'| where timestamp between (spikeStart .. spikeEnd)' — lowercase 'timestamp' used correctly for App Insights"
+    }
+  ],
+  "pass_rate": 0.857,
+  "summary": {
+    "passed": 6,
+    "failed": 1,
+    "total": 7,
+    "pass_rate": 0.857
+  },
+  "timing": {
+    "executor_duration_seconds": 30.5,
+    "total_duration_seconds": 30.5
+  },
+  "claims": [
+    {
+      "claim": "Computes degradation ratio (spike/baseline) in addition to absolute delta",
+      "type": "quality",
+      "verified": true,
+      "evidence": "'avg_degradation_ratio = round(spike_avg_ms / max_of(baseline_avg_ms, 1), 2)' and 'p95_degradation_ratio' computed in the join step"
+    },
+    {
+      "claim": "Adds a filter to surface only meaningful regressions",
+      "type": "quality",
+      "verified": true,
+      "evidence": "'| where Avg_Degradation_Ratio > 1.5 or Failure_Pct > 5' filters out minor fluctuations"
+    }
+  ],
+  "eval_feedback": {
+    "suggestions": [],
+    "overall": "Header assertion is the correct differentiator. The without_skill output is technically strong and adds value with degradation ratios. No other suggestions."
+  }
+}

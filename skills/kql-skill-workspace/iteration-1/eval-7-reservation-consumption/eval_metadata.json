@@ -1,0 +1,13 @@
+{
+  "eval_id": 7,
+  "eval_name": "azure-reservation-consumption",
+  "prompt": "Query Azure reservations with consumed usage via ARM/Resource Graph, with CLI commands",
+  "assertions": [
+    {"id": "resource_graph_or_consumption", "text": "Targets Azure Resource Graph tables or consumption/billing tables"},
+    {"id": "reservation_name", "text": "Projects reservation name/display name in results"},
+    {"id": "utilization_pct", "text": "Shows utilization percentage for each reservation"},
+    {"id": "consuming_resources", "text": "Shows which resources are consuming each reservation"},
+    {"id": "cli_commands", "text": "Includes Azure CLI commands (az graph query or az consumption) to run the query"},
+    {"id": "header", "text": "Output includes .kql file with comment header"}
+  ]
+}
