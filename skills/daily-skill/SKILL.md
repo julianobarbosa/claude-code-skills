@@ -1,5 +1,5 @@
 ---
-name: daily
+name: daily-skill
 description: Start the day with vault context, continuity from yesterday, and prioritized action items. Read or create today's daily note, carry forward unfinished tasks, surface active projects, and check inbox. USE WHEN good morning, start my day, daily, what's open, daily standup, what should I work on, morning routine, begin day, daily check-in, what's pending.
 ---
 
