@@ -1,5 +1,5 @@
 ---
-name: container-security
+name: container-security-skill
 description: Container image security scanning, Dockerfile hardening, and ACR image management. Use when scanning container images for vulnerabilities with Trivy, hardening Dockerfiles (pinning versions, non-root runtime, SSH config), importing images to Azure Container Registry to avoid Docker Hub rate limits, or analyzing CVE findings. Also trigger when the user mentions image security, vulnerability scanning, CVE remediation, container hardening, Trivy scan, Docker security, or ACR image import — even if they don't explicitly say "container security".
 allowed-tools: Read, Bash, Grep, Glob, Edit, Write, Agent, WebSearch
 ---
