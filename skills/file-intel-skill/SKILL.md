@@ -1,5 +1,5 @@
 ---
-name: file-intel
+name: file-intel-skill
 description: Run the Gemini file processor on any folder — extracts content from PDF, PPTX, XLSX, DOCX, CSV, JSON, and any text format, then generates Obsidian-ready summaries. Use when asked to "summarise this folder", "run file intel", "process these files", or a folder path is provided and summaries are needed.
 ---
 

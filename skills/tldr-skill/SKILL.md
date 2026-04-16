@@ -1,5 +1,5 @@
 ---
-name: tldr
+name: tldr-skill
 description: >-
   Save, read, update, or delete conversation summaries in the vault.
   USE WHEN tldr, save summary, session summary, what did we do,
