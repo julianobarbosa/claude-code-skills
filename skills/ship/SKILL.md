@@ -132,18 +132,23 @@ bun scripts/ship-pr.ts --title "<title>" --body-file /tmp/pr-body.md \
   (Created items start in the type's initial state, e.g. `New`/`To Do`.)
 - The script prints `pr_url=…`; surface it to the user.
 
-### 4b. Tag the PR (optional, recommended)
+### 4b. Tags + reviewers (applied by default)
 Azure DevOps calls them **tags**; GitHub calls them **labels** — same idea: a small, visible signal
 that helps reviewers triage and helps the team organize PRs. Microsoft's guidance is that tags
 "communicate extra information to reviewers, such as that the PR is still a work in progress, or is a
 hotfix for an upcoming release" ([Add tags to a pull request](https://learn.microsoft.com/azure/devops/repos/git/pull-requests#add-tags-to-a-pull-request)).
 
-**A PR is never opened bare.** With no `--tag`, `ship-pr.ts` derives a type label
-from the branch prefix (`feat/…` → `feat`, `fix/`|`hotfix/`|`bugfix/` → `fix`,
-`docs/` → `docs`, `chore/` → `chore`, `refactor/` → `refactor`) and prints a
-`NOTE`. An unrecognised prefix gets a `WARNING`, not a failure — no platform has a
-"require a label" policy, so this is the only enforcement point, and a hard error
-here would break repos with other conventions.
+**A PR is never opened bare.** With no `--tag`, `ship-pr.ts` derives tags, in order:
+1. From the Conventional-Commit title — `docs(finops): …` → `docs`, `finops`.
+2. From the branch prefix — `feat/…` → `feat`, `fix/`|`hotfix/`|`bugfix/` → `fix`,
+   `docs/` → `docs`, `chore/` → `chore`, `refactor/` → `refactor`.
+3. Otherwise `needs-review`, with a `WARNING`.
+
+It never fails here. No platform has a "require a label" policy, so this is the only
+enforcement point, and a hard error would break repos with other conventions. Pass
+`--no-tag` to open the PR with no tags. With no `--reviewer`/`--required-reviewer`,
+`$SHIP_ADO_DEFAULT_REVIEWER` (if set) is added as an optional reviewer; `--no-reviewer`
+skips it.
 
 Apply tags at PR-open time with `--tag` (comma-separated and/or repeatable):
 
@@ -243,7 +248,7 @@ does. The script prints `tag=`, `commit=`, `branch=`, `pushed=`.
 |--------|------|
 | `bun scripts/ship-detect.ts [remote]` | Print platform + Azure coordinates + branch + inferred work item |
 | `bun scripts/ship-push.ts [-r remote] [-b branch]` | Push + set upstream; Azure OAuth Bearer fallback on auth failure |
-| `bun scripts/ship-pr.ts --title … [opts]` | Open PR on the detected platform; ensure/create + link work item(s) (assigned to the configured user); optional Board transition; optional `--tag`; optional `--reviewer`/`--required-reviewer` — work item + tags + reviewers packed into one create call on Azure |
+| `bun scripts/ship-pr.ts --title … [opts]` | Open PR on the detected platform; ensure/create + link work item(s) (assigned to the configured user); optional Board transition; auto-tag from title/branch (override `--tag`, disable `--no-tag`); optional `--reviewer`/`--required-reviewer` (default `$SHIP_ADO_DEFAULT_REVIEWER`, disable `--no-reviewer`) — work item + tags + reviewers packed into one create call on Azure |
 | `bun scripts/ship-tag.ts <pr-id> [--add\|--remove "t1,t2"] [--list]` | Add / remove / list PR tags (Azure) or labels (GitHub) on an existing PR |
 | `bun scripts/ship-open.ts <url> [--profile <email>] [--dry-run]` | Open a PR/URL in a chosen browser **account profile** (email→profile via the browser's `Local State`); WSL→Edge/Chrome, macOS→Chrome/Edge; also `--list-profiles`, `--set-default` |
 | `bun scripts/ship-snapshot.ts [-m "para"]… [--daily] [--name <tag>] [--push]` | Save current state as an annotated **git tag** (date-named, self-describing subject); optional push with Azure OAuth fallback |
