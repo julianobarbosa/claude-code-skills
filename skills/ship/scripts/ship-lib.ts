@@ -153,6 +153,58 @@ export function defaultTagsFromTitle(title: string): string[] {
   return parseTags([scope ? `${type},${scope}` : type]);
 }
 
+export interface PorcelainStatus {
+  staged: string[];
+  unstaged: string[];
+  untracked: string[];
+}
+
+/** Parse `git status --porcelain` (v1) output into staged / unstaged / untracked
+ *  paths. Each line is `XY <path>`: X is the index (staged) column, Y the worktree
+ *  (unstaged) column. `??` means untracked, `!!` ignored (skipped). A rename line is
+ *  `R  old -> new` (and `C ` for copy) — we record the new path. A file modified in
+ *  both index and worktree shows in both staged and unstaged. */
+export function parsePorcelainStatus(porcelain: string): PorcelainStatus {
+  const staged: string[] = [];
+  const unstaged: string[] = [];
+  const untracked: string[] = [];
+  for (const raw of porcelain.split("\n")) {
+    if (!raw.trim()) continue;
+    const x = raw[0], y = raw[1];
+    let path = raw.slice(3);
+    if (x === "?" && y === "?") { untracked.push(path); continue; }
+    if (x === "!" && y === "!") continue; // ignored
+    // Rename/copy: "old -> new" — the new path is what changed.
+    const arrow = path.indexOf(" -> ");
+    if (arrow !== -1) path = path.slice(arrow + 4);
+    if (x !== " " && x !== "?") staged.push(path);
+    if (y !== " " && y !== "?") unstaged.push(path);
+  }
+  return { staged, unstaged, untracked };
+}
+
+export interface ScopeAudit extends PorcelainStatus {
+  ok: boolean;
+  warning?: string;
+}
+
+/** Audit the working tree for scope creep before a ship commit. `ok` is false when
+ *  anything is unstaged or untracked — the signal that a changed file might belong in
+ *  this PR but is about to be left out (the PR #192 miss this guards against). The
+ *  warning is a single human-readable line naming the at-risk files. */
+export function scopeAudit(porcelain: string): ScopeAudit {
+  const s = parsePorcelainStatus(porcelain);
+  const ok = s.unstaged.length === 0 && s.untracked.length === 0;
+  let warning: string | undefined;
+  if (!ok) {
+    const parts: string[] = [];
+    if (s.unstaged.length) parts.push(`${s.unstaged.length} changed but not staged (${s.unstaged.join(", ")})`);
+    if (s.untracked.length) parts.push(`${s.untracked.length} untracked (${s.untracked.join(", ")})`);
+    warning = `scope check: ${parts.join("; ")} — confirm these don't belong in this PR before committing`;
+  }
+  return { ...s, ok, warning };
+}
+
 /** Best-effort extraction of a work-item id from a branch name or commit subject.
  *  Recognizes `AB#1234`, `AB1234`, and a number delimited by / _ - (e.g.
  *  feature/1234-foo). Returns the id or "". Heuristic — confirm it exists before
