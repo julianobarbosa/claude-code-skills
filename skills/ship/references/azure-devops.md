@@ -175,3 +175,4 @@ For anything beyond open-PR-and-link — WIQL queries, batch work-item updates, 
 - **`--assigned-to` must resolve to an org member** — an email/UPN that isn't a project member errors (or silently leaves the item unassigned on some orgs). Set your default via `$SHIP_ADO_ASSIGNEE`, or pass `--assignee` per run.
 - **Created items land in the initial state, not "Active"** — a freshly created Task is `New` (Agile/Scrum) or `To Do` (Basic). If a policy expects in-progress work, add `--transition`.
 - **Server-side attribution stripping** is not guaranteed across orgs — never *add* AI attribution in the first place (see SKILL.md).
+- **`&` in titles via raw CLI/MCP double-escapes to `&amp;`** — the REST API doesn't decode HTML entities, so the literal `&amp;` shows in the PR title. `ship-pr.ts` passes the title straight through the SDK (arg array, no shell), so `&` survives. Use the script, not raw `az repos pr create` / `repo_create_pull_request`.

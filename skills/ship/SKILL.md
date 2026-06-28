@@ -48,8 +48,23 @@ any), the branch, and an inferred work-item id. Everything below branches on tha
 > **One-time setup:** the scripts depend on `azure-devops-node-api` and `@octokit/rest`. Run
 > `bun install` in the skill dir (`~/.claude/skills/ship/`) once before first use.
 
+### On a bare "ship" — just run it
+A terse `ship` / `ship it` means "do the delivery," not "explain it to me." Run the flow with
+**minimal narration**: the preflight scope result (only if it's not clean), the `pr_url`, any
+created work-item ids, and the cleanup confirm. Don't recap session state, re-derive the plan out
+loud, or list every step before doing it — over-narrating a terse command is its own failure mode.
+The one thing that *does* warrant stopping is a `scope_clean=false` from preflight (step 0).
+
 ### 0. Preflight
-- Confirm there's something to deliver: `git status` and `git log --oneline @{u}.. 2>/dev/null`.
+```bash
+bun scripts/ship-preflight.ts     # anything to deliver? + working-tree scope audit
+```
+- It prints `commits_ahead_of_upstream`, `staged`/`unstaged`/`untracked` counts, and
+  `scope_clean=true|false`.
+- **If `scope_clean=false`, stop and surface the listed files to the user** before committing —
+  confirm they're intentionally excluded. This is the PR #192 guard: a changed file in another
+  directory left unstaged gets silently dropped from the PR. The check is advisory (it never
+  blocks), but an unconfirmed `false` is exactly the scope-creep miss this exists to catch.
 - Note the platform from `ship-detect.ts`. If it says `unknown` (e.g. a custom SSH host alias),
   set `SHIP_PLATFORM=azure` or `SHIP_PLATFORM=github` for the session.
 
@@ -246,6 +261,7 @@ does. The script prints `tag=`, `commit=`, `branch=`, `pushed=`.
 
 | Script | Does |
 |--------|------|
+| `bun scripts/ship-preflight.ts [remote]` | Anything-to-deliver + working-tree scope audit (`scope_clean=…`); advisory, never blocks. Run first |
 | `bun scripts/ship-detect.ts [remote]` | Print platform + Azure coordinates + branch + inferred work item |
 | `bun scripts/ship-push.ts [-r remote] [-b branch]` | Push + set upstream; Azure OAuth Bearer fallback on auth failure |
 | `bun scripts/ship-pr.ts --title … [opts]` | Open PR on the detected platform; ensure/create + link work item(s) (assigned to the configured user); optional Board transition; auto-tag from title/branch (override `--tag`, disable `--no-tag`); optional `--reviewer`/`--required-reviewer` (default `$SHIP_ADO_DEFAULT_REVIEWER`, disable `--no-reviewer`) — work item + tags + reviewers packed into one create call on Azure |
@@ -288,9 +304,12 @@ detected platform. The PR description starts from `assets/pr-template.md`.
   `githubToken(owner)`, which prefers `gh auth token -u <owner>` and falls back to the active account
   for org repos where the owner isn't a logged-in account; `GH_TOKEN`/`GITHUB_TOKEN` still override
   everything. If you still get a 404, check `gh auth status` lists the owning account.
-- Don't hand-roll the PR with raw `az repos pr create` / `gh pr create` and then bolt the work item
-  on afterward — that path skips the auto-create+link invariant and forces a manual "what's the id?"
-  round-trip with the user. Use `ship-pr.ts` so the work item is guaranteed at PR-open.
+- Don't hand-roll the PR with raw `az repos pr create` / `gh pr create` (or the `repo_create_pull_request`
+  MCP tool) and then bolt the work item on afterward — that path skips the auto-create+link invariant
+  and forces a manual "what's the id?" round-trip with the user. It also double-escapes `&` in the
+  title to a literal `&amp;` (an entity the API doesn't decode), so titles render wrong. `ship-pr.ts`
+  passes the title literally via the SDK + an arg array, so `&` stays `&` — another reason to use the
+  script, not the raw path.
 - Deleting a branch while its PR is still open abandons the PR — clean up only after merge (step 5).
 - `ship-open.ts` matches `--profile <email>` against the browser's **signed-in** account emails, so a
   profile with no account attached is only reachable as the Default fallback, not by email. It
