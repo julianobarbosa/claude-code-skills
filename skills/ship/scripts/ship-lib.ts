@@ -140,6 +140,19 @@ export function parseTags(values: string[]): string[] {
   return out;
 }
 
+/** Derive sensible default PR tags from a Conventional-Commit-style title so that
+ *  every PR is tagged for triage even when the caller passes no --tag. A title like
+ *  `docs(finops): OpenCost vs Infracost` yields ["docs", "finops"]; `fix: …` yields
+ *  ["fix"]. When the title has no conventional prefix we fall back to a single
+ *  `needs-review` tag — the point is that a PR is never surfaced tag-less. */
+export function defaultTagsFromTitle(title: string): string[] {
+  const m = title.match(/^\s*([a-z]+)(?:\(([^)]+)\))?!?:/i);
+  if (!m) return ["needs-review"];
+  const type = m[1].toLowerCase();
+  const scope = m[2]?.trim().toLowerCase();
+  return parseTags([scope ? `${type},${scope}` : type]);
+}
+
 /** Best-effort extraction of a work-item id from a branch name or commit subject.
  *  Recognizes `AB#1234`, `AB1234`, and a number delimited by / _ - (e.g.
  *  feature/1234-foo). Returns the id or "". Heuristic — confirm it exists before

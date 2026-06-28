@@ -6,8 +6,9 @@
 //   bun ship-pr.ts --title T [--body B | --body-file F] [--target main] [--source BR]
 //                  [--work-item ID] [--task "title" ...] [--tasks-file F]
 //                  [--assignee UPN] [--work-item-type TYPE] [--no-create-work-item]
-//                  [--transition STATE] [--tag "t1,t2" ...] [--reviewer UPN ...]
-//                  [--required-reviewer UPN ...] [--draft] [-r remote]
+//                  [--transition STATE] [--tag "t1,t2" ...] [--no-tag]
+//                  [--reviewer UPN ...] [--required-reviewer UPN ...] [--no-reviewer]
+//                  [--draft] [-r remote]
 //
 // Prerequisites in one shot: on Azure, the work item, tags/labels, and reviewers
 // are packed into the single createPullRequest call — no create-then-patch round
@@ -35,7 +36,10 @@
 //               created (e.g. Resolved). Skipped on GitHub.
 // --tag         PR tag(s)/label(s). Comma-separated and/or repeatable. e.g.
 //               --tag hotfix,WIP. On Azure these ride along in the create call.
-//               Or manage tags later with ship-tag.ts.
+//               When omitted, tags are derived from the Conventional-Commit title
+//               (docs(finops): … -> docs, finops), else from the branch prefix, else
+//               needs-review — so no PR is tag-less. Or manage tags later with ship-tag.ts.
+// --no-tag      Skip the automatic tagging (open the PR with no tags).
 // --reviewer    Reviewer(s) to add when the PR opens — OPTIONAL (non-blocking).
 //               UPN/email on Azure (resolved to an identity via the identities
 //               API; unresolved names are warned + skipped, never fatal), or a
@@ -43,13 +47,16 @@
 // --required-reviewer  Same, but marked REQUIRED on Azure (blocks completion).
 //               GitHub has no per-PR "required" reviewer (that's branch policy),
 //               so these are just requested like any other reviewer there.
+//               With neither given, $SHIP_ADO_DEFAULT_REVIEWER (if set) is added as
+//               an optional reviewer.
+// --no-reviewer Skip the $SHIP_ADO_DEFAULT_REVIEWER fallback.
 
 import { readFileSync } from "node:fs";
 import * as azdev from "azure-devops-node-api";
 import { Octokit } from "@octokit/rest";
 import {
   currentBranch, remoteUrl, detectKind, adoParts, adoToken, parseWorkItem, parseTags,
-  githubToken,
+  githubToken, defaultTagsFromTitle,
 } from "./ship-lib.ts";
 
 function fail(msg: string, code = 1): never {
@@ -87,7 +94,7 @@ async function resolveAzureIdentity(orgUrl: string, header: string, upn: string)
 let title = "", body = "", bodyFile = "", target = "main", sourceBranch = "";
 let workItem = "", transition = "", remote = "origin", wiType = "Task";
 let assignee = process.env.SHIP_ADO_ASSIGNEE || "you@example.com";
-let draft = false, createWi = true;
+let draft = false, createWi = true, noTag = false, noReviewer = false;
 const tasks: string[] = [];
 const tagFlags: string[] = [];
 const reviewerFlags: string[] = [];
@@ -115,8 +122,10 @@ for (let i = 0; i < argv.length; i++) {
     case "--no-create-work-item": createWi = false; break;
     case "--transition": transition = argv[++i]; break;
     case "--tag": { const v = argv[++i]; if (v === undefined) fail("--tag requires a value", 2); tagFlags.push(v); break; }
+    case "--no-tag": noTag = true; break;
     case "--reviewer": { const v = argv[++i]; if (v === undefined) fail("--reviewer requires a value", 2); reviewerFlags.push(v); break; }
     case "--required-reviewer": { const v = argv[++i]; if (v === undefined) fail("--required-reviewer requires a value", 2); requiredReviewerFlags.push(v); break; }
+    case "--no-reviewer": noReviewer = true; break;
     case "--draft": draft = true; break;
     case "-r": case "--remote": remote = argv[++i]; break;
     case "-h": case "--help":
@@ -145,28 +154,34 @@ const requiredReviewers = parseTags(requiredReviewerFlags);
 
 // A PR with no label is invisible to triage and to release-note grouping, and no
 // platform can gate it — neither ADO nor GitHub has a "require a label" policy.
-// So when the caller passed no --tag, derive a type label from the branch prefix
-// (feat/…, fix/…) rather than opening the PR bare. Warn, never fail: `ship` is
-// shared across repos and a hard failure would break unrelated flows.
+// So when the caller passed no --tag, derive labels from the Conventional-Commit
+// title (docs(finops): … -> docs, finops), then from the branch prefix (feat/…,
+// fix/…), and only then fall back to needs-review. Never fail: `ship` is shared
+// across repos and a hard failure would break unrelated flows.
 const TYPE_FROM_BRANCH: Record<string, string> = {
   feat: "feat", feature: "feat", fix: "fix", hotfix: "fix", bugfix: "fix",
   docs: "docs", doc: "docs", chore: "chore", refactor: "refactor",
 };
-if (tags.length === 0) {
+if (tags.length === 0 && !noTag) {
+  const fromTitle = defaultTagsFromTitle(title);
   const prefix = sourceBranch.split("/")[0]?.toLowerCase() ?? "";
-  const derived = TYPE_FROM_BRANCH[prefix];
-  if (derived) {
-    tags.push(derived);
-    console.error(`>> NOTE: no --tag given; derived '${derived}' from branch prefix '${prefix}/'`);
+  const fromBranch = TYPE_FROM_BRANCH[prefix];
+  if (fromTitle[0] !== "needs-review") {
+    tags.push(...fromTitle);
+    console.error(`>> NOTE: no --tag given; derived '${fromTitle.join(",")}' from the title`);
+  } else if (fromBranch) {
+    tags.push(fromBranch);
+    console.error(`>> NOTE: no --tag given; derived '${fromBranch}' from branch prefix '${prefix}/'`);
   } else {
-    console.error(`>> WARNING: opening PR with no tag/label (branch '${sourceBranch}' has no recognised type prefix)`);
+    tags.push(...fromTitle);
+    console.error(`>> WARNING: no type in title or branch '${sourceBranch}'; tagging 'needs-review'`);
   }
 }
 
 // Same idea for reviewers: a PR with no reviewer record leaves no trace that
 // anyone was asked. SHIP_ADO_DEFAULT_REVIEWER supplies a non-blocking default
 // when the caller named none. Unset = previous behaviour, no reviewer.
-if (optionalReviewers.length === 0 && requiredReviewers.length === 0) {
+if (optionalReviewers.length === 0 && requiredReviewers.length === 0 && !noReviewer) {
   const fallback = (process.env.SHIP_ADO_DEFAULT_REVIEWER ?? "").trim();
   if (fallback) {
     optionalReviewers.push(...parseTags([fallback]));
@@ -284,11 +299,18 @@ async function runAzure(): Promise<void> {
   console.log(`pr_url=${orgUrl}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repo)}/pullrequest/${prId}`);
   if (wiIds.length) console.log(`work_items=${wiIds.join(" ")}`);
 
+  // Best-effort: a bad/unsupported state name (process-specific — Agile uses Resolved,
+  // Basic uses Doing) must not abort the run and skip tagging/reviewers below. Warn and
+  // continue so the PR still gets its tags and reviewers.
   if (transition && wiIds.length) {
     for (const id of wiIds) {
       console.error(`>> transitioning work item ${id} -> ${transition}`);
-      await authFallback(() => wit.updateWorkItem(null, [{ op: "add", path: "/fields/System.State", value: transition }], id, project));
-      console.log(`work_item=${id} state=${transition}`);
+      try {
+        await authFallback(() => wit.updateWorkItem(null, [{ op: "add", path: "/fields/System.State", value: transition }], id, project));
+        console.log(`work_item=${id} state=${transition}`);
+      } catch (e: any) {
+        console.error(`>> WARNING: could not transition work item ${id} -> ${transition}: ${e?.message ?? e}`);
+      }
     }
   }
 
