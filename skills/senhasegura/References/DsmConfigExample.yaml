@@ -1,0 +1,60 @@
+# Senhasegura DSM CLI Configuration
+# Location: ~/.senhasegura/config.yaml or specify with SENHASEGURA_CONFIG_FILE
+
+# =============================================================================
+# REQUIRED SETTINGS
+# =============================================================================
+
+# Your Senhasegura instance URL (no trailing slash)
+SENHASEGURA_URL: "https://senhasegura.example.com"
+
+# OAuth 2.0 Client ID from A2A application
+SENHASEGURA_CLIENT_ID: "your-oauth2-client-id"
+
+# OAuth 2.0 Client Secret from A2A application
+SENHASEGURA_CLIENT_SECRET: "your-oauth2-client-secret"
+
+
+# =============================================================================
+# OPTIONAL SETTINGS
+# =============================================================================
+
+# Path to mapping file for registering/updating secrets from pipeline
+# SENHASEGURA_MAPPING_FILE: "/path/to/mapping.json"
+
+# Output file for secrets (default: .runb.vars)
+SENHASEGURA_SECRETS_FILE: ".runb.vars"
+
+# Disable runb mode (0 = enabled, 1 = disabled)
+SENHASEGURA_DISABLE_RUNB: 0
+
+# Skip SSL certificate verification (NOT recommended for production)
+# SENHASEGURA_INSECURE: false
+
+# Request timeout in seconds
+# SENHASEGURA_TIMEOUT: 30
+
+
+# =============================================================================
+# GITLAB INTEGRATION (Optional)
+# =============================================================================
+
+# GitLab access token for variable injection
+# GITLAB_ACCESS_TOKEN: "glpat-xxxxxxxxxxxx"
+
+# GitLab API URL
+# CI_API_V4_URL: "https://gitlab.example.com/api/v4"
+
+# GitLab project ID
+# CI_PROJECT_ID: "12345"
+
+
+# =============================================================================
+# KUBERNETES INTEGRATION (Optional)
+# =============================================================================
+
+# Kubernetes secret injection path
+# SENHASEGURA_K8S_SECRET_PATH: "/var/run/secrets/senhasegura"
+
+# Kubernetes namespace for secrets
+# SENHASEGURA_K8S_NAMESPACE: "default"

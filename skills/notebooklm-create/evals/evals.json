@@ -1,0 +1,26 @@
+{
+  "skill_name": "notebooklm-create",
+  "evals": [
+    {
+      "id": 1,
+      "name": "devtool-topic-build",
+      "prompt": "Please build me a NotebookLM notebook called 'bun :: docs' for the Bun JavaScript runtime. Pull in the official bun.sh site, the GitHub repo at oven-sh/bun, the Show HN thread, and at least two Reddit threads from r/javascript or r/node. Also grab community discussion from GitHub Discussions. Then generate the full studio (audio overview, video, mind map, a Briefing Doc and a Study Guide, flashcards, a 10-question quiz, an infographic, a slide deck, and a comparison table of Bun vs Node vs Deno). Finally add the 9 curated NotebookLM prompts as a text source, adapted for Bun. This is for my team's eval of whether to migrate our build tooling off Node.",
+      "expected_output": "A new NotebookLM notebook titled 'bun :: docs' with ~11+ URL sources (Bun site, GitHub repo, HN, ≥2 Reddit, ≥1 GitHub Discussions), 2 text research sources (synthesis + community), 1 text prompts source, and 10 studio artifacts dispatched with confirm=true (some completed, async ones rendering). No Medium URLs added, URL adds executed sequentially, quiz/flashcards/data-table all created. Final report includes notebook URL and studio status.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "ambiguous-topic-disambiguation",
+      "prompt": "Hey I need a research notebook on 'cline' — it's that AI coding thing. Can you build the full NotebookLM studio for it with all the sources you can find? I have a blog post I want included: https://cline.bot/blog",
+      "expected_output": "Skill disambiguates between possible 'cline' projects (cline.bot AI coding assistant VS other projects named cline) using the user's seed URL as anchor. Creates notebook 'cline :: docs', loads the user's seed URL plus discovered official repo, docs, HN threads, Reddit discussions. Adds research synthesis + community content as text. Generates all 10 studio artifacts with confirm=true and user-approval check. Final report lists what 'cline' was disambiguated to, notebook URL, source count, studio status.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "medium-quora-blocklist-respect",
+      "prompt": "Build a NotebookLM notebook on the topic 'Astro framework' with sources from everywhere — Medium, Quora, Reddit, GitHub, Hacker News, the official astro.build site, and a YouTube intro video. Include a full studio and curated prompts.",
+      "expected_output": "Notebook 'Astro framework :: docs' (or similar) created. Reddit, GitHub, HN, official site, YouTube all added as URL sources sequentially. Medium URLs are NOT added as URLs — skill scrapes content via WebFetch and includes in the community content text source instead. Quora either produces no results (noted in community content) or is similarly handled as text. Full studio dispatched with confirm=true. Skill explicitly reports which domains were routed through text vs URL and why.",
+      "files": []
+    }
+  ]
+}

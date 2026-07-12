@@ -1,0 +1,63 @@
+# Example: PIM Workflow Automation
+# Use with CI/CD pipelines or scheduled tasks
+
+workflows:
+  # Emergency admin access workflow
+  emergency_access:
+    description: "Activate emergency admin access"
+    steps:
+      - name: "Activate Global Admin"
+        action: activate
+        role: "Global Administrator"
+        scope: "/"
+        duration: "PT30M"
+        justification: "Emergency access for ${TICKET_NUMBER}"
+        ticket:
+          number: "${TICKET_NUMBER}"
+          system: "ServiceNow"
+
+  # Deployment workflow
+  deployment:
+    description: "Activate Contributor for deployment"
+    steps:
+      - name: "Activate Contributor"
+        action: activate
+        type: azure
+        role: "Contributor"
+        scope: "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+        duration: "PT15M"
+        justification: "CI/CD deployment ${BUILD_ID}"
+
+      - name: "Run deployment"
+        shell: |
+          az deployment group create \
+            --resource-group ${RESOURCE_GROUP} \
+            --template-file main.bicep
+
+      - name: "Deactivate Contributor"
+        action: deactivate
+        type: azure
+        role: "Contributor"
+        scope: "/subscriptions/${SUBSCRIPTION_ID}/resourceGroups/${RESOURCE_GROUP}"
+
+  # Quarterly access review
+  access_review:
+    description: "Audit privileged access"
+    steps:
+      - name: "Export audit logs"
+        action: audit
+        output: "pim_audit_${DATE}.json"
+        top: 1000
+
+      - name: "List all eligible assignments"
+        action: list_eligible
+        scope: "/"
+        output: "eligible_assignments_${DATE}.json"
+
+# Environment variables required
+env:
+  ARM_TENANT_ID: "your-tenant-id"
+  AZURE_SUBSCRIPTION_ID: "your-subscription-id"
+  # Optional
+  AZURE_CLIENT_ID: ""
+  AZURE_CLIENT_SECRET: ""

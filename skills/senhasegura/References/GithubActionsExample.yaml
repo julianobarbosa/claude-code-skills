@@ -1,0 +1,132 @@
+# GitHub Actions Workflow with Senhasegura DSM Integration
+# Fetches secrets from Senhasegura and injects them into the pipeline
+
+name: Deploy with Senhasegura Secrets
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  APPLICATION_NAME: my-application
+  SYSTEM_NAME: production
+  ENVIRONMENT: prod
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # For OIDC if needed
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install DSM CLI
+        run: |
+          curl -LO https://github.com/senhasegura/dsmcli/releases/latest/download/dsm-linux-amd64
+          chmod +x dsm-linux-amd64
+          sudo mv dsm-linux-amd64 /usr/local/bin/dsm
+          dsm --version
+
+      - name: Fetch secrets from Senhasegura
+        env:
+          SENHASEGURA_URL: ${{ secrets.SENHASEGURA_URL }}
+          SENHASEGURA_CLIENT_ID: ${{ secrets.SENHASEGURA_CLIENT_ID }}
+          SENHASEGURA_CLIENT_SECRET: ${{ secrets.SENHASEGURA_CLIENT_SECRET }}
+        run: |
+          dsm runb \
+            --tool-name github \
+            --application "$APPLICATION_NAME" \
+            --system "$SYSTEM_NAME" \
+            --environment "$ENVIRONMENT"
+
+      - name: Load secrets into environment
+        run: |
+          # Source the secrets file
+          source .runb.vars
+          # Export for subsequent steps
+          cat .runb.vars >> $GITHUB_ENV
+
+      - name: Build application
+        run: |
+          # Secrets are now available as environment variables
+          echo "Building with database at: $DB_HOST"
+          npm ci
+          npm run build
+
+      - name: Run tests
+        run: |
+          npm test
+
+      - name: Deploy to production
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          # Use secrets for deployment
+          ./scripts/deploy.sh
+
+      - name: Cleanup secrets
+        if: always()
+        run: |
+          rm -f .runb.vars
+          # Clear sensitive env vars
+          unset DB_PASSWORD
+          unset API_SECRET
+
+  # Alternative: Using direct API calls
+  api-integration:
+    runs-on: ubuntu-latest
+    needs: build-and-deploy
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get OAuth Token
+        id: auth
+        env:
+          SENHASEGURA_URL: ${{ secrets.SENHASEGURA_URL }}
+          SENHASEGURA_CLIENT_ID: ${{ secrets.SENHASEGURA_CLIENT_ID }}
+          SENHASEGURA_CLIENT_SECRET: ${{ secrets.SENHASEGURA_CLIENT_SECRET }}
+        run: |
+          TOKEN=$(curl -s -X POST "$SENHASEGURA_URL/iso/oauth2/token" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=client_credentials" \
+            -d "client_id=$SENHASEGURA_CLIENT_ID" \
+            -d "client_secret=$SENHASEGURA_CLIENT_SECRET" | jq -r '.access_token')
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Get database password
+        id: db-creds
+        env:
+          SENHASEGURA_URL: ${{ secrets.SENHASEGURA_URL }}
+          TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          RESPONSE=$(curl -s -X GET "$SENHASEGURA_URL/iso/coe/senha?credentialId=123" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json")
+          PASSWORD=$(echo $RESPONSE | jq -r '.response.credential.password')
+          echo "::add-mask::$PASSWORD"
+          echo "password=$PASSWORD" >> $GITHUB_OUTPUT
+
+      - name: Use credentials
+        env:
+          DB_PASSWORD: ${{ steps.db-creds.outputs.password }}
+        run: |
+          echo "Connecting to database..."
+          # Use $DB_PASSWORD in your scripts
+
+      - name: Release credential custody
+        if: always()
+        env:
+          SENHASEGURA_URL: ${{ secrets.SENHASEGURA_URL }}
+          TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          curl -X DELETE "$SENHASEGURA_URL/iso/pam/credential/custody/123" \
+            -H "Authorization: Bearer $TOKEN"

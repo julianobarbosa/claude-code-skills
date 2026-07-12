@@ -1,0 +1,214 @@
+# yamllint disable rule:document-start rule:comments-indentation
+# ArgoCD Application Template
+# Complete example with all common configurations
+#
+# Usage:
+#   1. Copy this file
+#   2. Replace placeholders (marked with <...>)
+#   3. Apply to ArgoCD namespace or commit to Git
+#
+# Reference: https://argo-cd.readthedocs.io/en/stable/user-guide/application-specification/
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  # Application name - must be unique within ArgoCD namespace
+  name: <app-name>
+  namespace: argocd
+
+  # Finalizer ensures resources are deleted when Application is deleted
+  # Remove if you want to keep resources after Application deletion
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+
+  # Labels for organization and filtering
+  labels:
+    app.kubernetes.io/name: <app-name>
+    app.kubernetes.io/part-of: <project-name>
+    environment: <dev|staging|production>
+    team: <team-name>
+
+  # Annotations for integrations
+  annotations:
+    # Notifications (if configured)
+    notifications.argoproj.io/subscribe.on-sync-succeeded.slack: <channel>
+    notifications.argoproj.io/subscribe.on-health-degraded.slack: <channel>
+
+    # Kargo authorization (if using Kargo for promotions)
+    # kargo.akuity.io/authorized-stage: "<project>:<stage>"
+
+spec:
+  # Project defines RBAC and allowed resources
+  # Use 'default' for simple setups or create dedicated project
+  project: default
+
+  # ============================================
+  # SOURCE CONFIGURATION
+  # ============================================
+
+  # Single source (simple)
+  source:
+    # Git repository URL
+    repoURL: https://github.com/<org>/<repo>.git
+
+    # Branch, tag, or commit SHA
+    targetRevision: HEAD  # or 'main', 'v1.0.0', 'abc123'
+
+    # Path to manifests within repository
+    path: manifests/<app-name>
+
+    # --- KUSTOMIZE OPTIONS (if using Kustomize) ---
+    # kustomize:
+    #   namePrefix: <prefix>-
+    #   nameSuffix: -<suffix>
+    #   commonLabels:
+    #     app: <app-name>
+    #   commonAnnotations:
+    #     team: <team-name>
+    #   images:
+    #     - <old-image>=<new-image>:<tag>
+
+    # --- HELM OPTIONS (if using Helm) ---
+    # helm:
+    #   releaseName: <release-name>
+    #   valueFiles:
+    #     - values.yaml
+    #     - values-<env>.yaml
+    #   parameters:
+    #     - name: image.tag
+    #       value: <version>
+    #     - name: replicaCount
+    #       value: "3"
+    #   # For sensitive values, use valueFiles from a Secret
+    #   # valuesObject can be used for inline values
+
+  # Multi-source (advanced - Helm with external values)
+  # sources:
+  #   - repoURL: https://charts.bitnami.com/bitnami
+  #     chart: nginx
+  #     targetRevision: 15.0.0
+  #     helm:
+  #       valueFiles:
+  #         - $values/<env>/nginx/values.yaml
+  #   - repoURL: https://github.com/<org>/helm-values.git
+  #     targetRevision: main
+  #     ref: values
+
+  # ============================================
+  # DESTINATION CONFIGURATION
+  # ============================================
+
+  destination:
+    # Target cluster (use cluster name or URL)
+    # For in-cluster: https://kubernetes.default.svc
+    server: https://kubernetes.default.svc
+    # OR use cluster name registered in ArgoCD:
+    # name: production-cluster
+
+    # Target namespace (will be created if CreateNamespace=true)
+    namespace: <target-namespace>
+
+  # ============================================
+  # SYNC POLICY
+  # ============================================
+
+  syncPolicy:
+    # Automated sync (recommended for non-production)
+    automated:
+      # Automatically delete resources not in Git
+      prune: true
+      # Automatically revert manual changes
+      selfHeal: true
+      # Allow sync when only app spec changes (not desired state)
+      allowEmpty: false
+
+    # Sync options
+    syncOptions:
+      # Create namespace if it doesn't exist
+      - CreateNamespace=true
+      # Use server-side apply (better for CRDs)
+      - ServerSideApply=true
+      # Prune resources after sync completes
+      - PruneLast=true
+      # Only sync resources that are out of sync (performance)
+      - ApplyOutOfSyncOnly=true
+      # Respect ignoreDifferences during sync
+      - RespectIgnoreDifferences=true
+      # Skip validation (use with caution)
+      # - Validate=false
+
+    # Retry policy for failed syncs
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # ============================================
+  # IGNORE DIFFERENCES
+  # ============================================
+
+  # Ignore specific fields that are modified by controllers
+  ignoreDifferences:
+    # Ignore replicas managed by HPA
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+
+    # Ignore auto-generated fields
+    - group: ""
+      kind: Service
+      jsonPointers:
+        - /spec/clusterIP
+        - /spec/clusterIPs
+
+    # Ignore webhook CA bundles (managed by cert-manager)
+    - group: admissionregistration.k8s.io
+      kind: MutatingWebhookConfiguration
+      jsonPointers:
+        - /webhooks/0/clientConfig/caBundle
+
+    # Ignore specific annotation
+    # - group: apps
+    #   kind: Deployment
+    #   jqPathExpressions:
+    #     - .metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]
+
+  # ============================================
+  # HEALTH CHECKS (Custom)
+  # ============================================
+
+  # Override default health assessment
+  # ignoreDifferences and health checks work together
+  # revisionHistoryLimit: 10  # Number of ReplicaSets to keep
+
+---
+# Production-ready example with manual sync
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: <app-name>-production
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: production  # Use dedicated project with restrictions
+
+  source:
+    repoURL: https://github.com/<org>/<repo>.git
+    targetRevision: v1.0.0  # Pin to specific version
+    path: manifests/<app-name>/overlays/production
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: <app-name>-prod
+
+  # Manual sync for production (no automated)
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+      - PruneLast=true
+    # Note: No 'automated' block - requires manual sync

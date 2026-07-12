@@ -1,0 +1,27 @@
+{
+  "name": "@pai/context7-tools",
+  "version": "1.2.0",
+  "description": "TypeScript tools for Context7 documentation lookup",
+  "type": "module",
+  "main": "src/index.ts",
+  "bin": {
+    "c7-resolve": "src/cli/resolve.ts",
+    "c7-query": "src/cli/query.ts",
+    "c7-lookup": "src/cli/lookup.ts"
+  },
+  "scripts": {
+    "resolve": "bun src/cli/resolve.ts",
+    "query": "bun src/cli/query.ts",
+    "lookup": "bun src/cli/lookup.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit",
+    "prepublishOnly": "bun test"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

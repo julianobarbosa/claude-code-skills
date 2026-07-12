@@ -1,0 +1,31 @@
+// ============================================================
+// Title: High CPU Virtual Machines (Last 24 Hours)
+// Service: Log Analytics
+// Tables: Perf
+// Description: Identifies VMs with sustained high CPU utilization
+//   (>85% average over 15-minute bins). Useful for capacity planning
+//   and identifying resource-constrained workloads.
+// Parameters: timeRange (default 24h), cpuThreshold (default 85)
+// Complexity: Beginner
+// ============================================================
+
+let timeRange = 24h;
+let cpuThreshold = 85;
+Perf
+| where TimeGenerated > ago(timeRange)
+| where ObjectName == "Processor" and CounterName == "% Processor Time"
+| where InstanceName == "_Total"
+| summarize
+    AvgCPU = round(avg(CounterValue), 1),
+    MaxCPU = round(max(CounterValue), 1),
+    P95CPU = round(percentile(CounterValue, 95), 1)
+    by Computer, bin(TimeGenerated, 15m)
+| where AvgCPU > cpuThreshold
+| summarize
+    SustainedHighCPUBins = count(),
+    OverallAvgCPU = round(avg(AvgCPU), 1),
+    PeakCPU = max(MaxCPU)
+    by Computer
+| sort by SustainedHighCPUBins desc
+| extend SustainedHours = round(SustainedHighCPUBins * 15.0 / 60, 1)
+| project Computer, OverallAvgCPU, PeakCPU, SustainedHours

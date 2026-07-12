@@ -1,0 +1,160 @@
+# Azure DevOps Pipeline with Senhasegura DSM Integration
+# Fetches secrets from Senhasegura and injects them into the pipeline
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+
+pr:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: senhasegura-credentials  # Variable group containing SENHASEGURA_* vars
+  - name: APPLICATION_NAME
+    value: 'my-application'
+  - name: SYSTEM_NAME
+    value: 'production'
+  - name: ENVIRONMENT
+    value: 'prod'
+
+stages:
+  - stage: Build
+    displayName: 'Build and Test'
+    jobs:
+      - job: BuildJob
+        displayName: 'Build Application'
+        steps:
+          - checkout: self
+
+          - task: Bash@3
+            displayName: 'Install DSM CLI'
+            inputs:
+              targetType: 'inline'
+              script: |
+                curl -LO https://github.com/senhasegura/dsmcli/releases/latest/download/dsm-linux-amd64
+                chmod +x dsm-linux-amd64
+                sudo mv dsm-linux-amd64 /usr/local/bin/dsm
+                dsm --version
+
+          - task: Bash@3
+            displayName: 'Fetch Secrets from Senhasegura'
+            inputs:
+              targetType: 'inline'
+              script: |
+                dsm runb \
+                  --tool-name azure-devops \
+                  --application "$(APPLICATION_NAME)" \
+                  --system "$(SYSTEM_NAME)" \
+                  --environment "$(ENVIRONMENT)"
+            env:
+              SENHASEGURA_URL: $(SENHASEGURA_URL)
+              SENHASEGURA_CLIENT_ID: $(SENHASEGURA_CLIENT_ID)
+              SENHASEGURA_CLIENT_SECRET: $(SENHASEGURA_CLIENT_SECRET)
+
+          - task: Bash@3
+            displayName: 'Load Secrets'
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Source secrets and export as pipeline variables
+                while IFS='=' read -r key value; do
+                  # Skip empty lines and comments
+                  [[ -z "$key" || "$key" =~ ^# ]] && continue
+                  # Set as pipeline variable
+                  echo "##vso[task.setvariable variable=$key;issecret=true]$value"
+                done < .runb.vars
+
+          - task: NodeTool@0
+            displayName: 'Use Node.js'
+            inputs:
+              versionSpec: '20.x'
+
+          - task: Bash@3
+            displayName: 'Install Dependencies'
+            inputs:
+              targetType: 'inline'
+              script: npm ci
+
+          - task: Bash@3
+            displayName: 'Build Application'
+            inputs:
+              targetType: 'inline'
+              script: npm run build
+
+          - task: Bash@3
+            displayName: 'Run Tests'
+            inputs:
+              targetType: 'inline'
+              script: npm test
+
+          - task: Bash@3
+            displayName: 'Cleanup Secrets'
+            condition: always()
+            inputs:
+              targetType: 'inline'
+              script: rm -f .runb.vars
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Artifacts'
+            inputs:
+              pathToPublish: '$(Build.SourcesDirectory)/dist'
+              artifactName: 'app'
+
+  - stage: Deploy
+    displayName: 'Deploy to Production'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - deployment: DeployJob
+        displayName: 'Deploy Application'
+        environment: 'production'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - task: Bash@3
+                  displayName: 'Install DSM CLI'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      curl -LO https://github.com/senhasegura/dsmcli/releases/latest/download/dsm-linux-amd64
+                      chmod +x dsm-linux-amd64
+                      sudo mv dsm-linux-amd64 /usr/local/bin/dsm
+
+                - task: Bash@3
+                  displayName: 'Fetch Deploy Secrets'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      dsm runb \
+                        --tool-name azure-devops \
+                        --application "$(APPLICATION_NAME)" \
+                        --system "$(SYSTEM_NAME)" \
+                        --environment "prod"
+                  env:
+                    SENHASEGURA_URL: $(SENHASEGURA_URL)
+                    SENHASEGURA_CLIENT_ID: $(SENHASEGURA_CLIENT_ID)
+                    SENHASEGURA_CLIENT_SECRET: $(SENHASEGURA_CLIENT_SECRET)
+
+                - task: Bash@3
+                  displayName: 'Deploy to Kubernetes'
+                  inputs:
+                    targetType: 'inline'
+                    script: |
+                      source .runb.vars
+                      kubectl set image deployment/myapp myapp=$DOCKER_IMAGE
+                      kubectl rollout status deployment/myapp
+
+                - task: Bash@3
+                  displayName: 'Cleanup'
+                  condition: always()
+                  inputs:
+                    targetType: 'inline'
+                    script: rm -f .runb.vars

@@ -1,0 +1,395 @@
+# =============================================================================
+# Pull Request Preview Environment Pattern
+# =============================================================================
+# Automatically create preview/ephemeral environments for Pull Requests.
+# Supports GitHub, GitLab, Azure DevOps, and Bitbucket.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Pattern 1: GitHub PR Preview
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: github-pr-preview
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - pullRequest:
+        github:
+          owner: my-org
+          repo: my-app
+          # Only PRs with these labels get preview environments
+          labels:
+            - preview
+            - deploy
+          # Authentication for private repos
+          tokenRef:
+            secretName: github-token
+            key: token
+          # GitHub Enterprise (optional)
+          # api: https://github.mycompany.com/api/v3/
+        # Check for new/closed PRs every 3 minutes
+        requeueAfterSeconds: 180
+  template:
+    metadata:
+      name: 'pr-{{ .number }}-{{ .branch_slug }}'
+      labels:
+        app.kubernetes.io/name: my-app
+        app.kubernetes.io/instance: 'pr-{{ .number }}'
+        preview: "true"
+      annotations:
+        # Link back to PR for easy navigation
+        github.com/pull-request-number: '{{ .number }}'
+        github.com/pull-request-sha: '{{ .head_sha }}'
+        github.com/pull-request-branch: '{{ .branch }}'
+      # Auto-cleanup when PR is closed
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: preview
+      source:
+        repoURL: https://github.com/my-org/my-app.git
+        # Deploy from the PR branch head
+        targetRevision: '{{ .head_sha }}'
+        path: deploy
+        helm:
+          releaseName: 'pr-{{ .number }}'
+          parameters:
+            # Dynamic image tag for PR
+            - name: image.tag
+              value: 'pr-{{ .number }}'
+            # Unique ingress hostname
+            - name: ingress.enabled
+              value: "true"
+            - name: ingress.hostname
+              value: 'pr-{{ .number }}.preview.example.com'
+            # Reduced resources for previews
+            - name: replicaCount
+              value: "1"
+            - name: resources.requests.memory
+              value: "256Mi"
+            - name: resources.requests.cpu
+              value: "100m"
+          values: |
+            # Preview-specific config
+            env:
+              ENVIRONMENT: preview
+              PR_NUMBER: "{{ .number }}"
+              BRANCH: "{{ .branch }}"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'preview-pr-{{ .number }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - PruneLast=true
+        # Managed namespace with labels
+        managedNamespaceMetadata:
+          labels:
+            preview: "true"
+            pr-number: '{{ .number }}'
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 2: GitLab MR Preview
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: gitlab-mr-preview
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - pullRequest:
+        gitlab:
+          project: my-group/my-project
+          # Only open MRs
+          pullRequestState: opened
+          # Only MRs with these labels
+          labels:
+            - deploy-preview
+          tokenRef:
+            secretName: gitlab-token
+            key: token
+          # Self-hosted GitLab (optional)
+          # api: https://gitlab.mycompany.com/
+        requeueAfterSeconds: 180
+  template:
+    metadata:
+      name: 'mr-{{ .number }}'
+      labels:
+        app.kubernetes.io/instance: 'mr-{{ .number }}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: preview
+      source:
+        repoURL: https://gitlab.com/my-group/my-project.git
+        targetRevision: '{{ .head_sha }}'
+        path: kubernetes
+        kustomize:
+          nameSuffix: '-pr{{ .number }}'
+          images:
+            - 'my-app=registry.gitlab.com/my-group/my-project:{{ .head_short_sha }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'preview-mr-{{ .number }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 3: Azure DevOps PR Preview
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: azure-devops-pr-preview
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - pullRequest:
+        azuredevops:
+          organization: my-org
+          project: my-project
+          repo: my-repo
+          labels:
+            - preview
+          tokenRef:
+            secretName: azure-devops-token
+            key: token
+        requeueAfterSeconds: 180
+  template:
+    metadata:
+      name: 'pr-{{ .number }}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: preview
+      source:
+        repoURL: https://dev.azure.com/my-org/my-project/_git/my-repo
+        targetRevision: '{{ .head_sha }}'
+        path: deploy
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'preview-pr-{{ .number }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 4: Full-Stack Preview (Multiple Services)
+# -----------------------------------------------------------------------------
+# Deploy multiple services for each PR using Matrix
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: fullstack-pr-preview
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          # PRs
+          - pullRequest:
+              github:
+                owner: my-org
+                repo: my-fullstack-app
+                labels:
+                  - preview
+                tokenRef:
+                  secretName: github-token
+                  key: token
+          # Services to deploy per PR
+          - list:
+              elements:
+                - service: frontend
+                  path: services/frontend
+                  port: "3000"
+                - service: backend
+                  path: services/backend
+                  port: "8080"
+                - service: database
+                  path: services/database
+                  port: "5432"
+  template:
+    metadata:
+      name: 'pr-{{ .number }}-{{ .service }}'
+      labels:
+        pr-number: '{{ .number }}'
+        service: '{{ .service }}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: preview
+      source:
+        repoURL: https://github.com/my-org/my-fullstack-app.git
+        targetRevision: '{{ .head_sha }}'
+        path: '{{ .path }}'
+        helm:
+          parameters:
+            - name: image.tag
+              value: 'pr-{{ .number }}'
+            # Service discovery within the preview namespace
+            - name: service.port
+              value: '{{ .port }}'
+      destination:
+        server: https://kubernetes.default.svc
+        # All services share the same namespace
+        namespace: 'preview-pr-{{ .number }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 5: Preview with External Database
+# -----------------------------------------------------------------------------
+# Connect PR previews to shared preview database
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-preview-with-db
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - pullRequest:
+        github:
+          owner: my-org
+          repo: my-app
+          labels:
+            - preview
+          tokenRef:
+            secretName: github-token
+            key: token
+  template:
+    metadata:
+      name: 'pr-{{ .number }}'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: preview
+      sources:
+        # Application
+        - repoURL: https://github.com/my-org/my-app.git
+          targetRevision: '{{ .head_sha }}'
+          path: deploy
+          helm:
+            releaseName: 'pr-{{ .number }}'
+            valueFiles:
+              - $values/preview-values.yaml
+            parameters:
+              - name: image.tag
+                value: 'pr-{{ .number }}'
+              # Use PR-specific database schema
+              - name: database.schema
+                value: 'pr_{{ .number }}'
+              - name: database.host
+                value: preview-db.example.com
+        # Shared preview values
+        - repoURL: https://github.com/my-org/helm-values.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'preview-pr-{{ .number }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Supporting Resources: ArgoCD Project for Previews
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: preview
+  namespace: argocd
+spec:
+  description: Preview environments for Pull Requests
+  sourceRepos:
+    - https://github.com/my-org/*
+  destinations:
+    # Only allow preview namespaces
+    - namespace: 'preview-*'
+      server: https://kubernetes.default.svc
+  # Limited cluster resources for previews
+  clusterResourceWhitelist: []
+  namespaceResourceWhitelist:
+    - group: ''
+      kind: '*'
+    - group: 'apps'
+      kind: '*'
+    - group: 'networking.k8s.io'
+      kind: '*'
+  # Orphaned resource monitoring
+  orphanedResources:
+    warn: true
+
+---
+# -----------------------------------------------------------------------------
+# GitHub Token Secret
+# -----------------------------------------------------------------------------
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-token
+  namespace: argocd
+type: Opaque
+stringData:
+  token: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+---
+# -----------------------------------------------------------------------------
+# Available PR Parameters Reference
+# -----------------------------------------------------------------------------
+# {{number}}           - PR/MR number
+# {{branch}}           - Source branch name
+# {{branch_slug}}      - URL-safe branch name (lowercase, dashes)
+# {{target_branch}}    - Target/base branch (e.g., main)
+# {{target_branch_slug}} - URL-safe target branch
+# {{head_sha}}         - Full commit SHA (40 chars)
+# {{head_short_sha}}   - Short commit SHA (first 8 chars)
+# {{head_short_sha_7}} - 7-character commit SHA
+# {{labels}}           - Array of PR labels
+#
+# Best Practices:
+# 1. Use {{head_sha}} for targetRevision (immutable reference)
+# 2. Use {{number}} for resource naming (unique identifier)
+# 3. Use {{branch_slug}} when you need branch info in names
+# 4. Always add finalizers for cleanup
+# 5. Use dedicated project with limited permissions
+# 6. Set resource limits to prevent preview sprawl
+# 7. Consider TTL/auto-cleanup for old previews
+# =============================================================================

@@ -1,0 +1,46 @@
+table Dim_Advisor
+    lineageTag: dim-advisor-001
+
+    column RecommendationId
+        dataType: string
+        isKey: true
+        isHidden: true
+        lineageTag: dim-advisor-recid
+        summarizeBy: none
+        sourceColumn: RecommendationId
+
+    column Category
+        dataType: string
+        lineageTag: dim-advisor-category
+        summarizeBy: none
+        sourceColumn: Category
+
+    column Impact
+        dataType: string
+        lineageTag: dim-advisor-impact
+        summarizeBy: none
+        sourceColumn: Impact
+
+    column ImpactedResource
+        dataType: string
+        lineageTag: dim-advisor-resource
+        summarizeBy: none
+        sourceColumn: ImpactedResource
+
+    column PotentialSavings
+        dataType: double
+        formatString: R$ #,##0.00
+        lineageTag: dim-advisor-savings
+        summarizeBy: sum
+        sourceColumn: PotentialSavings
+
+    column Description
+        dataType: string
+        lineageTag: dim-advisor-desc
+        summarizeBy: none
+        sourceColumn: Description
+
+    partition Dim_Advisor = m
+        mode: import
+        source =
+            let Source = Dim_Advisor in Source

@@ -1,0 +1,16 @@
+    measure 'Custo RG %' =
+        VAR CustoRG = [Custo Combinado]
+        VAR CustoTotal =
+            CALCULATE(
+                [Custo Combinado],
+                ALL(Dim_ResourceGroup)
+            )
+        RETURN
+            IF(
+                CustoTotal <> 0,
+                DIVIDE(CustoRG, CustoTotal),
+                BLANK()
+            )
+        formatString: 0.0%;-0.0%;0.0%
+        displayFolder: Custo
+        lineageTag: m-custo-rg-pct

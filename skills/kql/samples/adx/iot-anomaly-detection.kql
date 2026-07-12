@@ -1,0 +1,38 @@
+// ============================================================
+// Title: IoT Telemetry Anomaly Detection
+// Service: ADX
+// Tables: Telemetry (custom — adjust table/column names)
+// Description: Detects anomalous sensor readings using time-series
+//   decomposition. Identifies devices reporting values that deviate
+//   significantly from their historical baseline.
+// Parameters: timeRange (default 7d), anomalySensitivity (default 1.5)
+// Complexity: Advanced
+// ============================================================
+
+let timeRange = 7d;
+let anomalySensitivity = 1.5;  // lower = more sensitive
+let stepSize = 1h;
+// Step 1: Build time series per device
+let deviceSeries = Telemetry
+| where Timestamp > ago(timeRange)
+| where MetricName == "temperature"  // adjust to your metric
+| make-series Value=avg(MetricValue) on Timestamp from ago(timeRange) to now() step stepSize
+    by DeviceId;
+// Step 2: Decompose and detect anomalies
+deviceSeries
+| extend (anomalies, score, baseline) = series_decompose_anomalies(Value, anomalySensitivity, -1, 'linefit')
+// Step 3: Extract anomaly details
+| mv-apply
+    Timestamp to typeof(datetime),
+    Value to typeof(double),
+    anomalies to typeof(int),
+    score to typeof(double),
+    baseline to typeof(double)
+    on (
+        where anomalies != 0
+        | project Timestamp, Value, AnomalyDirection=iff(anomalies > 0, "High", "Low"), Score=round(score, 2), Baseline=round(baseline, 2)
+    )
+| project DeviceId, Timestamp, Value, AnomalyDirection, Score, Baseline,
+          Deviation = round(Value - Baseline, 2),
+          DeviationPct = round((Value - Baseline) / Baseline * 100, 1)
+| sort by abs(Score) desc

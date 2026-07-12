@@ -1,0 +1,325 @@
+# =============================================================================
+# SCM Provider and Pull Request Generator Examples
+# =============================================================================
+# SCM Provider: Auto-discover repositories from SCM platforms
+# Pull Request: Create preview environments for PRs
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# SCM Provider - GitHub Organization
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: scm-github-org
+  namespace: argocd
+spec:
+  generators:
+    - scmProvider:
+        github:
+          organization: my-org
+          # Optional: Filter by topics
+          # topics: ["argocd", "kubernetes"]
+          # Optional: Authentication for private repos
+          tokenRef:
+            secretName: github-token
+            key: token
+          # Optional: GitHub Enterprise
+          # api: https://github.mycompany.com/api/v3/
+          # allBranches: true
+        # Filter repositories
+        filters:
+          # Only repos with specific path
+          - pathsExist:
+              - deploy/
+          # Match repository name pattern
+          - repositoryMatch: "^app-.*"
+          # Optional: Branch filter
+          # - branchMatch: "^main$"
+  template:
+    metadata:
+      name: '{{repository}}'
+    spec:
+      project: default
+      source:
+        repoURL: '{{url}}'
+        targetRevision: '{{branch}}'
+        path: deploy
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{repository}}'
+
+---
+# -----------------------------------------------------------------------------
+# SCM Provider - GitLab Group
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: scm-gitlab-group
+  namespace: argocd
+spec:
+  generators:
+    - scmProvider:
+        gitlab:
+          group: my-group
+          # Include subgroups
+          includeSubgroups: true
+          # Include shared projects
+          includeSharedProjects: false
+          # Authentication
+          tokenRef:
+            secretName: gitlab-token
+            key: token
+          # Optional: Self-hosted GitLab
+          # api: https://gitlab.mycompany.com/
+        filters:
+          - pathsExist:
+              - kubernetes/
+          - labelMatch: "deploy=true"
+  template:
+    metadata:
+      name: '{{repository}}'
+    spec:
+      project: default
+      source:
+        repoURL: '{{url}}'
+        targetRevision: '{{branch}}'
+        path: kubernetes
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{repository}}'
+
+---
+# -----------------------------------------------------------------------------
+# SCM Provider - Azure DevOps
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: scm-azure-devops
+  namespace: argocd
+spec:
+  generators:
+    - scmProvider:
+        azureDevOps:
+          organization: my-org
+          # Optional: Specific team project
+          teamProject: my-project
+          # Authentication (PAT token)
+          accessTokenRef:
+            secretName: azure-devops-token
+            key: token
+          # Optional: Azure DevOps Server (on-prem)
+          # api: https://dev.azure.com/
+        filters:
+          - pathsExist:
+              - charts/
+          - repositoryMatch: "^service-.*"
+  template:
+    metadata:
+      name: '{{repository}}'
+      labels:
+        organization: '{{organization}}'
+    spec:
+      project: default
+      source:
+        repoURL: '{{url}}'
+        targetRevision: '{{branch}}'
+        path: charts
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{repository}}'
+
+---
+# -----------------------------------------------------------------------------
+# SCM Provider - Bitbucket Cloud
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: scm-bitbucket
+  namespace: argocd
+spec:
+  generators:
+    - scmProvider:
+        bitbucket:
+          owner: my-workspace
+          # Authentication
+          appPasswordRef:
+            secretName: bitbucket-creds
+            key: password
+          user: bitbucket-user
+        filters:
+          - pathsExist:
+              - k8s/
+  template:
+    metadata:
+      name: '{{repository}}'
+    spec:
+      project: default
+      source:
+        repoURL: '{{url}}'
+        targetRevision: '{{branch}}'
+        path: k8s
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{repository}}'
+
+---
+# -----------------------------------------------------------------------------
+# Pull Request Generator - GitHub
+# -----------------------------------------------------------------------------
+# Creates preview environments for open Pull Requests
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-preview-github
+  namespace: argocd
+spec:
+  generators:
+    - pullRequest:
+        github:
+          owner: my-org
+          repo: my-app
+          # Authentication for private repos
+          tokenRef:
+            secretName: github-token
+            key: token
+          # Optional: Only PRs with specific labels
+          labels:
+            - preview
+            - deploy
+          # Optional: GitHub Enterprise
+          # api: https://github.mycompany.com/api/v3/
+        # How often to check for changes (default 3m)
+        requeueAfterSeconds: 180
+  template:
+    metadata:
+      name: 'pr-{{number}}-{{branch_slug}}'
+      labels:
+        app.kubernetes.io/instance: 'pr-{{number}}'
+      annotations:
+        # Link back to PR
+        github.com/pull-request: '{{head_short_sha}}'
+    spec:
+      project: preview
+      source:
+        repoURL: 'https://github.com/my-org/my-app.git'
+        # Deploy from the PR branch
+        targetRevision: '{{head_sha}}'
+        path: deploy
+        helm:
+          parameters:
+            - name: image.tag
+              value: 'pr-{{number}}'
+            - name: ingress.host
+              value: 'pr-{{number}}.preview.example.com'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'preview-pr-{{number}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pull Request Generator - GitLab
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-preview-gitlab
+  namespace: argocd
+spec:
+  generators:
+    - pullRequest:
+        gitlab:
+          project: my-group/my-project
+          # Authentication
+          tokenRef:
+            secretName: gitlab-token
+            key: token
+          # Optional: Only MRs with specific labels
+          labels:
+            - deploy-preview
+          # MR state filter (default: opened)
+          pullRequestState: opened
+        requeueAfterSeconds: 180
+  template:
+    metadata:
+      name: 'mr-{{number}}'
+    spec:
+      project: preview
+      source:
+        repoURL: 'https://gitlab.com/my-group/my-project.git'
+        targetRevision: '{{head_sha}}'
+        path: deploy
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'preview-mr-{{number}}'
+
+---
+# -----------------------------------------------------------------------------
+# Pull Request Generator - Azure DevOps
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-preview-azure
+  namespace: argocd
+spec:
+  generators:
+    - pullRequest:
+        azuredevops:
+          organization: my-org
+          project: my-project
+          repo: my-repo
+          # Authentication
+          tokenRef:
+            secretName: azure-devops-token
+            key: token
+          # Optional: Filter by labels
+          labels:
+            - deploy
+  template:
+    metadata:
+      name: 'pr-{{number}}'
+    spec:
+      project: preview
+      source:
+        repoURL: 'https://dev.azure.com/my-org/my-project/_git/my-repo'
+        targetRevision: '{{head_sha}}'
+        path: deploy
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'preview-pr-{{number}}'
+
+---
+# -----------------------------------------------------------------------------
+# Available Parameters
+# -----------------------------------------------------------------------------
+# SCM Provider Parameters:
+#   {{organization}}     - SCM organization/group name
+#   {{repository}}       - Repository name
+#   {{url}}              - Repository clone URL
+#   {{branch}}           - Default branch name
+#   {{sha}}              - Latest commit SHA
+#   {{short_sha}}        - Short commit SHA (first 7 chars)
+#   {{labels}}           - Repository labels/topics
+#
+# Pull Request Parameters:
+#   {{number}}           - PR/MR number
+#   {{branch}}           - Source branch name
+#   {{branch_slug}}      - URL-safe branch name
+#   {{target_branch}}    - Target/base branch
+#   {{target_branch_slug}} - URL-safe target branch
+#   {{head_sha}}         - Full commit SHA
+#   {{head_short_sha}}   - Short commit SHA
+#   {{head_short_sha_7}} - 7-char commit SHA
+#   {{labels}}           - PR labels (array)
+# =============================================================================

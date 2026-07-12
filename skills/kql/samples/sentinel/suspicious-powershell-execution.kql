@@ -1,0 +1,46 @@
+// ============================================================
+// Title: Suspicious PowerShell Execution Detection
+// Service: Sentinel
+// Tables: DeviceProcessEvents
+// Description: Detects PowerShell processes with encoded commands,
+//   download cradles, or obfuscation patterns commonly used in
+//   attacks. Flags processes matching known malicious patterns.
+// Parameters: timeRange (default 24h)
+// Complexity: Intermediate
+// ============================================================
+
+let timeRange = 24h;
+let suspiciousPatterns = dynamic([
+    "-enc", "-EncodedCommand",
+    "FromBase64String", "Convert",
+    "DownloadString", "DownloadFile",
+    "Invoke-Expression", "IEX",
+    "Net.WebClient", "Start-BitsTransfer",
+    "Invoke-WebRequest", "wget", "curl",
+    "-nop", "-noni", "-w hidden",
+    "bypass", "-ep bypass"
+]);
+DeviceProcessEvents
+| where Timestamp > ago(timeRange)
+| where FileName in~ ("powershell.exe", "pwsh.exe")
+| where ProcessCommandLine has_any (suspiciousPatterns)
+| extend
+    HasEncodedCmd = ProcessCommandLine has_any ("-enc", "-EncodedCommand"),
+    HasDownload = ProcessCommandLine has_any ("DownloadString", "DownloadFile", "Invoke-WebRequest"),
+    HasBypass = ProcessCommandLine has_any ("bypass", "-ep bypass"),
+    CmdLength = strlen(ProcessCommandLine)
+| extend RiskScore = (toint(HasEncodedCmd) * 3)
+                   + (toint(HasDownload) * 3)
+                   + (toint(HasBypass) * 2)
+                   + iff(CmdLength > 500, 2, 0)
+| project
+    Timestamp,
+    DeviceName,
+    AccountName,
+    ProcessCommandLine = substring(ProcessCommandLine, 0, 500),
+    HasEncodedCmd,
+    HasDownload,
+    HasBypass,
+    CmdLength,
+    RiskScore
+| sort by RiskScore desc, Timestamp desc

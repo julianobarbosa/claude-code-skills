@@ -1,0 +1,117 @@
+{
+  "$schema": "https://raw.githubusercontent.com/senhasegura/dsmcli/main/schema/mapping.json",
+  "_comment": "DSM CLI Mapping File - Maps environment variables to Senhasegura secrets",
+
+  "access_keys": [
+    {
+      "name": "AWS_PRODUCTION",
+      "type": "aws",
+      "description": "AWS credentials for production workloads",
+      "fields": {
+        "access_key_id": "AWS_ACCESS_KEY_ID",
+        "secret_access_key": "AWS_SECRET_ACCESS_KEY"
+      }
+    },
+    {
+      "name": "AZURE_PRODUCTION",
+      "type": "azure",
+      "description": "Azure service principal credentials",
+      "fields": {
+        "client_id": "AZURE_CLIENT_ID",
+        "client_secret": "AZURE_CLIENT_SECRET",
+        "tenant_id": "AZURE_TENANT_ID",
+        "subscription_id": "AZURE_SUBSCRIPTION_ID"
+      }
+    },
+    {
+      "name": "GCP_PRODUCTION",
+      "type": "gcp",
+      "description": "Google Cloud service account",
+      "fields": {
+        "service_account_json": "GOOGLE_APPLICATION_CREDENTIALS_JSON"
+      }
+    }
+  ],
+
+  "credentials": [
+    {
+      "name": "DATABASE_POSTGRES",
+      "description": "PostgreSQL database credentials",
+      "fields": {
+        "user": "DB_USER",
+        "password": "DB_PASSWORD",
+        "host": "DB_HOST",
+        "port": "DB_PORT",
+        "database": "DB_NAME"
+      }
+    },
+    {
+      "name": "DATABASE_REDIS",
+      "description": "Redis cache credentials",
+      "fields": {
+        "host": "REDIS_HOST",
+        "port": "REDIS_PORT",
+        "password": "REDIS_PASSWORD"
+      }
+    },
+    {
+      "name": "DOCKER_REGISTRY",
+      "description": "Container registry authentication",
+      "fields": {
+        "user": "DOCKER_USERNAME",
+        "password": "DOCKER_PASSWORD",
+        "host": "DOCKER_REGISTRY_URL"
+      }
+    },
+    {
+      "name": "SSH_DEPLOY_KEY",
+      "description": "SSH key for deployment",
+      "fields": {
+        "user": "SSH_USER",
+        "password": "SSH_PRIVATE_KEY",
+        "host": "SSH_HOST"
+      }
+    }
+  ],
+
+  "key_value": [
+    {
+      "name": "API_TOKENS",
+      "description": "Various API tokens and secrets",
+      "fields": [
+        "API_KEY",
+        "API_SECRET",
+        "WEBHOOK_SECRET",
+        "ENCRYPTION_KEY"
+      ]
+    },
+    {
+      "name": "JWT_CONFIGURATION",
+      "description": "JWT signing keys",
+      "fields": [
+        "JWT_SECRET",
+        "JWT_PRIVATE_KEY",
+        "JWT_PUBLIC_KEY"
+      ]
+    },
+    {
+      "name": "THIRD_PARTY_INTEGRATIONS",
+      "description": "External service API keys",
+      "fields": [
+        "STRIPE_SECRET_KEY",
+        "SENDGRID_API_KEY",
+        "SLACK_WEBHOOK_URL",
+        "DATADOG_API_KEY"
+      ]
+    },
+    {
+      "name": "MONITORING",
+      "description": "Monitoring and observability credentials",
+      "fields": [
+        "GRAFANA_API_KEY",
+        "PROMETHEUS_TOKEN",
+        "SENTRY_DSN"
+      ]
+    }
+  ]
+}

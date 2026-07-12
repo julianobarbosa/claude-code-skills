@@ -1,0 +1,295 @@
+# yamllint disable rule:document-start rule:quoted-strings rule:comments-indentation
+# ArgoCD ApplicationSet Templates
+# Generates multiple Applications from a single template
+#
+# Usage:
+#   1. Choose the generator pattern that fits your use case
+#   2. Replace placeholders (marked with <...>)
+#   3. Apply to ArgoCD namespace
+#
+# Reference: https://argo-cd.readthedocs.io/en/stable/user-guide/applicationset/
+---
+# ============================================
+# PATTERN 1: LIST GENERATOR
+# Deploy same app to multiple environments
+# ============================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: <app-name>-environments
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - env: dev
+            cluster: https://dev-cluster.example.com
+            namespace: <app-name>-dev
+            values_repo: dev
+          - env: staging
+            cluster: https://staging-cluster.example.com
+            namespace: <app-name>-staging
+            values_repo: staging
+          - env: production
+            cluster: https://prod-cluster.example.com
+            namespace: <app-name>-prod
+            values_repo: production
+
+  template:
+    metadata:
+      name: '<app-name>-{{env}}'
+      labels:
+        environment: '{{env}}'
+    spec:
+      project: '{{env}}'
+
+      # Multi-source: Helm chart + environment values
+      sources:
+        - repoURL: https://charts.example.com
+          chart: <chart-name>
+          targetRevision: <chart-version>
+          helm:
+            valueFiles:
+              - $values/{{values_repo}}/values.yaml
+        - repoURL: https://github.com/<org>/helm-values.git
+          targetRevision: main
+          ref: values
+
+      destination:
+        server: '{{cluster}}'
+        namespace: '{{namespace}}'
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# ============================================
+# PATTERN 2: GIT DIRECTORY GENERATOR
+# Auto-discover apps from Git repository structure
+# ============================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: apps-discovery
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/<org>/gitops-repo.git
+        revision: HEAD
+        directories:
+          # Include all directories under apps/
+          - path: apps/*
+          # Exclude specific directories
+          - path: apps/excluded-app
+            exclude: true
+
+  template:
+    metadata:
+      # {{path.basename}} = directory name (e.g., "frontend", "backend")
+      name: '{{path.basename}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/<org>/gitops-repo.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{path.basename}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# ============================================
+# PATTERN 3: CLUSTER GENERATOR
+# Deploy to all registered clusters
+# ============================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-addons
+  namespace: argocd
+spec:
+  generators:
+    - clusters:
+        # Select clusters by label
+        selector:
+          matchLabels:
+            environment: production
+        # Or match all clusters:
+        # selector: {}
+
+  template:
+    metadata:
+      name: 'monitoring-{{name}}'
+    spec:
+      project: infrastructure
+      source:
+        repoURL: https://github.com/<org>/cluster-addons.git
+        targetRevision: HEAD
+        path: monitoring
+      destination:
+        # {{server}} = cluster API URL
+        # {{name}} = cluster name
+        server: '{{server}}'
+        namespace: monitoring
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+---
+# ============================================
+# PATTERN 4: MATRIX GENERATOR
+# Combine two generators (e.g., clusters x apps)
+# ============================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: platform-apps
+  namespace: argocd
+spec:
+  generators:
+    - matrix:
+        generators:
+          # Generator 1: All production clusters
+          - clusters:
+              selector:
+                matchLabels:
+                  environment: production
+          # Generator 2: All apps in apps/ directory
+          - git:
+              repoURL: https://github.com/<org>/platform-apps.git
+              revision: HEAD
+              directories:
+                - path: apps/*
+
+  template:
+    metadata:
+      # Combination of cluster name and app name
+      name: '{{name}}-{{path.basename}}'
+    spec:
+      project: platform
+      source:
+        repoURL: https://github.com/<org>/platform-apps.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: '{{server}}'
+        namespace: '{{path.basename}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+---
+# ============================================
+# PATTERN 5: PULL REQUEST GENERATOR
+# Deploy preview environments for PRs
+# ============================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: pr-previews
+  namespace: argocd
+spec:
+  generators:
+    - pullRequest:
+        github:
+          owner: <org>
+          repo: <repo>
+          tokenRef:
+            secretName: github-token
+            key: token
+          labels:
+            - preview
+        requeueAfterSeconds: 60
+
+  template:
+    metadata:
+      name: 'preview-{{branch_slug}}'
+      labels:
+        preview: "true"
+        pr: '{{number}}'
+    spec:
+      project: previews
+      source:
+        repoURL: 'https://github.com/<org>/<repo>.git'
+        targetRevision: '{{head_sha}}'
+        path: manifests
+        kustomize:
+          nameSuffix: '-pr-{{number}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: 'preview-{{number}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# ============================================
+# PATTERN 6: MERGE GENERATOR
+# Combine generators with override logic
+# ============================================
+
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: team-apps
+  namespace: argocd
+spec:
+  generators:
+    - merge:
+        mergeKeys:
+          - env
+        generators:
+          # Base configuration from list
+          - list:
+              elements:
+                - env: dev
+                  replicas: "1"
+                  autosync: "true"
+                - env: staging
+                  replicas: "2"
+                  autosync: "true"
+                - env: production
+                  replicas: "3"
+                  autosync: "false"
+          # Override specific environments
+          - list:
+              elements:
+                - env: production
+                  cluster: https://prod.example.com
+
+  template:
+    metadata:
+      name: 'myapp-{{env}}'
+    spec:
+      project: '{{env}}'
+      source:
+        repoURL: https://github.com/<org>/myapp.git
+        targetRevision: HEAD
+        path: overlays/{{env}}
+        kustomize:
+          images:
+            - myapp:v1.0.0
+      destination:
+        server: '{{cluster}}'
+        namespace: myapp

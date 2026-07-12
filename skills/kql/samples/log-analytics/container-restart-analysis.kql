@@ -1,0 +1,44 @@
+// ============================================================
+// Title: Kubernetes Container Restart Analysis
+// Service: Log Analytics
+// Tables: KubePodInventory, ContainerLogV2
+// Description: Finds pods with frequent container restarts and
+//   correlates with recent error logs. Helps identify crash loops,
+//   OOMKills, and misconfigured health probes.
+// Parameters: timeRange (default 6h), restartThreshold (default 3)
+// Complexity: Intermediate
+// ============================================================
+
+let timeRange = 6h;
+let restartThreshold = 3;
+// Step 1: Find pods with high restart counts
+let restartingPods = KubePodInventory
+| where TimeGenerated > ago(timeRange)
+| where ContainerRestartCount >= restartThreshold
+| summarize
+    arg_max(TimeGenerated, *),
+    MaxRestarts = max(ContainerRestartCount)
+    by ContainerName, PodName, Namespace, ClusterName
+| project PodName, Namespace, ClusterName, ContainerName, MaxRestarts, PodStatus;
+// Step 2: Get recent error logs from those containers
+let errorLogs = ContainerLogV2
+| where TimeGenerated > ago(timeRange)
+| where LogLevel in ("error", "fatal", "critical")
+| where PodName in ((restartingPods | project PodName))
+| summarize
+    ErrorCount = count(),
+    RecentErrors = make_list(LogMessage, 5)
+    by PodName, ContainerName;
+// Step 3: Join restart info with error context
+restartingPods
+| join kind=leftouter errorLogs on PodName, ContainerName
+| project
+    ClusterName,
+    Namespace,
+    PodName,
+    ContainerName,
+    MaxRestarts,
+    PodStatus,
+    ErrorCount = coalesce(ErrorCount, 0),
+    RecentErrors = coalesce(RecentErrors, dynamic([]))
+| sort by MaxRestarts desc

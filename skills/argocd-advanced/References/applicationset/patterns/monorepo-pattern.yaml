@@ -1,0 +1,400 @@
+# =============================================================================
+# Monorepo Deployment Pattern
+# =============================================================================
+# Manage multiple applications from a single repository using Git generators.
+# Supports automatic discovery based on directory structure.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Pattern 1: Simple Directory Discovery
+# -----------------------------------------------------------------------------
+# Automatically create Applications for each app directory
+#
+# Repository structure:
+#   apps/
+#   ├── api-gateway/
+#   │   ├── kustomization.yaml
+#   │   └── ...
+#   ├── user-service/
+#   │   └── kustomization.yaml
+#   └── order-service/
+#       └── kustomization.yaml
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: monorepo-apps-discovery
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/monorepo.git
+        revision: HEAD
+        directories:
+          - path: apps/*
+          # Exclude specific directories
+          - path: apps/deprecated-*
+            exclude: true
+  template:
+    metadata:
+      name: '{{ .path.basename }}'
+      labels:
+        app.kubernetes.io/name: '{{ .path.basename }}'
+        app.kubernetes.io/part-of: monorepo
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/monorepo.git
+        targetRevision: HEAD
+        path: '{{ .path.path }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .path.basename }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 2: Environment Overlays with Kustomize
+# -----------------------------------------------------------------------------
+# Repository structure:
+#   services/
+#   ├── api-gateway/
+#   │   ├── base/
+#   │   │   └── kustomization.yaml
+#   │   └── overlays/
+#   │       ├── dev/
+#   │       │   └── kustomization.yaml
+#   │       ├── staging/
+#   │       │   └── kustomization.yaml
+#   │       └── production/
+#   │       │   └── kustomization.yaml
+#   └── user-service/
+#       ├── base/
+#       └── overlays/
+#           ├── dev/
+#           ├── staging/
+#           └── production/
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: monorepo-kustomize-overlays
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/monorepo.git
+        revision: HEAD
+        directories:
+          # Match: services/{service}/overlays/{env}
+          - path: services/*/overlays/*
+  template:
+    metadata:
+      # segments: [0]=services, [1]=service-name, [2]=overlays, [3]=env
+      name: '{{ index .path.segments 3 }}-{{ index .path.segments 1 }}'
+      labels:
+        service: '{{ index .path.segments 1 }}'
+        environment: '{{ index .path.segments 3 }}'
+    spec:
+      project: '{{ index .path.segments 3 }}'
+      source:
+        repoURL: https://github.com/org/monorepo.git
+        targetRevision: HEAD
+        path: '{{ .path.path }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ index .path.segments 1 }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 3: Config File Discovery (JSON/YAML)
+# -----------------------------------------------------------------------------
+# Repository structure:
+#   apps/
+#   ├── api-gateway/
+#   │   └── config.yaml
+#   ├── user-service/
+#   │   └── config.yaml
+#   └── order-service/
+#       └── config.yaml
+#
+# config.yaml format:
+#   name: api-gateway
+#   team: platform
+#   namespace: gateway
+#   chart: nginx-ingress
+#   repoURL: https://kubernetes.github.io/ingress-nginx
+#   version: "4.8.0"
+#   values:
+#     controller:
+#       replicaCount: 3
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: monorepo-config-files
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/monorepo.git
+        revision: HEAD
+        files:
+          - path: apps/*/config.yaml
+  template:
+    metadata:
+      name: '{{ .name }}'
+      labels:
+        app.kubernetes.io/name: '{{ .name }}'
+        team: '{{ .team }}'
+      annotations:
+        notifications.argoproj.io/subscribe.on-sync-failed.slack: '{{ .team }}-alerts'
+    spec:
+      project: default
+      source:
+        chart: '{{ .chart }}'
+        repoURL: '{{ .repoURL }}'
+        targetRevision: '{{ .version }}'
+        helm:
+          releaseName: '{{ .name }}'
+          values: |
+            {{ .values | toYaml | nindent 12 }}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .namespace }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 4: Matrix - Apps x Environments
+# -----------------------------------------------------------------------------
+# Deploy all apps to all environments
+#
+# Repository structure:
+#   apps/
+#   │   └── */deploy/              # App definitions
+#   environments/
+#   │   └── */config.yaml          # Environment configs
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: monorepo-apps-envs-matrix
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          # Applications
+          - git:
+              repoURL: https://github.com/org/monorepo.git
+              revision: HEAD
+              directories:
+                - path: apps/*/deploy
+          # Environments (from config files)
+          - git:
+              repoURL: https://github.com/org/monorepo.git
+              revision: HEAD
+              files:
+                - path: environments/*/config.yaml
+  template:
+    metadata:
+      # path.segments from first generator, env from second
+      name: '{{ .env }}-{{ index .path.segments 1 }}'
+      labels:
+        app: '{{ index .path.segments 1 }}'
+        environment: '{{ .env }}'
+    spec:
+      project: '{{ .env }}'
+      source:
+        repoURL: https://github.com/org/monorepo.git
+        targetRevision: HEAD
+        path: '{{ .path.path }}'
+        kustomize:
+          # Apply environment-specific patches
+          patches:
+            - target:
+                kind: Deployment
+              patch: |
+                - op: replace
+                  path: /spec/replicas
+                  value: {{ .replicas }}
+      destination:
+        server: '{{ .clusterUrl }}'
+        namespace: '{{ index .path.segments 1 }}'
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 5: Helm Charts in Monorepo
+# -----------------------------------------------------------------------------
+# Repository structure:
+#   charts/
+#   ├── api-gateway/
+#   │   ├── Chart.yaml
+#   │   ├── values.yaml
+#   │   └── templates/
+#   ├── user-service/
+#   │   ├── Chart.yaml
+#   │   ├── values.yaml
+#   │   └── templates/
+#   values/
+#   ├── dev/
+#   │   ├── api-gateway.yaml
+#   │   └── user-service.yaml
+#   └── prd/
+#       ├── api-gateway.yaml
+#       └── user-service.yaml
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: monorepo-helm-charts
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          # Discover Helm charts
+          - git:
+              repoURL: https://github.com/org/monorepo.git
+              revision: HEAD
+              directories:
+                - path: charts/*
+          # Environments
+          - list:
+              elements:
+                - env: dev
+                  cluster: https://dev.example.com:6443
+                - env: prd
+                  cluster: https://prd.example.com:6443
+  template:
+    metadata:
+      name: '{{ .env }}-{{ .path.basename }}'
+    spec:
+      project: '{{ .env }}'
+      source:
+        repoURL: https://github.com/org/monorepo.git
+        targetRevision: HEAD
+        path: '{{ .path.path }}'
+        helm:
+          releaseName: '{{ .path.basename }}'
+          valueFiles:
+            # Chart default values + environment override
+            - values.yaml
+            - ../../values/{{ .env }}/{{ .path.basename }}.yaml
+      destination:
+        server: '{{ .cluster }}'
+        namespace: '{{ .path.basename }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 6: Nested Directories (Deep Monorepo)
+# -----------------------------------------------------------------------------
+# Repository structure:
+#   platform/
+#   ├── us-east/
+#   │   ├── dev/
+#   │   │   ├── api-gateway/
+#   │   │   └── user-service/
+#   │   └── prd/
+#   │       ├── api-gateway/
+#   │       └── user-service/
+#   └── eu-west/
+#       ├── dev/
+#       └── prd/
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: monorepo-nested-directories
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/monorepo.git
+        revision: HEAD
+        directories:
+          # Match: platform/{region}/{env}/{app}
+          - path: platform/*/*/**
+  template:
+    metadata:
+      # segments: [0]=platform, [1]=region, [2]=env, [3]=app
+      name: '{{ index .path.segments 1 }}-{{ index .path.segments 2 }}-{{ index .path.segments 3 }}'
+      labels:
+        region: '{{ index .path.segments 1 }}'
+        environment: '{{ index .path.segments 2 }}'
+        app: '{{ index .path.segments 3 }}'
+    spec:
+      project: '{{ index .path.segments 2 }}'
+      source:
+        repoURL: https://github.com/org/monorepo.git
+        targetRevision: HEAD
+        path: '{{ .path.path }}'
+      destination:
+        server: 'https://{{ index .path.segments 1 }}-{{ index .path.segments 2 }}.example.com:6443'
+        namespace: '{{ index .path.segments 3 }}'
+
+---
+# -----------------------------------------------------------------------------
+# Best Practices for Monorepo Pattern
+# -----------------------------------------------------------------------------
+# 1. Directory Structure Conventions:
+#    - Use consistent naming (kebab-case)
+#    - Separate apps from shared configs
+#    - Group by logical boundaries (team, domain, environment)
+#
+# 2. Use .argocd-allow-deny for control:
+#    .argocd-allow-deny:
+#      allow:
+#        - path/to/allowed/*
+#      deny:
+#        - path/to/denied/*
+#
+# 3. Path Segments for naming:
+#    - index .path.segments N - Access specific directory level
+#    - .path.basename - Last directory name
+#    - .path.path - Full path
+#    - .path.filenameNormalized - Filename without extension
+#
+# 4. Exclude patterns for flexibility:
+#    directories:
+#      - path: apps/*
+#      - path: apps/legacy-*
+#        exclude: true
+#
+# 5. Config file validation:
+#    - Use JSON Schema to validate config.yaml files
+#    - Add pre-commit hooks to catch errors early
+# =============================================================================

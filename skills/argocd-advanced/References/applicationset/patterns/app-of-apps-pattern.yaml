@@ -1,0 +1,431 @@
+# =============================================================================
+# App-of-Apps Pattern with ApplicationSets
+# =============================================================================
+# Bootstrap entire environments or clusters with a single ApplicationSet.
+# Creates hierarchical application management with parent-child relationships.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Pattern 1: Root ApplicationSet (Bootstrap)
+# -----------------------------------------------------------------------------
+# Single ApplicationSet that bootstraps all cluster components
+#
+# Repository structure:
+#   bootstrap/
+#   ├── argocd/                    # ArgoCD itself
+#   ├── infrastructure/
+#   │   └── applicationset.yaml    # Creates infra apps
+#   └── applications/
+#       └── applicationset.yaml    # Creates business apps
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: cluster-bootstrap
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/gitops-bootstrap.git
+        revision: HEAD
+        directories:
+          - path: bootstrap/*
+  template:
+    metadata:
+      name: 'bootstrap-{{ .path.basename }}'
+      labels:
+        app.kubernetes.io/part-of: cluster-bootstrap
+        layer: bootstrap
+    spec:
+      project: bootstrap
+      source:
+        repoURL: https://github.com/org/gitops-bootstrap.git
+        targetRevision: HEAD
+        path: '{{ .path.path }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 2: Infrastructure Layer ApplicationSet
+# -----------------------------------------------------------------------------
+# Manages infrastructure components (cert-manager, ingress, monitoring, etc.)
+#
+# Repository structure:
+#   infrastructure/
+#   ├── cert-manager/
+#   │   └── config.yaml
+#   ├── external-dns/
+#   │   └── config.yaml
+#   ├── ingress-nginx/
+#   │   └── config.yaml
+#   └── monitoring/
+#       └── config.yaml
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: infrastructure
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/infrastructure.git
+        revision: HEAD
+        files:
+          - path: "*/config.yaml"
+  template:
+    metadata:
+      name: 'infra-{{ .name }}'
+      labels:
+        app.kubernetes.io/part-of: infrastructure
+        layer: infrastructure
+        component: '{{ .name }}'
+      annotations:
+        # Sync wave for ordering
+        argocd.argoproj.io/sync-wave: '{{ .syncWave | default "0" }}'
+    spec:
+      project: infrastructure
+      source:
+        chart: '{{ .chart }}'
+        repoURL: '{{ .repoURL }}'
+        targetRevision: '{{ .version }}'
+        helm:
+          releaseName: '{{ .name }}'
+          values: |
+            {{ .values | toYaml | nindent 12 }}
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .namespace }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+
+---
+# Example config.yaml for cert-manager:
+# name: cert-manager
+# chart: cert-manager
+# repoURL: https://charts.jetstack.io
+# version: "1.13.0"
+# namespace: cert-manager
+# syncWave: "-2"
+# values:
+#   installCRDs: true
+#   prometheus:
+#     enabled: true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 3: Application Layer with Dependencies
+# -----------------------------------------------------------------------------
+# Applications that depend on infrastructure components
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: applications
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/applications.git
+        revision: HEAD
+        files:
+          - path: "apps/*/app.yaml"
+  template:
+    metadata:
+      name: '{{ .name }}'
+      labels:
+        app.kubernetes.io/name: '{{ .name }}'
+        app.kubernetes.io/part-of: applications
+        layer: application
+        team: '{{ .team }}'
+      annotations:
+        # Applications sync after infrastructure
+        argocd.argoproj.io/sync-wave: '{{ .syncWave | default "10" }}'
+        notifications.argoproj.io/subscribe.on-sync-failed.slack: '{{ .team }}-alerts'
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: '{{ .project | default "default" }}'
+      sources:
+        - chart: '{{ .chart }}'
+          repoURL: '{{ .chartRepo }}'
+          targetRevision: '{{ .chartVersion }}'
+          helm:
+            releaseName: '{{ .name }}'
+            valueFiles:
+              - $values/{{ .name }}/values.yaml
+        - repoURL: https://github.com/org/helm-values.git
+          targetRevision: main
+          ref: values
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .namespace }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 4: Multi-Cluster App-of-Apps
+# -----------------------------------------------------------------------------
+# Bootstrap multiple clusters from a single ApplicationSet
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: multi-cluster-bootstrap
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - matrix:
+        generators:
+          # Target clusters
+          - clusters:
+              selector:
+                matchLabels:
+                  bootstrap: enabled
+          # Components to deploy
+          - git:
+              repoURL: https://github.com/org/cluster-bootstrap.git
+              revision: HEAD
+              directories:
+                - path: components/*
+  template:
+    metadata:
+      name: '{{ .name }}-{{ .path.basename }}'
+      labels:
+        cluster: '{{ .name }}'
+        component: '{{ .path.basename }}'
+    spec:
+      project: cluster-bootstrap
+      source:
+        repoURL: https://github.com/org/cluster-bootstrap.git
+        targetRevision: HEAD
+        path: '{{ .path.path }}'
+        helm:
+          parameters:
+            - name: cluster.name
+              value: '{{ .name }}'
+            - name: cluster.server
+              value: '{{ .server }}'
+      destination:
+        server: '{{ .server }}'
+        namespace: '{{ .path.basename }}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 5: Progressive Sync App-of-Apps
+# -----------------------------------------------------------------------------
+# Roll out applications progressively with RollingSync
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: progressive-rollout
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - clusters:
+        selector:
+          matchLabels:
+            environment: production
+        # Add rollout metadata
+        values:
+          rolloutGroup: production
+  # Progressive sync strategy
+  strategy:
+    type: RollingSync
+    rollingSync:
+      steps:
+        # Step 1: Canary cluster (10% traffic)
+        - matchExpressions:
+            - key: tier
+              operator: In
+              values:
+                - canary
+          maxUpdate: 1
+        # Step 2: Non-critical clusters
+        - matchExpressions:
+            - key: tier
+              operator: In
+              values:
+                - standard
+          maxUpdate: 2
+        # Step 3: Critical clusters (one at a time)
+        - matchExpressions:
+            - key: tier
+              operator: In
+              values:
+                - critical
+          maxUpdate: 1
+  template:
+    metadata:
+      name: '{{ .name }}-platform'
+    spec:
+      project: production
+      source:
+        repoURL: https://github.com/org/platform.git
+        targetRevision: HEAD
+        path: platform
+      destination:
+        server: '{{ .server }}'
+        namespace: platform
+
+---
+# -----------------------------------------------------------------------------
+# Pattern 6: Environment-Based Hierarchy
+# -----------------------------------------------------------------------------
+# Structure: Root -> Environment -> Applications
+#
+# ApplicationSet hierarchy:
+#   root-bootstrap
+#     └── env-applicationsets (dev, staging, prod)
+#           └── app-applicationsets (per environment)
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: environment-bootstrap
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - list:
+        elements:
+          - env: dev
+            cluster: https://dev.example.com:6443
+            autoSync: "true"
+            project: development
+          - env: staging
+            cluster: https://staging.example.com:6443
+            autoSync: "true"
+            project: staging
+          - env: production
+            cluster: https://prod.example.com:6443
+            autoSync: "false"  # Manual sync for production
+            project: production
+  template:
+    metadata:
+      name: '{{ .env }}-apps'
+      labels:
+        environment: '{{ .env }}'
+        layer: environment
+    spec:
+      project: '{{ .project }}'
+      source:
+        repoURL: https://github.com/org/gitops.git
+        targetRevision: HEAD
+        path: 'environments/{{ .env }}'
+      destination:
+        server: '{{ .cluster }}'
+        namespace: argocd
+      # Conditional sync policy
+      {{ if eq .autoSync "true" }}
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+      {{ end }}
+
+---
+# -----------------------------------------------------------------------------
+# Supporting: AppProject for Bootstrap
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: bootstrap
+  namespace: argocd
+spec:
+  description: Bootstrap project for cluster initialization
+  sourceRepos:
+    - https://github.com/org/*
+  destinations:
+    - namespace: '*'
+      server: '*'
+  # Allow creating other ApplicationSets
+  clusterResourceWhitelist:
+    - group: 'argoproj.io'
+      kind: ApplicationSet
+    - group: 'argoproj.io'
+      kind: Application
+    - group: 'argoproj.io'
+      kind: AppProject
+    - group: ''
+      kind: Namespace
+
+---
+# -----------------------------------------------------------------------------
+# Best Practices for App-of-Apps
+# -----------------------------------------------------------------------------
+# 1. Layer Organization:
+#    Layer 0: Bootstrap (ArgoCD itself, base CRDs)
+#    Layer 1: Infrastructure (cert-manager, ingress, monitoring)
+#    Layer 2: Platform (databases, message queues, caches)
+#    Layer 3: Applications (business applications)
+#
+# 2. Sync Wave Ordering:
+#    -3: CRDs and cluster-wide resources
+#    -2: Certificate managers, secrets operators
+#    -1: Ingress controllers, DNS operators
+#     0: Default (most applications)
+#    10: Applications dependent on infrastructure
+#
+# 3. Dependency Management:
+#    - Use sync-waves to order deployments
+#    - Consider using sync hooks for critical dependencies
+#    - Use health checks to verify readiness
+#
+# 4. Project Isolation:
+#    - Separate projects per layer/environment
+#    - Limit cluster resources per project
+#    - Use RBAC to control access
+#
+# 5. Repository Structure:
+#    gitops-repo/
+#    ├── bootstrap/
+#    │   ├── argocd/
+#    │   └── root-applicationsets/
+#    ├── infrastructure/
+#    │   ├── cert-manager/
+#    │   └── ingress-nginx/
+#    ├── platform/
+#    │   ├── postgresql/
+#    │   └── redis/
+#    └── applications/
+#        ├── api-gateway/
+#        └── user-service/
+# =============================================================================

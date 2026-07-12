@@ -1,0 +1,30 @@
+{
+  "name": "precommit-tools",
+  "version": "1.0.0",
+  "description": "TypeScript tools for managing pre-commit configurations",
+  "type": "module",
+  "scripts": {
+    "manager": "bun run PreCommitManager.ts",
+    "generator": "bun run HookGenerator.ts",
+    "validator": "bun run HookValidator.ts",
+    "status": "bun run PreCommitManager.ts status",
+    "install": "bun run PreCommitManager.ts install",
+    "run": "bun run PreCommitManager.ts run --all-files",
+    "update": "bun run PreCommitManager.ts update",
+    "validate": "bun run HookValidator.ts",
+    "generate:python": "bun run HookGenerator.ts python",
+    "generate:javascript": "bun run HookGenerator.ts javascript",
+    "generate:terraform": "bun run HookGenerator.ts terraform",
+    "generate:minimal": "bun run HookGenerator.ts minimal"
+  },
+  "dependencies": {
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "bun": ">=1.0.0"
+  }
+}

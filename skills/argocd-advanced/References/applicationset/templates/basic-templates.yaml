@@ -1,0 +1,254 @@
+# =============================================================================
+# Basic Template Examples
+# =============================================================================
+# Templates define the Application structure. These examples cover common
+# template patterns from simple to advanced.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Minimal Template - Git Source
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: minimal-git-template
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: app1
+            path: apps/app1
+          - name: app2
+            path: apps/app2
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/repo.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{name}}'
+
+---
+# -----------------------------------------------------------------------------
+# Helm Chart Template
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: helm-template
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - app: nginx
+            chart: nginx
+            version: "15.0.0"
+            namespace: web
+          - app: redis
+            chart: redis
+            version: "18.0.0"
+            namespace: cache
+  template:
+    metadata:
+      name: '{{app}}'
+    spec:
+      project: default
+      source:
+        # Helm chart from repository
+        chart: '{{chart}}'
+        repoURL: https://charts.bitnami.com/bitnami
+        targetRevision: '{{version}}'
+        helm:
+          releaseName: '{{app}}'
+          # Inline values
+          values: |
+            replicaCount: 2
+            resources:
+              requests:
+                memory: 256Mi
+                cpu: 100m
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{namespace}}'
+
+---
+# -----------------------------------------------------------------------------
+# Template with Full Metadata
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: full-metadata-template
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: frontend
+            team: ui
+            tier: web
+            oncall: frontend-team
+          - name: backend
+            team: api
+            tier: service
+            oncall: backend-team
+  template:
+    metadata:
+      name: '{{name}}'
+      labels:
+        app.kubernetes.io/name: '{{name}}'
+        app.kubernetes.io/managed-by: argocd
+        team: '{{team}}'
+        tier: '{{tier}}'
+      annotations:
+        # Notification subscriptions
+        notifications.argoproj.io/subscribe.on-sync-succeeded.slack: '{{oncall}}'
+        notifications.argoproj.io/subscribe.on-sync-failed.slack: '{{oncall}}'
+        notifications.argoproj.io/subscribe.on-health-degraded.slack: '{{oncall}}'
+        # Custom annotations
+        support-team: '{{team}}'
+      # Finalizers for cleanup
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/apps.git
+        targetRevision: HEAD
+        path: 'apps/{{name}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{name}}'
+      # Info links for ArgoCD UI
+      info:
+        - name: Documentation
+          value: 'https://docs.example.com/{{name}}'
+        - name: Runbook
+          value: 'https://runbooks.example.com/{{name}}'
+        - name: Dashboard
+          value: 'https://grafana.example.com/d/{{name}}'
+
+---
+# -----------------------------------------------------------------------------
+# Template with Sync Policy
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: sync-policy-template
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: critical-app
+            autoSync: "true"
+            prune: "true"
+          - name: manual-app
+            autoSync: "false"
+            prune: "false"
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/apps.git
+        targetRevision: HEAD
+        path: '{{name}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{name}}'
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+          allowEmpty: false
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+        syncOptions:
+          - Validate=true
+          - CreateNamespace=true
+          - PrunePropagationPolicy=foreground
+          - PruneLast=true
+          - ApplyOutOfSyncOnly=true
+          - ServerSideApply=true
+        # Managed namespace metadata
+        managedNamespaceMetadata:
+          labels:
+            managed-by: argocd
+            app: '{{name}}'
+
+---
+# -----------------------------------------------------------------------------
+# Template with Ignore Differences
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: ignore-diff-template
+  namespace: argocd
+spec:
+  generators:
+    - list:
+        elements:
+          - name: stateful-app
+  template:
+    metadata:
+      name: '{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/apps.git
+        targetRevision: HEAD
+        path: '{{name}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{name}}'
+      ignoreDifferences:
+        # Ignore deployment replicas (managed by HPA)
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas
+        # Ignore dynamic annotations
+        - group: apps
+          kind: Deployment
+          jqPathExpressions:
+            - .metadata.annotations["deployment.kubernetes.io/revision"]
+            - .metadata.annotations["kubectl.kubernetes.io/last-applied-configuration"]
+        # Ignore Service cluster IPs
+        - group: ""
+          kind: Service
+          jsonPointers:
+            - /spec/clusterIP
+            - /spec/clusterIPs
+        # Ignore specific field in named resource
+        - group: ""
+          kind: ConfigMap
+          name: dynamic-config
+          jsonPointers:
+            - /data/lastUpdated
+        # Ignore PVC capacity (Azure disk resizing)
+        - group: ""
+          kind: PersistentVolumeClaim
+          jsonPointers:
+            - /spec/resources/requests/storage
+        # Ignore StatefulSet VolumeClaimTemplate drift
+        - group: apps
+          kind: StatefulSet
+          jqPathExpressions:
+            - .spec.volumeClaimTemplates[]?.apiVersion
+            - .spec.volumeClaimTemplates[]?.kind
+            - .spec.volumeClaimTemplates[]?.status

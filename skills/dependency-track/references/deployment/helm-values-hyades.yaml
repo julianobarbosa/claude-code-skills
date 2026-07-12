@@ -1,0 +1,509 @@
+# Dependency-Track Hyades Helm Values
+# Chart: dependency-track/hyades (v0.10.0)
+# App Version: 0.6.0-SNAPSHOT
+# Repository: https://dependencytrack.github.io/helm-charts
+#
+# WARNING: Hyades is NOT generally available yet. Breaking changes may occur
+# without prior notice. Use only in test environments.
+# GA Roadmap: https://github.com/DependencyTrack/hyades/issues/860
+
+---
+# Common settings shared across all components
+common:
+  nameOverride: ""
+  fullnameOverride: ""
+  image:
+    registry: ghcr.io
+    pullSecrets: []
+
+  # External PostgreSQL database (REQUIRED)
+  database:
+    jdbcUrl: "jdbc:postgresql://postgres:5432/dtrack"
+    username: "dtrack"
+    password: ""  # Use secret reference instead
+
+  # Apache Kafka configuration (REQUIRED)
+  kafka:
+    bootstrapServers: "kafka:9092"
+    topicPrefix: ""  # Optional prefix for all Kafka topics
+
+  secretKey:
+    # Generate a secret key upon deployment
+    createSecret: true
+    # Or use an existing secret
+    # existingSecretName: "hyades-secret-key"
+
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: ""
+    automount: false
+
+# API Server Configuration
+apiServer:
+  enabled: true
+
+  # Horizontal Pod Autoscaling
+  autoScaling:
+    enabled: true
+    annotations: {}
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 70
+
+  # Used when autoscaling is disabled
+  replicaCount: 1
+
+  deployment:
+    strategy:
+      type: RollingUpdate
+
+  annotations: {}
+
+  image:
+    registry: ""  # Uses common.image.registry if empty
+    repository: dependencytrack/hyades-apiserver
+    tag: snapshot
+    pullPolicy: Always
+
+  command: []
+  args: []
+
+  resources:
+    requests:
+      cpu: "2"
+      memory: 2Gi
+    limits:
+      cpu: "4"
+      memory: 2Gi
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  extraEnv: []
+  extraEnvFrom: []
+
+  probes:
+    liveness:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+    readiness:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+
+  service:
+    type: ClusterIP
+    nodePort: ~
+    port: 8080
+    annotations: {}
+
+  serviceMonitor:
+    enabled: true
+    namespace: monitoring
+    scrapeInternal: 15s
+    scrapeTimeout: 30s
+
+  # Grace period for pod termination
+  terminationGracePeriodSeconds: 60
+
+  initContainers: []
+  extraContainers: []
+  additionalVolumes: []
+  additionalVolumeMounts: []
+  tolerations: []
+  nodeSelector: {}
+
+# Database Initializer Job
+initializer:
+  # Enable for initial setup and migrations
+  enabled: true
+
+  # Deploy as Helm hook (post-install, post-upgrade)
+  # Set to true if using --wait flag with helm install/upgrade
+  noHelmHook: false
+
+  annotations: {}
+
+  image:
+    registry: ""
+    repository: dependencytrack/hyades-apiserver
+    tag: snapshot
+    pullPolicy: Always
+
+  command: []
+  args: []
+
+  resources:
+    requests:
+      cpu: 150m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  extraEnv: []
+  extraEnvFrom: []
+  tolerations: []
+  nodeSelector: {}
+
+  waiter:
+    image:
+      registry: "docker.io"
+      repository: bitnami/kubectl
+      tag: latest
+      pullPolicy: Always
+    createRole: true
+
+# Frontend Configuration
+frontend:
+  enabled: true
+
+  autoScaling:
+    enabled: false
+    annotations: {}
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 70
+
+  replicaCount: 2
+
+  deployment:
+    strategy:
+      type: RollingUpdate
+
+  annotations: {}
+
+  image:
+    registry: ""
+    repository: dependencytrack/hyades-frontend
+    tag: snapshot
+    pullPolicy: Always
+
+  command: []
+  args: []
+
+  resources:
+    requests:
+      cpu: 150m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 128Mi
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    readOnlyRootFilesystem: false  # Required for frontend
+    seccompProfile:
+      type: RuntimeDefault
+
+  extraEnv: []
+  extraEnvFrom: []
+
+  probes:
+    liveness:
+      failureThreshold: 3
+      initialDelaySeconds: 5
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+    readiness:
+      failureThreshold: 3
+      initialDelaySeconds: 5
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+
+  service:
+    type: ClusterIP
+    nodePort: ~
+    port: 8080
+    annotations: {}
+
+  apiBaseUrl: ""
+
+  initContainers: []
+  extraContainers: []
+  additionalVolumes: []
+  additionalVolumeMounts: []
+  tolerations: []
+  nodeSelector: {}
+
+# Notification Publisher Service
+notificationPublisher:
+  enabled: true
+
+  autoScaling:
+    enabled: false
+    annotations: {}
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 70
+
+  replicaCount: 1
+
+  deployment:
+    # Recreate recommended - avoids Kafka consumer rebalances
+    strategy:
+      type: Recreate
+
+  annotations: {}
+
+  image:
+    registry: ""
+    repository: dependencytrack/hyades-notification-publisher
+    tag: snapshot-native
+    pullPolicy: Always
+
+  command: []
+  args: []
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  extraEnv: []
+  extraEnvFrom: []
+
+  probes:
+    liveness:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+    readiness:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+
+  initContainers: []
+  extraContainers: []
+  additionalVolumes: []
+  additionalVolumeMounts: []
+  tolerations: []
+  nodeSelector: {}
+
+# Repository Metadata Analyzer Service
+repoMetaAnalyzer:
+  enabled: true
+
+  autoScaling:
+    enabled: false
+    annotations: {}
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 70
+
+  replicaCount: 1
+
+  deployment:
+    # Recreate recommended - avoids Kafka consumer rebalances
+    strategy:
+      type: Recreate
+
+  annotations: {}
+
+  image:
+    registry: ""
+    repository: dependencytrack/hyades-repository-meta-analyzer
+    tag: snapshot-native
+    pullPolicy: Always
+
+  command: []
+  args: []
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  extraEnv: []
+  extraEnvFrom: []
+
+  probes:
+    liveness:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+    readiness:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+
+  initContainers: []
+  extraContainers: []
+  additionalVolumes: []
+  additionalVolumeMounts: []
+  tolerations: []
+  nodeSelector: {}
+
+# Vulnerability Analyzer Service
+vulnAnalyzer:
+  enabled: true
+
+  # Enable StatefulSet when using RocksDB for state storage
+  useStatefulSet: false
+
+  autoScaling:
+    enabled: false
+    annotations: {}
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+    targetMemoryUtilizationPercentage: 70
+
+  replicaCount: 1
+
+  deployment:
+    # Recreate recommended - avoids Kafka consumer rebalances
+    strategy:
+      type: Recreate
+
+  annotations: {}
+
+  image:
+    registry: ""
+    repository: dependencytrack/hyades-vulnerability-analyzer
+    tag: snapshot-native
+    pullPolicy: Always
+
+  command: []
+  args: []
+
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "2"
+      memory: 2Gi
+
+  securityContext:
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop:
+        - ALL
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    seccompProfile:
+      type: RuntimeDefault
+
+  # Persistent volume for RocksDB state (requires useStatefulSet: true)
+  persistentVolume:
+    enabled: false
+    className: ""
+    size: 2Gi
+
+  extraEnv: []
+  # Enable RocksDB for persistent state:
+  # extraEnv:
+  #   - name: STATE_STORE_TYPE
+  #     value: "rocks_db"
+
+  extraEnvFrom: []
+
+  probes:
+    liveness:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+    readiness:
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 15
+      successThreshold: 1
+      timeoutSeconds: 5
+
+  service:
+    annotations: {}
+
+  initContainers: []
+  extraContainers: []
+  additionalVolumes: []
+  additionalVolumeMounts: []
+  tolerations: []
+  nodeSelector: {}
+
+# Ingress Configuration
+ingress:
+  enabled: true
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "100m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+  hostname: "dtrack.example.com"
+  ingressClassName: nginx
+  tls:
+    - secretName: dtrack-tls
+      hosts:
+        - dtrack.example.com
+
+# Extra Kubernetes objects
+extraObjects: []

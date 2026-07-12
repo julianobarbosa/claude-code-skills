@@ -1,0 +1,37 @@
+# 1Password Secret Reference Template
+# Use with: op run --env-file .env.tpl -- <command>
+# Or: op inject -i .env.tpl -o .env
+#
+# Replace <vault> and <env-name> with your actual values
+
+# Application
+APP_NAME=my-app
+APP_ENV=production
+DEBUG=false
+
+# API Keys (from 1Password)
+API_KEY=op://<vault>/<env-name>/variables/API_KEY
+API_SECRET=op://<vault>/<env-name>/variables/API_SECRET
+
+# Database (from 1Password)
+DB_HOST=op://<vault>/<env-name>/variables/DB_HOST
+DB_PORT=op://<vault>/<env-name>/variables/DB_PORT
+DB_NAME=op://<vault>/<env-name>/variables/DB_NAME
+DB_USER=op://<vault>/<env-name>/variables/DB_USER
+DB_PASSWORD=op://<vault>/<env-name>/variables/DB_PASSWORD
+
+# Redis (from 1Password)
+REDIS_HOST=op://<vault>/<env-name>/variables/REDIS_HOST
+REDIS_PORT=op://<vault>/<env-name>/variables/REDIS_PORT
+REDIS_PASSWORD=op://<vault>/<env-name>/variables/REDIS_PASSWORD
+
+# AWS (from 1Password)
+AWS_ACCESS_KEY_ID=op://<vault>/<env-name>/variables/AWS_ACCESS_KEY_ID
+AWS_SECRET_ACCESS_KEY=op://<vault>/<env-name>/variables/AWS_SECRET_ACCESS_KEY
+AWS_REGION=op://<vault>/<env-name>/variables/AWS_REGION
+
+# Azure (from 1Password)
+AZURE_SUBSCRIPTION_ID=op://<vault>/<env-name>/variables/AZURE_SUBSCRIPTION_ID
+AZURE_TENANT_ID=op://<vault>/<env-name>/variables/AZURE_TENANT_ID
+AZURE_CLIENT_ID=op://<vault>/<env-name>/variables/AZURE_CLIENT_ID
+AZURE_CLIENT_SECRET=op://<vault>/<env-name>/variables/AZURE_CLIENT_SECRET

@@ -1,0 +1,297 @@
+# =============================================================================
+# Matrix and Merge Generator Examples
+# =============================================================================
+# Matrix: Combines two generators into Cartesian product
+# Merge: Combines generators with merge semantics (key-based override)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Matrix Generator - Clusters x Applications
+# -----------------------------------------------------------------------------
+# Creates Applications for every combination of cluster and app
+# Total apps = clusters * apps (e.g., 3 clusters x 5 apps = 15 Applications)
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: matrix-cluster-apps
+  namespace: argocd
+spec:
+  generators:
+    - matrix:
+        generators:
+          # First generator: Clusters
+          - clusters:
+              selector:
+                matchLabels:
+                  environment: production
+          # Second generator: Applications from Git
+          - git:
+              repoURL: https://github.com/org/apps.git
+              revision: HEAD
+              directories:
+                - path: apps/*
+  template:
+    metadata:
+      # Combines cluster name with app name
+      name: '{{name}}-{{path.basename}}'
+      labels:
+        cluster: '{{name}}'
+        app: '{{path.basename}}'
+    spec:
+      project: production
+      source:
+        repoURL: https://github.com/org/apps.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: '{{server}}'
+        namespace: '{{path.basename}}'
+
+---
+# -----------------------------------------------------------------------------
+# Matrix Generator - Environments x Services
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: matrix-env-services
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - matrix:
+        generators:
+          # Environments with their configurations
+          - list:
+              elements:
+                - env: dev
+                  cluster: https://dev.example.com:6443
+                  replicas: "1"
+                - env: staging
+                  cluster: https://staging.example.com:6443
+                  replicas: "2"
+                - env: production
+                  cluster: https://prod.example.com:6443
+                  replicas: "3"
+          # Services to deploy
+          - list:
+              elements:
+                - service: api
+                  port: "8080"
+                - service: web
+                  port: "3000"
+                - service: worker
+                  port: "9000"
+  template:
+    metadata:
+      name: '{{ .env }}-{{ .service }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/services.git
+        targetRevision: HEAD
+        path: 'services/{{ .service }}'
+        helm:
+          parameters:
+            - name: replicas
+              value: '{{ .replicas }}'
+            - name: service.port
+              value: '{{ .port }}'
+      destination:
+        server: '{{ .cluster }}'
+        namespace: '{{ .service }}'
+
+---
+# -----------------------------------------------------------------------------
+# Matrix Generator - Nested (Three Levels)
+# -----------------------------------------------------------------------------
+# Note: Nested matrices allow 3+ dimensions but increase complexity
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: matrix-nested
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - matrix:
+        generators:
+          # Outer matrix: regions x environments
+          - matrix:
+              generators:
+                - list:
+                    elements:
+                      - region: us-east
+                        regionCode: use
+                      - region: us-west
+                        regionCode: usw
+                - list:
+                    elements:
+                      - env: dev
+                      - env: prod
+          # Inner: applications
+          - git:
+              repoURL: https://github.com/org/apps.git
+              revision: HEAD
+              directories:
+                - path: apps/*
+  template:
+    metadata:
+      name: '{{ .regionCode }}-{{ .env }}-{{ .path.basename }}'
+      labels:
+        region: '{{ .region }}'
+        environment: '{{ .env }}'
+        app: '{{ .path.basename }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/apps.git
+        targetRevision: HEAD
+        path: '{{ .path.path }}'
+      destination:
+        server: 'https://{{ .regionCode }}-{{ .env }}.example.com:6443'
+        namespace: '{{ .path.basename }}'
+
+---
+# -----------------------------------------------------------------------------
+# Merge Generator - Override Defaults
+# -----------------------------------------------------------------------------
+# Merge combines generators using a key field for matching
+# Later generators override earlier ones for matching keys
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: merge-override-example
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - merge:
+        # Key field(s) used to match/merge entries
+        mergeKeys:
+          - cluster
+        generators:
+          # Base configuration for all clusters
+          - clusters:
+              selector:
+                matchLabels:
+                  managed: "true"
+              values:
+                # Default values for all clusters
+                replicas: "2"
+                logLevel: info
+                memoryLimit: 512Mi
+          # Override specific clusters with different values
+          - list:
+              elements:
+                # Production cluster gets higher resources
+                - cluster: production
+                  values:
+                    replicas: "5"
+                    logLevel: warn
+                    memoryLimit: 2Gi
+                # Staging needs debug logging
+                - cluster: staging
+                  values:
+                    logLevel: debug
+  template:
+    metadata:
+      name: '{{ .name }}-app'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/app.git
+        targetRevision: HEAD
+        path: deploy
+        helm:
+          parameters:
+            - name: replicas
+              value: '{{ .values.replicas }}'
+            - name: logging.level
+              value: '{{ .values.logLevel }}'
+            - name: resources.limits.memory
+              value: '{{ .values.memoryLimit }}'
+      destination:
+        server: '{{ .server }}'
+        namespace: myapp
+
+---
+# -----------------------------------------------------------------------------
+# Merge Generator - Multiple Keys
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: merge-multi-key
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - merge:
+        mergeKeys:
+          - env
+          - region
+        generators:
+          # Global defaults
+          - list:
+              elements:
+                - env: dev
+                  region: us
+                  replicas: "1"
+                  resources: small
+                - env: dev
+                  region: eu
+                  replicas: "1"
+                  resources: small
+                - env: prod
+                  region: us
+                  replicas: "3"
+                  resources: large
+                - env: prod
+                  region: eu
+                  replicas: "3"
+                  resources: large
+          # Region-specific overrides
+          - list:
+              elements:
+                # EU production needs more replicas for GDPR compliance
+                - env: prod
+                  region: eu
+                  replicas: "5"
+                  resources: xlarge
+  template:
+    metadata:
+      name: '{{ .env }}-{{ .region }}-app'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/app.git
+        targetRevision: HEAD
+        path: deploy
+      destination:
+        server: 'https://{{ .env }}-{{ .region }}.example.com:6443'
+        namespace: myapp
+
+---
+# -----------------------------------------------------------------------------
+# Matrix vs Merge - When to Use Each
+# -----------------------------------------------------------------------------
+#
+# USE MATRIX WHEN:
+# - You need Cartesian product (all combinations)
+# - Every combination should create an Application
+# - Example: Deploy all apps to all clusters
+#
+# USE MERGE WHEN:
+# - You have defaults that need selective overrides
+# - Not all combinations should exist
+# - Example: Base config with environment-specific exceptions
+#
+# NESTING LIMITS:
+# - Matrix can nest other Matrix generators (but avoid deep nesting)
+# - Merge cannot contain other Merge generators directly
+# - Both can contain any single generator type
+# =============================================================================

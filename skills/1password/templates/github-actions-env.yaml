@@ -1,0 +1,71 @@
+# GitHub Actions workflow using 1Password environments
+# Loads secrets from 1Password environment and injects them into the job
+#
+# Prerequisites:
+# 1. Create service account: op service-account create "GitHub Actions" --vault <vault>:read_items
+# 2. Add OP_SERVICE_ACCOUNT_TOKEN to GitHub repository secrets
+# 3. Create environment in 1Password: op-env-create.sh ci-cd-secrets <vault> ...
+
+name: Deploy with 1Password Environments
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  # Reference your 1Password vault and environment
+  OP_VAULT: CI-CD
+  OP_ENVIRONMENT: ci-cd-secrets
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install 1Password CLI
+        uses: 1password/install-cli-action@v1
+
+      - name: Load secrets from 1Password environment
+        id: load-secrets
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+        run: |
+          # Export all variables from the environment
+          # Using the op-env-export.sh approach
+
+          # Read each secret individually
+          echo "API_KEY=$(op read 'op://${{ env.OP_VAULT }}/${{ env.OP_ENVIRONMENT }}/variables/API_KEY')" >> $GITHUB_ENV
+          echo "DB_PASSWORD=$(op read 'op://${{ env.OP_VAULT }}/${{ env.OP_ENVIRONMENT }}/variables/DB_PASSWORD')" >> $GITHUB_ENV
+
+          # Or use op run with a template file
+          # op run --env-file .env.tpl -- env >> $GITHUB_ENV
+
+      - name: Deploy application
+        run: |
+          # Secrets are now available as environment variables
+          ./deploy.sh
+        env:
+          API_KEY: ${{ env.API_KEY }}
+          DB_PASSWORD: ${{ env.DB_PASSWORD }}
+
+  # Alternative approach using 1password/load-secrets-action
+  deploy-with-action:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Load secrets
+        uses: 1password/load-secrets-action@v2
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          # Map secrets from 1Password to environment variables
+          API_KEY: op://CI-CD/ci-cd-secrets/variables/API_KEY
+          DB_HOST: op://CI-CD/ci-cd-secrets/variables/DB_HOST
+          DB_PASSWORD: op://CI-CD/ci-cd-secrets/variables/DB_PASSWORD
+
+      - name: Deploy
+        run: ./deploy.sh

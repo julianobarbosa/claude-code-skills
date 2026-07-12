@@ -1,0 +1,61 @@
+# ArgoCD API Write-Back Configuration
+# Updates application directly via ArgoCD API (no Git commits)
+# Useful for testing or when Git write-back is not required
+---
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: api-writeback-updater
+  namespace: argocd
+spec:
+  namespace: argocd
+  interval: 2m
+
+  # API write-back (default method when writeBackConfig is not specified)
+  writeBackConfig:
+    method: argocd  # Updates via ArgoCD API
+
+  applicationRefs:
+    - namePattern: dev-*  # Development applications
+      images:
+        - alias: app
+          imageName: myregistry/app:main
+          commonUpdateSettings:
+            updateStrategy: digest  # Track mutable tag
+---
+# When to use ArgoCD API write-back:
+# - Quick testing and development
+# - Applications where GitOps audit trail is not required
+# - Temporary overrides
+#
+# When to use Git write-back instead:
+# - Production environments (audit trail)
+# - GitOps best practices compliance
+# - Permanent, version-controlled changes
+# - Multiple environments from same repository
+---
+# Development Environment Example
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: dev-fast-updater
+  namespace: argocd
+spec:
+  namespace: argocd
+  interval: 1m  # Fast polling for dev
+
+  # Concurrent image checks (reduce for lower resource usage)
+  concurrency: 5
+
+  applicationRefs:
+    - namePattern: dev-*
+      images:
+        - alias: app
+          imageName: dev.registry.io/app
+          commonUpdateSettings:
+            updateStrategy: newest-build
+          tagMatch:
+            pattern: "^feature-.*"  # Feature branch builds
+---
+# Note: API write-back updates are not persisted in Git
+# and will be reset if the application is synced from Git

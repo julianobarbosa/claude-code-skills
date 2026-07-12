@@ -1,0 +1,8 @@
+// Append this to relationships.tmdl
+// Relationship: Fact_Usage -> Dim_Advisor via InstanceId/ImpactedResource
+// Many-to-One: multiple usage rows can map to one advisor recommendation resource
+
+relationship Fact_Usage_to_Dim_Advisor
+    fromColumn: Fact_Usage.InstanceId
+    toColumn: Dim_Advisor.ImpactedResource
+    crossFilteringBehavior: oneDirection

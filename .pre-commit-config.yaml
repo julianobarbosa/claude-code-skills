@@ -1,0 +1,11 @@
+repos:
+  - repo: local
+    hooks:
+      - id: lint-skills
+        name: Validate skills against agent-skills-spec
+        description: Runs scripts/lint-skills.ts to enforce hyphen-case dir names, valid frontmatter, and name-field/dir agreement.
+        entry: bun scripts/lint-skills.ts skills
+        language: system
+        pass_filenames: false
+        files: ^skills/.*\.md$|^scripts/lint-skills\.ts$
+        types_or: [markdown, ts]

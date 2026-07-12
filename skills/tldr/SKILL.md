@@ -1,0 +1,165 @@
+---
+name: tldr
+description: >-
+  Save, read, update, or delete conversation summaries in the vault.
+  USE WHEN tldr, save summary, session summary, what did we do,
+  recap session, conversation summary, update tldr, delete tldr.
+---
+
+# tldr-skill
+
+Manage conversation summaries (tldrs) in the Obsidian vault. Each tldr captures decisions, key things to remember, and next actions.
+
+**Vault root:** Determined from the current working directory or the project's CLAUDE.md context. All paths below are relative to the vault root. Always resolve to absolute paths when reading or writing files.
+
+## Operations
+
+| Command | Operation | Description |
+|---------|-----------|-------------|
+| `/tldr` | **Create** | Summarize session → prompt for project → save |
+| `/tldr read {project}` | **Read** | Show latest tldr for a project |
+| `/tldr update {project}` | **Update** | Append to or revise existing tldr |
+| `/tldr delete {project}` | **Delete** | Remove a tldr (with confirmation) |
+
+## File Naming
+
+```
+01 - Projects/{project-name}/YYYY-MM-DD-HH-mm-{project-name}-tldr.md
+```
+
+Example: `01 - Projects/vault-setup-skill/2026-03-19-12-03-vault-setup-skill-tldr.md`
+
+## Create (default operation)
+
+This is the primary operation when `/tldr` is invoked with no arguments.
+
+### Step 1 — Identify Project
+
+Ask the user:
+
+> **Which project is this for?**
+>
+> Suggest: `{inferred project name from conversation context}`
+
+Use the conversation topic to suggest a project name. The user confirms or provides a different name. Kebab-case the name for the filename.
+
+### Step 2 — Summarize
+
+Extract from the conversation:
+
+1. **What was done** — concrete actions taken, files changed
+2. **What was decided** — design choices, trade-offs, rationale
+3. **Key things to remember** — gotchas, patterns, non-obvious details
+4. **Next actions** — if any remain
+
+### Step 3 — Save
+
+Write to `01 - Projects/{project-name}/YYYY-MM-DD-HH-mm-{project-name}-tldr.md` using current time.
+
+If the project subfolder doesn't exist, create it.
+
+Template:
+
+```markdown
+---
+created: YYYY-MM-DDTHH:mm
+tags:
+  - project/{project-name}
+  - tldr
+status: complete
+---
+
+# YYYY-MM-DD — {Project Name}
+
+## What Was Done
+[concrete actions, files changed]
+
+## Decisions
+[design choices with rationale]
+
+## Key Things to Remember
+[gotchas, patterns, non-obvious details]
+
+## Next Actions
+- [ ] [action items, if any]
+- None — work is complete
+```
+
+### Step 4 — Update Memory
+
+Read `memory.md` at the vault root. Append any new:
+- Session log entry (one line: date + project + what happened)
+- Preferences discovered during the session
+
+Do NOT duplicate existing entries.
+
+## Read
+
+```
+/tldr read {project-name}
+```
+
+Search `01 - Projects/{project-name}/` for files matching `*-{project-name}-tldr.md`. Show the most recent one (by filename timestamp). If multiple exist, list them and ask which to show.
+
+## Update
+
+```
+/tldr update {project-name}
+```
+
+Find the most recent tldr for the project. Read it. Ask the user what to add or change. Edit the file — append new sections or revise existing ones. Update the `updated` frontmatter field.
+
+## Delete
+
+```
+/tldr delete {project-name}
+```
+
+Find tldrs matching the project name. List them with dates. Ask for confirmation before deleting:
+
+> **Delete `01 - Projects/vault-setup-skill/2026-03-19-12-03-vault-setup-skill-tldr.md`?** This cannot be undone.
+
+Only delete after explicit "yes" or "delete it" confirmation.
+
+## Folder Routing
+
+The default destination is `01 - Projects/{project-name}/`. However, route differently when the conversation topic clearly fits another folder:
+
+| Topic | Destination | Example |
+|-------|-------------|---------|
+| Project work (default) | `01 - Projects/{project-name}/` | Most sessions |
+| Client-specific work | `02 - Areas/{client-name}/` | Work for a specific client |
+| Research / evaluation | `03 - Resources/` | Tool evals, investigations |
+| General / no project | `06 - Daily/` | Quick chats, no clear project |
+
+When routing to a non-projects folder, the filename pattern stays the same: `YYYY-MM-DD-HH-mm-{topic}-tldr.md`
+
+## Troubleshooting
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| Project folder doesn't exist | First tldr for this project | Create the folder automatically before writing the file |
+| `memory.md` not found at vault root | File hasn't been created yet | Create it with a header: `# Memory` and append the session log entry |
+| Multiple tldrs for same date | Several sessions in one day | Each gets a unique timestamp in the filename — no conflict |
+| Can't determine vault root | Skill invoked outside a vault context | Ask the user for the vault path, or check CLAUDE.md for vault location |
+
+### Edge Cases
+
+- **No conversation context**: If the session was too short or trivial, ask the user what to capture rather than generating an empty tldr
+- **Project name ambiguity**: If the user says a name that matches multiple folders, list the matches and ask which one
+- **Delete confirmation skipped**: Never delete without explicit confirmation — if the user says anything other than "yes" or "delete it", abort
+
+### Platform Notes
+
+This skill works on macOS, Linux, and Windows. Use forward slashes for vault paths — Obsidian normalizes paths across platforms.
+
+---
+
+## Gotchas
+
+- **Timestamp filename collisions within the same minute:** `YYYY-MM-DD-HH-mm-` resolution means two tldrs created within 60 seconds overwrite each other. Append `-ss` seconds or check existence before write when iterating fast.
+- **`/tldr` with no arg infers project from "conversation context" — often wrong:** The model's inferred name may be the last topic discussed, not the actual project. Always confirm the suggested name with the user before writing — wrong inference creates orphan folders.
+- **`memory.md` append is unbounded and grows without rotation:** Years of session logs end up in a single file. Periodically archive to `memory/YYYY-archive.md` or the file becomes a slow-to-read wall of text.
+- **Kebab-case project name conflicts with existing folders:** `vault-setup-skill` and `vault setup skill` both kebab to the same path. Existing folder is silently reused — confusing if the user meant a new project with similar wording.
+- **Routing table fires on topic keyword match, not user intent:** A session that mentions "research" gets routed to `03 - Resources/` even when it was actual project work. Confirm destination folder before writing, especially for ambiguous topics.
+- **`/tldr delete` matches by glob `*-{project}-tldr.md`:** A project named `api` matches `payment-api-tldr.md` and `internal-api-tldr.md`. List all matches explicitly before any confirmation; never bulk-delete on partial name matches.

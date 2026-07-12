@@ -1,0 +1,49 @@
+# Monitoring Dashboard Template
+# Usage: Copy and customize for system/app monitoring
+#
+# Replace:
+#   - K8S_NAMESPACE: your namespace
+#   - Log paths and commands: match your stack
+
+session_name: monitoring
+environment:
+  K8S_NAMESPACE: default
+
+windows:
+  - window_name: system
+    focus: true
+    layout: tiled
+    panes:
+      - focus: true
+        shell_command:
+          - htop || top
+      - shell_command:
+          - docker stats 2>/dev/null || echo "Docker not running"
+      - shell_command:
+          - watch -n 5 "df -h | head -10"
+      - shell_command:
+          - watch -n 2 "free -h"
+
+  - window_name: kubernetes
+    layout: tiled
+    panes:
+      - shell_command:
+          - watch -n 5 "kubectl get pods -n ${K8S_NAMESPACE} 2>/dev/null || echo 'Not connected'"
+      - shell_command:
+          - kubectl get events -n ${K8S_NAMESPACE} --sort-by='.lastTimestamp' -w 2>/dev/null || echo "No events"
+      - shell_command:
+          - watch -n 10 "kubectl top nodes 2>/dev/null || echo 'Metrics unavailable'"
+      - shell_command:
+          - watch -n 10 "kubectl top pods -n ${K8S_NAMESPACE} 2>/dev/null || echo 'Metrics unavailable'"
+
+  - window_name: logs
+    layout: even-vertical
+    panes:
+      - shell_command:
+          - if command -v stern >/dev/null; then
+              stern -n ${K8S_NAMESPACE} ".*"
+            else
+              kubectl logs -n ${K8S_NAMESPACE} -f --tail=50 --prefix=true 2>/dev/null || echo "No pods"
+            fi
+      - shell_command:
+          - kubectl get events --all-namespaces --field-selector type=Warning --sort-by='.lastTimestamp' 2>/dev/null | tail -30

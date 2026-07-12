@@ -1,0 +1,234 @@
+# =============================================================================
+# Git Generator Examples
+# =============================================================================
+# Git generators create Applications based on Git repository structure.
+# Two types: Directory (folder-based) and File (config file-based)
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# Git Directory Generator - Basic Monorepo
+# -----------------------------------------------------------------------------
+# Creates one Application per directory matching the path pattern
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: git-directory-basic
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/org/monorepo.git
+        revision: HEAD
+        directories:
+          # Include all directories under apps/
+          - path: apps/*
+  template:
+    metadata:
+      # {{path}} = full path, {{path.basename}} = directory name only
+      name: '{{path.basename}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/monorepo.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{path.basename}}'
+
+---
+# -----------------------------------------------------------------------------
+# Git Directory Generator - With Excludes
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: git-directory-exclude
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/org/monorepo.git
+        revision: HEAD
+        directories:
+          # Include all under clusters/
+          - path: clusters/*
+          # Exclude specific directories
+          - path: clusters/deprecated
+            exclude: true
+          - path: clusters/test-*
+            exclude: true
+  template:
+    metadata:
+      name: 'cluster-{{path.basename}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/monorepo.git
+        targetRevision: HEAD
+        path: '{{path}}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{path.basename}}'
+
+---
+# -----------------------------------------------------------------------------
+# Git Directory Generator - Nested Paths (Two-Level)
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: git-directory-nested
+  namespace: argocd
+spec:
+  goTemplate: true
+  generators:
+    - git:
+        repoURL: https://github.com/org/monorepo.git
+        revision: HEAD
+        directories:
+          # Match pattern: environments/{env}/apps/{app}
+          - path: environments/*/apps/*
+  template:
+    metadata:
+      # path[0]=environments, path[1]=env, path[2]=apps, path[3]=app
+      name: '{{ index .path.segments 1 }}-{{ index .path.segments 3 }}'
+      labels:
+        environment: '{{ index .path.segments 1 }}'
+        app: '{{ index .path.segments 3 }}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/org/monorepo.git
+        targetRevision: HEAD
+        path: '{{ .path.path }}'
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ index .path.segments 3 }}'
+
+---
+# -----------------------------------------------------------------------------
+# Git File Generator - JSON Config Files
+# -----------------------------------------------------------------------------
+# Creates Applications based on config files in the repository
+# Supports JSON and YAML files
+# =============================================================================
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: git-file-json
+  namespace: argocd
+spec:
+  generators:
+    - git:
+        repoURL: https://github.com/org/config-repo.git
+        revision: HEAD
+        files:
+          - path: "apps/**/config.json"
+  template:
+    metadata:
+      name: '{{app.name}}'
+      labels:
+        team: '{{app.team}}'
+        tier: '{{app.tier}}'
+    spec:
+      project: '{{app.project}}'
+      source:
+        repoURL: '{{app.source.repoURL}}'
+        targetRevision: '{{app.source.targetRevision}}'
+        path: '{{app.source.path}}'
+      destination:
+        server: '{{app.destination.server}}'
+        namespace: '{{app.destination.namespace}}'
+
+# Example config.json:
+# {
+#   "app": {
+#     "name": "my-application",
+#     "team": "platform",
+#     "tier": "critical",
+#     "project": "production",
+#     "source": {
+#       "repoURL": "https://github.com/org/app.git",
+#       "targetRevision": "v1.2.0",
+#       "path": "deploy/production"
+#     },
+#     "destination": {
+#       "server": "https://prod-cluster:6443",
+#       "namespace": "my-app"
+#     }
+#   }
+# }
+
+---
+# -----------------------------------------------------------------------------
+# Git File Generator - YAML Config Files
+# -----------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: git-file-yaml
+  namespace: argocd
+spec:
+  goTemplate: true
+  goTemplateOptions: ["missingkey=error"]
+  generators:
+    - git:
+        repoURL: https://github.com/org/app-config.git
+        revision: HEAD
+        files:
+          - path: "clusters/*/apps.yaml"
+        # Values from files outside the matched path
+        values:
+          clusterConfigPath: '{{ .path.filenameNormalized }}'
+  template:
+    metadata:
+      name: '{{ .cluster }}-{{ .name }}'
+      annotations:
+        config-source: '{{ .path.path }}'
+    spec:
+      project: '{{ .project | default "default" }}'
+      source:
+        repoURL: '{{ .repoURL }}'
+        targetRevision: '{{ .revision | default "HEAD" }}'
+        path: '{{ .sourcePath }}'
+        helm:
+          valueFiles:
+            - values.yaml
+            - 'values-{{ .cluster }}.yaml'
+      destination:
+        server: '{{ .server }}'
+        namespace: '{{ .namespace }}'
+
+# Example apps.yaml:
+# cluster: production-east
+# server: https://prod-east.example.com:6443
+# apps:
+#   - name: frontend
+#     repoURL: https://github.com/org/frontend.git
+#     sourcePath: deploy
+#     namespace: frontend
+#   - name: backend
+#     repoURL: https://github.com/org/backend.git
+#     sourcePath: charts/backend
+#     namespace: backend
+
+---
+# -----------------------------------------------------------------------------
+# Git Generator - Available Parameters
+# -----------------------------------------------------------------------------
+# Directory Generator Parameters:
+#   {{path}}              - Full directory path
+#   {{path.path}}         - Same as {{path}} (Go template)
+#   {{path.basename}}     - Directory name only
+#   {{path.basenameNormalized}} - RFC 1123 compliant basename
+#   {{path.segments}}     - Array of path segments (Go template)
+#
+# File Generator Parameters:
+#   All fields from the JSON/YAML file are available
+#   {{path.path}}         - Path to the config file
+#   {{path.filename}}     - Config filename
+#   {{path.filenameNormalized}} - RFC 1123 compliant filename
+#   {{path.basenameNormalized}} - Parent directory, normalized
+# =============================================================================

@@ -1,0 +1,74 @@
+# Infrastructure / DevOps Workspace Template
+# Usage: Copy and customize for infrastructure projects
+#
+# Replace:
+#   - session_name: your-infra-project
+#   - environment: your cloud provider vars
+#   - K8s contexts: your cluster names
+
+session_name: infra-ops
+start_directory: ~/Repos/infrastructure
+
+environment:
+  PROJECT_NAME: my-infra
+  RESOURCE_GROUP: rg-myproject
+  K8S_CTX_DEV: aks-myproject-dev
+  K8S_CTX_PRD: aks-myproject-prd
+  APP_NAMESPACE: default
+
+before_script: |
+  echo "Checking prerequisites..."
+  for tool in terraform kubectl helm az; do
+    if command -v $tool >/dev/null 2>&1; then
+      echo "  OK: $tool"
+    else
+      echo "  MISSING: $tool"
+    fi
+  done
+  az account show >/dev/null 2>&1 || echo "Warning: Not logged into Azure (run: az login)"
+
+windows:
+  - window_name: terraform
+    focus: true
+    layout: main-horizontal
+    options:
+      main-pane-height: 70%
+    panes:
+      - focus: true
+        shell_command:
+          - echo "Terraform workspace"
+          - terraform workspace list 2>/dev/null || echo "Not initialized (run: terraform init)"
+      - shell_command:
+          - echo "Plan/Apply output pane"
+
+  - window_name: k8s-dev
+    layout: main-horizontal
+    options:
+      main-pane-height: 65%
+    panes:
+      - shell_command:
+          - kubectl config use-context ${K8S_CTX_DEV} 2>/dev/null || echo "Context not found"
+          - echo "DEV - Full access"
+      - shell_command:
+          - watch -n 5 "kubectl get pods -n ${APP_NAMESPACE} 2>/dev/null || echo 'Not connected'"
+
+  - window_name: k8s-prod
+    layout: even-vertical
+    panes:
+      - shell_command:
+          - echo "PRODUCTION - READ-ONLY"
+          - echo "DO NOT use: apply, delete, edit, patch, scale"
+          - kubectl config use-context ${K8S_CTX_PRD} 2>/dev/null || echo "Context not found"
+      - shell_command:
+          - watch -n 30 "kubectl get pods -n ${APP_NAMESPACE} 2>/dev/null"
+
+  - window_name: monitoring
+    layout: tiled
+    panes:
+      - htop || top
+      - shell_command:
+          - kubectl top nodes 2>/dev/null || echo "No cluster connected"
+      - shell_command:
+          - docker stats --no-stream 2>/dev/null || echo "Docker not running"
+      - shell_command:
+          - kubectl get events --all-namespaces --field-selector type=Warning --sort-by='.lastTimestamp' 2>/dev/null | tail -20
