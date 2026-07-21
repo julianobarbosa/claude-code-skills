@@ -127,7 +127,13 @@ for (let i = 0; i < argv.length; i++) {
 }
 if (!title) fail("--title is required", 2);
 if (!sourceBranch) sourceBranch = currentBranch();
-if (!workItem) workItem = parseWorkItem(sourceBranch);
+// Branch-name inference is a last-resort heuristic for the no-flags case ONLY.
+// When the caller passed --task/--tasks-file they explicitly asked for item
+// creation — a number scraped from the branch must not preempt it (real incidents:
+// chore/19-4-* linked unrelated Epic #19; bmad/story-24-2-* linked Epic #24
+// despite --task, 2026-07-13). Existence-verification downstream can't catch
+// these because the mis-parsed id IS a real (wrong) item.
+if (!workItem && tasks.length === 0) workItem = parseWorkItem(sourceBranch);
 
 const url = remoteUrl(remote);
 const kind = detectKind(url);
@@ -135,6 +141,37 @@ if (bodyFile) body = readFileSync(bodyFile, "utf8");
 const tags = parseTags(tagFlags);
 const optionalReviewers = parseTags(reviewerFlags);        // reuse CSV split + dedupe
 const requiredReviewers = parseTags(requiredReviewerFlags);
+
+// A PR with no label is invisible to triage and to release-note grouping, and no
+// platform can gate it — neither ADO nor GitHub has a "require a label" policy.
+// So when the caller passed no --tag, derive a type label from the branch prefix
+// (feat/…, fix/…) rather than opening the PR bare. Warn, never fail: `ship` is
+// shared across repos and a hard failure would break unrelated flows.
+const TYPE_FROM_BRANCH: Record<string, string> = {
+  feat: "feat", feature: "feat", fix: "fix", hotfix: "fix", bugfix: "fix",
+  docs: "docs", doc: "docs", chore: "chore", refactor: "refactor",
+};
+if (tags.length === 0) {
+  const prefix = sourceBranch.split("/")[0]?.toLowerCase() ?? "";
+  const derived = TYPE_FROM_BRANCH[prefix];
+  if (derived) {
+    tags.push(derived);
+    console.error(`>> NOTE: no --tag given; derived '${derived}' from branch prefix '${prefix}/'`);
+  } else {
+    console.error(`>> WARNING: opening PR with no tag/label (branch '${sourceBranch}' has no recognised type prefix)`);
+  }
+}
+
+// Same idea for reviewers: a PR with no reviewer record leaves no trace that
+// anyone was asked. SHIP_ADO_DEFAULT_REVIEWER supplies a non-blocking default
+// when the caller named none. Unset = previous behaviour, no reviewer.
+if (optionalReviewers.length === 0 && requiredReviewers.length === 0) {
+  const fallback = (process.env.SHIP_ADO_DEFAULT_REVIEWER ?? "").trim();
+  if (fallback) {
+    optionalReviewers.push(...parseTags([fallback]));
+    console.error(`>> NOTE: no reviewer given; using SHIP_ADO_DEFAULT_REVIEWER (${fallback})`);
+  }
+}
 
 async function runAzure(): Promise<void> {
   const parts = adoParts(url);
