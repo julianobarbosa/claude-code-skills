@@ -111,6 +111,9 @@ bun scripts/ship-pr.ts --title "<title>" --body-file /tmp/pr-body.md \
   and skipped (`reviewer_skipped=…`), never blocking the PR. GitHub has no per-PR "required"
   reviewer (that's branch protection), so required ones are just requested. The script prints
   `reviewer_added=<name> required=<bool>` for each.
+  When neither flag is given, `$SHIP_ADO_DEFAULT_REVIEWER` (if set) is added as an optional
+  reviewer — a PR with no reviewer record leaves no trace that anyone was asked. Unset = no
+  reviewer, the prior behaviour.
 - **Azure never opens a PR without a linked Board work item.** The script resolves the id from
   `--work-item` (or the branch name), then **verifies it actually exists** via the SDK
   (`getWorkItem`). The branch-name parse is only a heuristic — a branch like `1234-foo` can carry a
@@ -134,6 +137,13 @@ Azure DevOps calls them **tags**; GitHub calls them **labels** — same idea: a 
 that helps reviewers triage and helps the team organize PRs. Microsoft's guidance is that tags
 "communicate extra information to reviewers, such as that the PR is still a work in progress, or is a
 hotfix for an upcoming release" ([Add tags to a pull request](https://learn.microsoft.com/azure/devops/repos/git/pull-requests#add-tags-to-a-pull-request)).
+
+**A PR is never opened bare.** With no `--tag`, `ship-pr.ts` derives a type label
+from the branch prefix (`feat/…` → `feat`, `fix/`|`hotfix/`|`bugfix/` → `fix`,
+`docs/` → `docs`, `chore/` → `chore`, `refactor/` → `refactor`) and prints a
+`NOTE`. An unrecognised prefix gets a `WARNING`, not a failure — no platform has a
+"require a label" policy, so this is the only enforcement point, and a hard error
+here would break repos with other conventions.
 
 Apply tags at PR-open time with `--tag` (comma-separated and/or repeatable):
 
