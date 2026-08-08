@@ -104,6 +104,29 @@ export function adoConnection(
   return { conn: new azdev.WebApi(orgUrl, handler), usingPat: !!pat };
 }
 
+/** Resolve a GitHub token for a repo, preferring the account that OWNS it.
+ *
+ *  `gh auth token` answers as whatever account `gh auth status` marks active and
+ *  ignores who owns the repo. With a work account active, every API call against
+ *  a PRIVATE repo owned by another logged-in account comes back 404 — GitHub hides
+ *  the repo rather than admitting a permission problem — so `ship-pr` failed with
+ *  a bare `Not Found` on personal repos. Same defect the git credential helper
+ *  `credential-github-personal.sh` exists to work around; this is the API-side twin.
+ *
+ *  Order: explicit env (an operator override always wins) -> a token for `owner`
+ *  -> the active account. The last step matters for org repos, where the owner is
+ *  not a logged-in account at all and `gh auth token -u <org>` legitimately finds
+ *  nothing. Found 2026-08-08 opening PR #59 on julianobarbosa/.dotfiles. */
+export function githubToken(owner?: string): string {
+  const env = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+  if (env) return env;
+  if (owner) {
+    const owned = sh("gh", ["auth", "token", "-u", owner], { allowFail: true });
+    if (owned) return owned;
+  }
+  return sh("gh", ["auth", "token"], { allowFail: true });
+}
+
 /** Split a CSV/repeated-flag tag list into clean, de-duplicated names.
  *  Drops empty/whitespace entries so they never reach the label API. */
 export function parseTags(values: string[]): string[] {

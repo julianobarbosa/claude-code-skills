@@ -48,7 +48,8 @@ import { readFileSync } from "node:fs";
 import * as azdev from "azure-devops-node-api";
 import { Octokit } from "@octokit/rest";
 import {
-  sh, currentBranch, remoteUrl, detectKind, adoParts, adoToken, parseWorkItem, parseTags,
+  currentBranch, remoteUrl, detectKind, adoParts, adoToken, parseWorkItem, parseTags,
+  githubToken,
 } from "./ship-lib.ts";
 
 function fail(msg: string, code = 1): never {
@@ -300,7 +301,7 @@ async function runGitHub(): Promise<void> {
   const m = url.match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
   if (!m) fail(`could not parse owner/repo from ${url}`);
   const [, owner, repo] = m!;
-  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN || sh("gh", ["auth", "token"], { allowFail: true });
+  const token = githubToken(owner);
   if (!token) fail("no GitHub token: set GH_TOKEN/GITHUB_TOKEN or run `gh auth login`");
 
   const octokit = new Octokit({ auth: token });

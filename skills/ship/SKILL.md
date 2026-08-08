@@ -277,6 +277,12 @@ detected platform. The PR description starts from `assets/pr-template.md`.
 - If `AZURE_DEVOPS_EXT_PAT` is set but under-scoped (e.g. Code-only, missing Work Items / Pull
   Request write), `ship-pr.ts` auto-detects the 401/403 and retries with the `az` OAuth bearer
   token — no need to unset the PAT manually. The fallback requires `az login` as an org member.
+- **A GitHub `404 Not Found` on create is almost always the wrong account, not a missing repo.**
+  `gh auth token` answers as whatever account is *active*, ignoring who owns the repo, and GitHub
+  hides a private repo you can't see rather than returning 403. `ship-pr.ts` / `ship-tag.ts` now call
+  `githubToken(owner)`, which prefers `gh auth token -u <owner>` and falls back to the active account
+  for org repos where the owner isn't a logged-in account; `GH_TOKEN`/`GITHUB_TOKEN` still override
+  everything. If you still get a 404, check `gh auth status` lists the owning account.
 - Don't hand-roll the PR with raw `az repos pr create` / `gh pr create` and then bolt the work item
   on afterward — that path skips the auto-create+link invariant and forces a manual "what's the id?"
   round-trip with the user. Use `ship-pr.ts` so the work item is guaranteed at PR-open.
