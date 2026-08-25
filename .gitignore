@@ -67,3 +67,7 @@ tmp/
 temp/
 *.tmp
 autoresearch-results.tsv
+
+# Nested clone of the book-to-skill fork, symlinked into ~/.claude/skills (not vendored here)
+/book-to-skill
+/skills/book-to-skill/
