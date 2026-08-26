@@ -125,6 +125,26 @@ bun scripts/ship-tag.ts 41666 --list
 #   GET    …/labels    DELETE …/labels/{labelIdOrName}
 ```
 
+#### Verifying a label landed — the single-PR GET will lie to you
+
+`GET …/pullRequests/{prId}` **omits the `labels` key entirely**, and `$expand=labels`
+does not add it. Verified 2026-08-26 against `api-version=7.1` on PRs 706, 708 and 710,
+both with and without the expand — every response returned `has("labels") == false`.
+Read it with `.labels // []` and you get an empty array that looks authoritative, so a
+label that is genuinely present reports as missing.
+
+Two sources actually carry labels:
+
+| Call | Labels? |
+|---|---|
+| `GET …/pullRequests/{prId}` | **never**, `$expand=labels` included |
+| `GET …/pullRequests/{prId}/labels` | yes — authoritative for one PR |
+| `GET …/pullrequests?searchCriteria.status=…` (the **list**) | yes, populated, no expand needed |
+
+`ship-tag.ts --list` uses the SDK's `getPullRequestLabels` (the dedicated endpoint), so it
+is already correct. Bulk auditors should read labels off the **list** response — only work
+items require a per-PR round trip.
+
 ### Recommended tags (best practice)
 
 Microsoft documents the *purpose* (WIP / DO-NOT-MERGE / hotfix) but leaves the vocabulary to the team.
