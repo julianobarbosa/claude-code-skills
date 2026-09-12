@@ -1,0 +1,30 @@
+{
+  "expectations": [
+    {
+      "text": "Surfaces/echoes the PR URL",
+      "passed": true,
+      "evidence": "Reported URL https://github.com/julianobarbosa/.dotfiles/pull/31"
+    },
+    {
+      "text": "Resolves julianomb@gmail.com to profile_dir 'Profile 1'",
+      "passed": true,
+      "evidence": "ship-open.ts --profile resolved profile_dir=Profile 1"
+    },
+    {
+      "text": "Uses the ship-open.ts helper (not ad-hoc jq/cmd.exe)",
+      "passed": true,
+      "evidence": "Ran bun scripts/ship-open.ts --list-profiles then --profile --dry-run"
+    },
+    {
+      "text": "Does NOT ask which profile (it was explicit)",
+      "passed": true,
+      "evidence": "Skipped prompt; email named explicitly, deterministic resolution"
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0,
+    "pass_rate": 1
+  }
+}

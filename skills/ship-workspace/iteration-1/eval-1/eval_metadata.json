@@ -1,0 +1,11 @@
+{
+  "eval_id": 1,
+  "eval_name": "open-pr-no-profile-ask",
+  "prompt": "open https://github.com/julianobarbosa/.dotfiles/pull/31 in the browser",
+  "assertions": [
+    { "text": "Surfaces/echoes the PR URL" },
+    { "text": "Discovers/lists the available browser profiles (all 3 accounts)" },
+    { "text": "Asks which account via AskUserQuestion (none specified, >1 exists)" },
+    { "text": "Mentions it can remember the chosen account as default" }
+  ]
+}

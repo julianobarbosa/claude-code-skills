@@ -1,0 +1,14 @@
+{
+  "name": "ship-skill",
+  "private": true,
+  "type": "module",
+  "description": "Runtime deps for the ship skill's TypeScript scripts (run via bun).",
+  "dependencies": {
+    "@octokit/rest": "^21.1.1",
+    "azure-devops-node-api": "^14.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "typescript": "^5.7.3"
+  }
+}

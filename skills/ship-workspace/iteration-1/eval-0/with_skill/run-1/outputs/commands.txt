@@ -1,0 +1,20 @@
+$ cd /home/barbosa/.claude/skills/ship && bun scripts/ship-open.ts --list-profiles 2>&1
+'\\wsl.localhost\Ubuntu-26.04\home\barbosa\Repos\github\claude-code-skills\skills\ship'
+CMD.EXE was started with the above path as the current directory.
+UNC paths are not supported.  Defaulting to Windows directory.
+>> edge profiles from /mnt/c/Users/juliano.barbosa/AppData/Local/Microsoft/Edge/User Data/Local State
+browser=edge
+local_state=/mnt/c/Users/juliano.barbosa/AppData/Local/Microsoft/Edge/User Data/Local State
+profile=Default	juliano.barbosa@hypera.com.br	Perfil 1
+profile=Profile 1	julianomb@gmail.com	julianomb@gmail.com
+profile=Profile 2	juliano.b.cloud@hypera.com.br	juliano.b.cloud@hypera.com.br
+
+$ cd /home/barbosa/.claude/skills/ship && bun scripts/ship-open.ts "https://github.com/julianobarbosa/.dotfiles/pull/31" --profile julianomb@gmail.com --dry-run 2>&1
+'\\wsl.localhost\Ubuntu-26.04\home\barbosa\Repos\github\claude-code-skills\skills\ship'
+CMD.EXE was started with the above path as the current directory.
+UNC paths are not supported.  Defaulting to Windows directory.
+>> dry run — would open edge profile "Profile 1" (julianomb@gmail.com)
+opened_url=https://github.com/julianobarbosa/.dotfiles/pull/31
+browser=edge
+profile_dir=Profile 1
+profile_email=julianomb@gmail.com

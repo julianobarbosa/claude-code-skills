@@ -59,8 +59,9 @@ htmlcov/
 .env.local
 *.local
 
-# Claude Code per-machine settings (auto-generated, contains absolute paths)
-.claude/settings.local.json
+# Local agent/tool trees
+.claude/
+.codex/
 
 # Temporary files
 tmp/

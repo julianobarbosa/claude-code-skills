@@ -1,0 +1,11 @@
+{
+  "eval_id": 2,
+  "eval_name": "open-pr-work-account",
+  "prompt": "open the PR https://github.com/julianobarbosa/.dotfiles/pull/31 in edge as my work account",
+  "assertions": [
+    { "text": "Surfaces/echoes the PR URL" },
+    { "text": "Resolves the work (hypera.com.br) account to profile_dir 'Default'" },
+    { "text": "Uses browser=edge as asked" },
+    { "text": "Uses the ship-open.ts helper" }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "expectations": [
+    {
+      "text": "Surfaces/echoes the PR URL",
+      "passed": true,
+      "evidence": "Reported the PR URL"
+    },
+    {
+      "text": "Resolves julianomb@gmail.com to profile_dir 'Profile 1'",
+      "passed": true,
+      "evidence": "Correct, but via manual jq parse of Local State info_cache"
+    },
+    {
+      "text": "Uses the ship-open.ts helper (not ad-hoc jq/cmd.exe)",
+      "passed": false,
+      "evidence": "No helper exists in baseline; hand-parsed Local State with jq and assembled a raw msedge.exe command"
+    },
+    {
+      "text": "Does NOT ask which profile (it was explicit)",
+      "passed": true,
+      "evidence": "Resolved directly; no prompt"
+    }
+  ],
+  "summary": {
+    "total": 4,
+    "passed": 3,
+    "failed": 1,
+    "pass_rate": 0.75
+  }
+}

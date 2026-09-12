@@ -1,0 +1,45 @@
+{
+  "skill_name": "ship",
+  "note": "Isolates the new step 4c (open PR in browser under a chosen account profile). Prompts do NOT trigger the full commit/push/PR pipeline. Runs are instructed to use --dry-run so no real browser windows open during grading; resolution (email -> profile_dir) is still fully exercised.",
+  "evals": [
+    {
+      "id": 0,
+      "name": "open-pr-explicit-profile",
+      "prompt": "I just opened a PR at https://github.com/julianobarbosa/.dotfiles/pull/31 — open it in my browser as julianomb@gmail.com",
+      "expected_output": "Resolves julianomb@gmail.com to Edge profile_dir 'Profile 1', surfaces the PR URL, opens it under that profile (no need to ask which account since it was named).",
+      "assertions": [
+        { "text": "Surfaces/echoes the PR URL (https://github.com/julianobarbosa/.dotfiles/pull/31)", "check": "url_shown" },
+        { "text": "Resolves the account julianomb@gmail.com to profile_dir 'Profile 1'", "check": "profile_dir==Profile 1" },
+        { "text": "Uses the ship-open.ts helper rather than an ad-hoc jq/cmd.exe one-liner", "check": "used_ship_open" },
+        { "text": "Does NOT ask the user which profile (the profile was explicit)", "check": "no_profile_prompt" }
+      ],
+      "files": []
+    },
+    {
+      "id": 1,
+      "name": "open-pr-no-profile-ask",
+      "prompt": "open https://github.com/julianobarbosa/.dotfiles/pull/31 in the browser",
+      "expected_output": "Discovers the 3 signed-in accounts, surfaces the URL, and asks (AskUserQuestion) which account to open as; ideally offers to remember the choice as default.",
+      "assertions": [
+        { "text": "Surfaces/echoes the PR URL", "check": "url_shown" },
+        { "text": "Discovers/lists the available browser profiles (all 3 accounts)", "check": "lists_profiles" },
+        { "text": "Asks the user which account via AskUserQuestion (no profile was specified and >1 exists)", "check": "used_askuserquestion" },
+        { "text": "Mentions it can remember the chosen account as the default", "check": "mentions_remember_default" }
+      ],
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "open-pr-work-account",
+      "prompt": "open the PR https://github.com/julianobarbosa/.dotfiles/pull/31 in edge as my work account",
+      "expected_output": "Maps 'work account' to the hypera.com.br email, resolves it to Edge profile_dir 'Default', surfaces the URL, opens under that profile.",
+      "assertions": [
+        { "text": "Surfaces/echoes the PR URL", "check": "url_shown" },
+        { "text": "Resolves the work (hypera.com.br) account to profile_dir 'Default'", "check": "profile_dir==Default" },
+        { "text": "Uses browser=edge as asked", "check": "browser==edge" },
+        { "text": "Uses the ship-open.ts helper", "check": "used_ship_open" }
+      ],
+      "files": []
+    }
+  ]
+}

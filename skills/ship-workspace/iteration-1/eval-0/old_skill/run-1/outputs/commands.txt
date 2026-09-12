@@ -1,0 +1,78 @@
+# commands.txt — open PR in browser as julianomb@gmail.com (OLD ship skill, no browser helper)
+# Legend: [RAN] = executed (read-only discovery). [WOULD-RUN] = the browser-open command I did NOT execute (eval constraint).
+
+## 0. Confirm the snapshot skill has no browser-open helper
+[RAN] find /home/barbosa/.claude/skills/ship-workspace/skill-snapshot -type f
+stdout:
+  .../package.json
+  .../SKILL.md
+  .../tsconfig.json
+  .../.gitignore
+  .../assets/pr-template.md
+  .../references/github.md
+  .../references/azure-devops.md
+  .../scripts/ship-pr.ts
+  .../scripts/ship-detect.ts
+  .../scripts/ship-tag.ts
+  .../scripts/ship-lib.ts
+  .../scripts/ship-push.ts
+  .../scripts/ship-snapshot.ts
+
+[RAN] ls /home/barbosa/.claude/skills/ship-workspace/skill-snapshot/scripts/ship-open.ts
+stdout:
+  No such file or directory (os error 2)   # confirmed: no ship-open.ts in this version
+
+## 1. Look for a browser to drive (Linux side)
+[RAN] for b in google-chrome google-chrome-stable chromium chromium-browser microsoft-edge microsoft-edge-stable brave-browser firefox wslview; do command -v $b; done
+stdout:
+  (empty — no Linux browser binary on PATH; BROWSER env also empty)
+
+[RAN] ls -d ~/.config/google-chrome ~/.config/chromium ~/.config/microsoft-edge ~/.config/BraveSoftware/Brave-Browser
+stdout:
+  /home/barbosa/.config/BraveSoftware/Brave-Browser
+  /home/barbosa/.config/chromium
+  /home/barbosa/.config/google-chrome
+  /home/barbosa/.config/microsoft-edge
+
+[RAN] ls each of the above
+stdout:
+  each contains only: NativeMessagingHosts   # empty shells, NO real profiles / no "Local State"
+
+## 2. Pivot to Windows side (WSL2) — find real browser user-data
+[RAN] ls /mnt/c/Users
+stdout:
+  Default  juliano.barbosa  juliano.barbosa.scm  lucas.m.bezerra  ...  Public  ...
+  # juliano.barbosa is the accessible (drwxrwxrwx) Windows profile
+
+[RAN] for p in Chrome/Edge/Brave/Chromium "User Data"; do test -f "$p/Local State"; done
+stdout:
+  FOUND Local State: /mnt/c/Users/juliano.barbosa/AppData/Local/Microsoft/Edge/User Data/Local State
+  # only Microsoft Edge has real profiles; Chrome/Brave/Chromium absent
+
+## 3. Parse the Local State myself (no helper script exists) to map email -> profile dir
+[RAN] jq -r '.profile.info_cache | to_entries[] | "\(.key) | user_name=\(.value.user_name)"' \
+        "/mnt/c/Users/juliano.barbosa/AppData/Local/Microsoft/Edge/User Data/Local State"
+stdout:
+  Default   | user_name=juliano.barbosa@hypera.com.br     | gaia_name=Juliano Morais Barbosa
+  Profile 1 | user_name=julianomb@gmail.com               | gaia_name=Juliano Barbosa       <-- MATCH
+  Profile 2 | user_name=juliano.b.cloud@hypera.com.br     | gaia_name=Juliano Morais Barbosa Cloud
+
+# => julianomb@gmail.com  ==>  Edge profile directory  "Profile 1"
+
+## 4. Locate the Edge executable (Windows side)
+[RAN] test -f "/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe"
+stdout:
+  FOUND: /mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe
+
+## 5. Open the PR in that profile  — NOT EXECUTED (eval: no real browser window, no installs)
+[WOULD-RUN] the exact command I would run:
+
+  "/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe" \
+    --profile-directory="Profile 1" \
+    "https://github.com/julianobarbosa/.dotfiles/pull/31"
+
+# Notes:
+# - --profile-directory takes the on-disk DIRECTORY name ("Profile 1"), NOT the display
+#   name ("julianomb@gmail.com"); that mapping is exactly what step 3 had to resolve by hand.
+# - If Edge is already running, this reuses the running instance and just opens the tab in
+#   that profile window. Args after the flags are treated as the URL to open.

@@ -1,0 +1,82 @@
+[
+  {
+    "query": "ok the portfolio-dev kill-switch fix is done and trivy passes, push it up and open a PR against main and link it to the right board work item",
+    "should_trigger": true
+  },
+  {
+    "query": "ship it",
+    "should_trigger": true
+  },
+  {
+    "query": "can you raise a PR for this branch? main is policy-protected so I can't push direct",
+    "should_trigger": true
+  },
+  {
+    "query": "save the current state before I start the AKS firewall migration — tag it so I have a rollback point",
+    "should_trigger": true
+  },
+  {
+    "query": "everything's green on main, mark a checkpoint here in case the egress UDR change breaks the cluster",
+    "should_trigger": true
+  },
+  {
+    "query": "tag a snapshot of where we are now and add a note about what changed and the verification status",
+    "should_trigger": true
+  },
+  {
+    "query": "create a daily tag to save today's state of the repo",
+    "should_trigger": true
+  },
+  {
+    "query": "the cafehyna-dev terraform is ready, deliver it for review and make sure there's a work item linked",
+    "should_trigger": true
+  },
+  {
+    "query": "push and PR this, then once it merges clean up the branch and worktree",
+    "should_trigger": true
+  },
+  {
+    "query": "mark where we are before the refactor so I can git checkout back if it goes sideways",
+    "should_trigger": true
+  },
+  {
+    "query": "merge this branch into main locally with a fast-forward, no PR needed",
+    "should_trigger": false
+  },
+  {
+    "query": "just commit these staged tfvars changes and push to the feature branch, I don't want a PR yet",
+    "should_trigger": false
+  },
+  {
+    "query": "what's the status of PR 161? show me the review threads and who approved it",
+    "should_trigger": false
+  },
+  {
+    "query": "create a GitHub release for v2.0.0 with a generated changelog and upload the packer build artifacts",
+    "should_trigger": false
+  },
+  {
+    "query": "rebase my bmad/story-18-2 branch onto the latest main and help me resolve the conflicts",
+    "should_trigger": false
+  },
+  {
+    "query": "write a conventional-commits message for these NSG changes",
+    "should_trigger": false
+  },
+  {
+    "query": "create an Azure DevOps work item for the NSG hardening task and assign it to the platform team",
+    "should_trigger": false
+  },
+  {
+    "query": "tag all the azurerm resources in this terraform module with the cost-center and environment tags",
+    "should_trigger": false
+  },
+  {
+    "query": "create a restore point / snapshot of the cosmos db before the schema change",
+    "should_trigger": false
+  },
+  {
+    "query": "build and push the new ADO agent container image to the portfolio ACR and tag it latest",
+    "should_trigger": false
+  }
+]
