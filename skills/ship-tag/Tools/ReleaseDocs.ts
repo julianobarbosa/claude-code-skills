@@ -137,6 +137,11 @@ export function renderDescription(r: ReleaseInfo, max = 256): string {
   const changes = flattenNotes(r.notes);
   let body = changes ? ` ${changes}` : "";
   const room = max - head.length - tail.length;
-  if (body.length > room) body = room > 12 ? `${body.slice(0, room - 1).trimEnd()}…` : "";
+  if (body.length > room) {
+    // Cut at a word boundary: "and co…" reads like a bug, "and…" reads like a trim.
+    const cut = body.slice(0, Math.max(0, room - 1));
+    const atSpace = cut.slice(0, cut.lastIndexOf(" "));
+    body = room > 12 ? `${(atSpace.length > room / 2 ? atSpace : cut).trimEnd()}…` : "";
+  }
   return head + body + tail;
 }
