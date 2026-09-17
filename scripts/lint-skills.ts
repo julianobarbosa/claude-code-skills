@@ -218,6 +218,11 @@ function checkDescriptionField(bag: ViolationBag, dir: string, fields: Map<strin
   }
 }
 
+// True when git ignores the path. Outside a git repo, check-ignore exits 128 → false.
+function isGitIgnored(skillsDir: string, name: string): boolean {
+  return Bun.spawnSync(["git", "check-ignore", "-q", name], { cwd: skillsDir }).exitCode === 0;
+}
+
 async function lintSkills(skillsDir: string): Promise<LintReport> {
   const entries = await readdir(skillsDir, { withFileTypes: true });
   entries.sort((a, b) => a.name.localeCompare(b.name));
@@ -242,6 +247,11 @@ async function lintSkills(skillsDir: string): Promise<LintReport> {
       // Empty directory — typically an uninitialized git submodule (gitlink) or a
       // placeholder. Not yet a skill; let it pass silently so unrelated infra
       // doesn't gate every skills-markdown commit.
+      continue;
+    }
+    // Not skills: gitignored dirs (nested clones, local-only skills) and
+    // skill-creator eval output (`<skill>-workspace/`).
+    if (entry.name.endsWith("-workspace") || isGitIgnored(skillsDir, entry.name)) {
       continue;
     }
 
