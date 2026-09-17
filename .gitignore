@@ -72,6 +72,10 @@ autoresearch-results.tsv
 # Nested clone of the book-to-skill fork, symlinked into ~/.claude/skills (not vendored here)
 /book-to-skill
 /skills/book-to-skill/
+# Nested clone of deep-research-skills (not vendored here)
+/skills/deep-research-skills/
+# Personal health workflow with private lab data — local only, never publish
+/skills/trt/
 .bmad-loop/runs/
 .bmad-loop/cache/
 .bmad-loop/policy.toml
