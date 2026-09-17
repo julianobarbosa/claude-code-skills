@@ -76,6 +76,8 @@ autoresearch-results.tsv
 /skills/deep-research-skills/
 # Personal health workflow with private lab data — local only, never publish
 /skills/trt/
+# Local planning notes (may name people/orgs) — never publish
+/skills/*/Plans/
 .bmad-loop/runs/
 .bmad-loop/cache/
 .bmad-loop/policy.toml
