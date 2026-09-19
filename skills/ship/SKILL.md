@@ -126,8 +126,8 @@ bun scripts/ship-pr.ts --title "<title>" --body-file /tmp/pr-body.md \
   and skipped (`reviewer_skipped=…`), never blocking the PR. GitHub has no per-PR "required"
   reviewer (that's branch protection), so required ones are just requested. The script prints
   `reviewer_added=<name> required=<bool>` for each.
-  When neither flag is given, `$SHIP_ADO_DEFAULT_REVIEWER` (if set) is added as an optional
-  reviewer — a PR with no reviewer record leaves no trace that anyone was asked. Unset = no
+  When neither flag is given on **Azure**, `$SHIP_ADO_DEFAULT_REVIEWER` (if set) is added as an
+  optional reviewer (it is ignored on GitHub, where ADO identities mean nothing) — a PR with no reviewer record leaves no trace that anyone was asked. Unset = no
   reviewer, the prior behaviour.
 - **Azure never opens a PR without a linked Board work item.** The script resolves the id from
   `--work-item` (or the branch name), then **verifies it actually exists** via the SDK

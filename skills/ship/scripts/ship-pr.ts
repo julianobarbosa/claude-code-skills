@@ -181,7 +181,9 @@ if (tags.length === 0 && !noTag) {
 // Same idea for reviewers: a PR with no reviewer record leaves no trace that
 // anyone was asked. SHIP_ADO_DEFAULT_REVIEWER supplies a non-blocking default
 // when the caller named none. Unset = previous behaviour, no reviewer.
-if (optionalReviewers.length === 0 && requiredReviewers.length === 0 && !noReviewer) {
+// Azure only: the value is ADO identities (UPNs), which mean nothing on GitHub,
+// and the same shell may ship both work and personal repos.
+if (kind === "azure" && optionalReviewers.length === 0 && requiredReviewers.length === 0 && !noReviewer) {
   const fallback = (process.env.SHIP_ADO_DEFAULT_REVIEWER ?? "").trim();
   if (fallback) {
     optionalReviewers.push(...parseTags([fallback]));
