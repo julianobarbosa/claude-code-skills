@@ -311,7 +311,7 @@ metadata:
   namespace: argocd  # Must be in argocd namespace
 type: Opaque
 stringData:
-  token: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  token: "<GITHUB_PAT>"
 ```
 
 ---

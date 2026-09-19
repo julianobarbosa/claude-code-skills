@@ -720,7 +720,7 @@ metadata:
   namespace: argocd
 type: Opaque
 stringData:
-  token: ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  token: "<GITHUB_PAT>"
 ```
 
 ---

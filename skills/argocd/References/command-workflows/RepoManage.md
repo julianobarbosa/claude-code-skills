@@ -206,9 +206,7 @@ stringData:
   type: git
   url: git@ssh.dev.azure.com:v3/your-org/rg-example-web/Repos
   sshPrivateKey: |
-    -----BEGIN OPENSSH PRIVATE KEY-----
-    ...
-    -----END OPENSSH PRIVATE KEY-----
+    <SSH_PRIVATE_KEY_CONTENT>
 ---
 # Helm repository with credentials
 apiVersion: v1

@@ -15,7 +15,7 @@ HolmesGPT can send investigation results directly to Slack channels.
 # Send to a specific channel
 holmes ask "why is payment-service crashing?" \
   --destination slack \
-  --slack-token xoxb-your-bot-token \
+  --slack-token "$SLACK_BOT_TOKEN" \
   --slack-channel "#incidents"
 
 # Send alert investigation to Slack

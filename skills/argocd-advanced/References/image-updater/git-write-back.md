@@ -147,7 +147,7 @@ metadata:
 type: Opaque
 stringData:
   username: git
-  password: ghp_xxxxxxxxxxxxxxxxxxxx
+  password: "<GITHUB_PAT>"
 ```
 
 Reference in ImageUpdater:
