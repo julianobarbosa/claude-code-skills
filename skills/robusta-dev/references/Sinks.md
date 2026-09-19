@@ -27,7 +27,7 @@ sinksConfig:
   - slack_sink:
       name: main_slack
       slack_channel: k8s-alerts
-      api_key: xoxb-your-bot-token
+      api_key: "<SLACK_BOT_TOKEN>"
       thread_messages: true       # Group in threads
       message_format: standard    # standard, minimal, detailed
 ```

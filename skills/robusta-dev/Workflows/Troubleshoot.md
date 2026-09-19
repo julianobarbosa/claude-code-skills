@@ -72,7 +72,7 @@ kubectl get secret -n robusta robusta-runner-secret \
 # Test Slack API directly
 kubectl exec -n robusta deploy/robusta-runner -- \
   curl -X POST https://slack.com/api/auth.test \
-  -H "Authorization: Bearer xoxb-your-token"
+  -H "Authorization: Bearer $SLACK_BOT_TOKEN"
 
 # Common issues:
 # - Wrong channel name (don't include #)
