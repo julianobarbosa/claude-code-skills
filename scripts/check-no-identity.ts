@@ -75,6 +75,9 @@ const RULES: Rule[] = [
   },
 ];
 
+const skipped: string[] = [];
+const unreadable: string[] = [];
+
 interface Finding {
   file: string;
   line: number;
@@ -86,14 +89,32 @@ function isAllowed(text: string): boolean {
   return ALLOWED.some((allow) => allow.test(text));
 }
 
+/**
+ * A file we cannot read is NOT a clean file. Only a missing path is benign (pre-commit
+ * passes deleted paths); every other read error is surfaced and fails the run, because
+ * silently returning "no findings" turns this guard into a rubber stamp. That is not
+ * hypothetical: an aliased `ls` once fed it 8,600 nonexistent paths and it reported
+ * every one of them clean.
+ */
 async function scanFile(file: string): Promise<Finding[]> {
   let content: string;
   try {
     content = await readFile(file, "utf8");
-  } catch {
-    return []; // deleted, binary, or unreadable — nothing to check
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    // ENOENT: pre-commit passes deleted paths. EISDIR: submodule gitlinks and symlinked
+    // directories appear in `git ls-files` but hold no scannable content of their own.
+    if (code === "ENOENT" || code === "EISDIR") {
+      skipped.push(file);
+      return [];
+    }
+    unreadable.push(`${file} (${code ?? "unknown error"})`);
+    return [];
   }
-  if (content.includes("\u0000")) return [];
+  if (content.includes("\u0000")) {
+    skipped.push(file);
+    return [];
+  }
 
   const findings: Finding[] = [];
   const lines = content.split("\n");
@@ -126,8 +147,18 @@ async function main(): Promise<void> {
 
   const findings = (await Promise.all(files.map(scanFile))).flat();
 
+  const scanned = files.length - skipped.length - unreadable.length;
+
+  if (unreadable.length > 0) {
+    process.stderr.write(`check-no-identity: ${unreadable.length} file(s) could not be read\n`);
+    for (const u of unreadable) process.stderr.write(`  ${u}\n`);
+    process.stderr.write("\nAn unreadable file is not a verified-clean file. Fix the path and re-run.\n");
+    process.exit(2);
+  }
+
   if (findings.length === 0) {
-    process.stdout.write(`check-no-identity: ${files.length} file(s) clean\n`);
+    const note = skipped.length > 0 ? ` (${skipped.length} binary/absent skipped)` : "";
+    process.stdout.write(`check-no-identity: ${scanned} file(s) clean${note}\n`);
     process.exit(0);
   }
 
