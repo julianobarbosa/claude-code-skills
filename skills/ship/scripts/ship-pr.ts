@@ -8,7 +8,7 @@
 //                  [--assignee UPN] [--work-item-type TYPE] [--no-create-work-item]
 //                  [--transition STATE] [--tag "t1,t2" ...] [--no-tag]
 //                  [--reviewer UPN ...] [--required-reviewer UPN ...] [--no-reviewer]
-//                  [--draft] [-r remote]
+//                  [--no-complete-transition] [--draft] [-r remote]
 //
 // Prerequisites in one shot: on Azure, the work item, tags/labels, and reviewers
 // are packed into the single createPullRequest call — no create-then-patch round
@@ -50,6 +50,11 @@
 //               With neither given, $SHIP_ADO_DEFAULT_REVIEWER (if set) is added as
 //               an optional reviewer.
 // --no-reviewer Skip the $SHIP_ADO_DEFAULT_REVIEWER fallback.
+// --no-complete-transition  Azure only: leave the Complete dialog's "Complete linked
+//               work items after merging" box UNCHECKED. By default ship sets
+//               completionOptions.transitionWorkItems=true at create time, so whoever
+//               clicks Complete transitions the linked item instead of leaving it open.
+//               Ignored on GitHub, where "Closes #<id>" in the body does the same job.
 
 import { readFileSync } from "node:fs";
 import * as azdev from "azure-devops-node-api";
@@ -95,6 +100,7 @@ let title = "", body = "", bodyFile = "", target = "main", sourceBranch = "";
 let workItem = "", transition = "", remote = "origin", wiType = "Task";
 let assignee = process.env.SHIP_ADO_ASSIGNEE || "you@example.com";
 let draft = false, createWi = true, noTag = false, noReviewer = false;
+let noCompleteTransition = false;
 const tasks: string[] = [];
 const tagFlags: string[] = [];
 const reviewerFlags: string[] = [];
@@ -126,6 +132,7 @@ for (let i = 0; i < argv.length; i++) {
     case "--reviewer": { const v = argv[++i]; if (v === undefined) fail("--reviewer requires a value", 2); reviewerFlags.push(v); break; }
     case "--required-reviewer": { const v = argv[++i]; if (v === undefined) fail("--required-reviewer requires a value", 2); requiredReviewerFlags.push(v); break; }
     case "--no-reviewer": noReviewer = true; break;
+    case "--no-complete-transition": noCompleteTransition = true; break;
     case "--draft": draft = true; break;
     case "-r": case "--remote": remote = argv[++i]; break;
     case "-h": case "--help":
@@ -290,6 +297,11 @@ async function runAzure(): Promise<void> {
       // Tags and reviewers packed into the create payload (one round trip).
       labels: tags.length ? tags.map((name) => ({ name })) : undefined,
       reviewers: reviewerRefs.length ? reviewerRefs.map(({ id, isRequired }) => ({ id, isRequired })) : undefined,
+      // Pre-arm the Complete dialog's "Complete linked work items after merging"
+      // checkbox. Without this the PR carries no completionOptions, ADO renders the
+      // box unchecked, and a linked work item silently survives the merge as active
+      // — the exact traceability gap the auto-link invariant above exists to close.
+      completionOptions: { transitionWorkItems: !noCompleteTransition },
     },
     repo,
     project,
@@ -300,6 +312,7 @@ async function runAzure(): Promise<void> {
   console.log(`pr_id=${prId}`);
   console.log(`pr_url=${orgUrl}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repo)}/pullrequest/${prId}`);
   if (wiIds.length) console.log(`work_items=${wiIds.join(" ")}`);
+  console.log(`complete_transitions_work_items=${!noCompleteTransition}`);
 
   // Best-effort: a bad/unsupported state name (process-specific — Agile uses Resolved,
   // Basic uses Doing) must not abort the run and skip tagging/reviewers below. Warn and

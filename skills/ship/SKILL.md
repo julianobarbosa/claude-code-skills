@@ -145,6 +145,13 @@ bun scripts/ship-pr.ts --title "<title>" --body-file /tmp/pr-body.md \
   are process-specific (Agile: Resolved; Scrum: Committed; Basic: Doing) — verify the valid next
   state first; see `references/azure-devops.md`. Omit `--transition` to leave the board untouched.
   (Created items start in the type's initial state, e.g. `New`/`To Do`.)
+- **The Complete dialog's "Complete linked work items after merging" box is pre-checked.** Ship sets
+  `completionOptions.transitionWorkItems=true` in the create call, so whoever clicks **Complete** on the
+  PR transitions the linked item rather than leaving it open behind a merged PR. This is independent of
+  `--transition`, which fires at PR-open; this one fires at merge, and it is the one that closes the
+  loop, because nobody remembers to tick a box at merge time. Pass `--no-complete-transition` to leave
+  it unchecked. The script prints `complete_transitions_work_items=true|false`. Ignored on GitHub,
+  where `Closes #<id>` in the body does the same job.
 - The script prints `pr_url=…`; surface it to the user.
 
 ### 4b. Tags + reviewers (applied by default)
@@ -264,7 +271,7 @@ does. The script prints `tag=`, `commit=`, `branch=`, `pushed=`.
 | `bun scripts/ship-preflight.ts [remote]` | Anything-to-deliver + working-tree scope audit (`scope_clean=…`); advisory, never blocks. Run first |
 | `bun scripts/ship-detect.ts [remote]` | Print platform + Azure coordinates + branch + inferred work item |
 | `bun scripts/ship-push.ts [-r remote] [-b branch]` | Push + set upstream; Azure OAuth Bearer fallback on auth failure |
-| `bun scripts/ship-pr.ts --title … [opts]` | Open PR on the detected platform; ensure/create + link work item(s) (assigned to the configured user); optional Board transition; auto-tag from title/branch (override `--tag`, disable `--no-tag`); optional `--reviewer`/`--required-reviewer` (default `$SHIP_ADO_DEFAULT_REVIEWER`, disable `--no-reviewer`) — work item + tags + reviewers packed into one create call on Azure |
+| `bun scripts/ship-pr.ts --title … [opts]` | Open PR on the detected platform; ensure/create + link work item(s) (assigned to the configured user); optional Board transition; auto-tag from title/branch (override `--tag`, disable `--no-tag`); optional `--reviewer`/`--required-reviewer` (default `$SHIP_ADO_DEFAULT_REVIEWER`, disable `--no-reviewer`); pre-checks "Complete linked work items after merging" (disable `--no-complete-transition`) — work item + tags + reviewers packed into one create call on Azure |
 | `bun scripts/ship-tag.ts <pr-id> [--add\|--remove "t1,t2"] [--list]` | Add / remove / list PR tags (Azure) or labels (GitHub) on an existing PR |
 | `bun scripts/ship-open.ts <url> [--profile <email>] [--dry-run]` | Open a PR/URL in a chosen browser **account profile** (email→profile via the browser's `Local State`); WSL→Edge/Chrome, macOS→Chrome/Edge; also `--list-profiles`, `--set-default` |
 | `bun scripts/ship-snapshot.ts [-m "para"]… [--daily] [--name <tag>] [--push]` | Save current state as an annotated **git tag** (date-named, self-describing subject); optional push with Azure OAuth fallback |
@@ -294,7 +301,11 @@ detected platform. The PR description starts from `assets/pr-template.md`.
   same limitation the shell version had; pass coordinates/`--work-item` explicitly if needed.)
 - Scripts need deps: if you see `Cannot find module 'azure-devops-node-api'`, run `bun install` in
   the skill dir.
-- A linked work item does **not** change state on its own; transitioning is a separate step (4).
+- A linked work item does **not** change state on its own. There are two separate levers: `--transition`
+  moves it when the PR *opens*, and `completionOptions.transitionWorkItems` (on by default, see step 4)
+  moves it when the PR is *completed*. A PR created before this default existed carries no completion
+  options at all, so its box stays unchecked — that setting is baked in at create time and cannot be
+  added to an already-merged PR.
 - If `AZURE_DEVOPS_EXT_PAT` is set but under-scoped (e.g. Code-only, missing Work Items / Pull
   Request write), `ship-pr.ts` auto-detects the 401/403 and retries with the `az` OAuth bearer
   token — no need to unset the PAT manually. The fallback requires `az login` as an org member.
