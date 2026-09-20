@@ -154,9 +154,13 @@ function pickBrowser(os: OS, explicit: Browser | "", stored: Browser | undefined
 function launch(os: OS, browser: Browser, profileDir: string, url: string): void {
   const meta = BROWSERS[browser];
   if (os === "wsl") {
-    // `start` detaches and returns immediately. WSL interop quotes args with
-    // spaces, so `--profile-directory=Profile 1` reaches Chrome/Edge intact.
-    execFileSync("cmd.exe", ["/c", "start", meta.winExe, `--profile-directory=${profileDir}`, url], { stdio: "ignore" });
+    // NOT `cmd.exe /c start`: WSL interop only quotes args containing spaces, so
+    // a URL with `&` (e.g. an Outlook deep link) reaches cmd unquoted and cmd
+    // parses it as a command separator ("'viewmodel' is not recognized").
+    // PowerShell's Start-Process takes each argument whole; it detaches too.
+    const psQuote = (s: string) => `'${s.replace(/'/g, "''")}'`;
+    const argList = [`--profile-directory=${profileDir}`, url].map(psQuote).join(",");
+    execFileSync("powershell.exe", ["-NoProfile", "-Command", `Start-Process ${meta.winExe} -ArgumentList ${argList}`], { stdio: "ignore" });
   } else if (os === "macos") {
     // -n new instance, -a app, --args forwards the rest to the browser.
     execFileSync("open", ["-na", meta.macApp, "--args", `--profile-directory=${profileDir}`, url], { stdio: "ignore" });
