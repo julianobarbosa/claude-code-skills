@@ -82,3 +82,10 @@ autoresearch-results.tsv
 .bmad-loop/cache/
 .bmad-loop/policy.toml
 _bmad/render/
+
+# Skill-creator eval scratch trees — contain real transcripts with identity/employer data
+/skills/*-workspace/
+/skills/*/eval-workspace/
+
+# Local identity denylist — real names must never be committed to this public repo
+.identity-denylist

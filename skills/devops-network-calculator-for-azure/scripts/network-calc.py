@@ -10,11 +10,11 @@ Uses only Python stdlib (ipaddress, json, argparse). Zero external deps.
 Azure reserves 5 IPs per subnet: .0 (network), .1 (gateway), .2-.3 (DNS), broadcast.
 
 Usage:
-    python3 network-calc.py calculate 10.248.0.0/20
+    python3 network-calc.py calculate 10.50.0.0/20
     python3 network-calc.py calculate --from-hosts 500
-    python3 network-calc.py analyze --vnet 10.248.0.0/20 --subnets 10.248.0.0/22,10.248.4.0/22
-    python3 network-calc.py validate --vnet 10.248.0.0/20 --subnets 10.248.0.0/22,10.248.4.0/22
-    python3 network-calc.py plan-multi --base 10.248.0.0/16 --envs 3 --prefix 20
+    python3 network-calc.py analyze --vnet 10.50.0.0/20 --subnets 10.50.0.0/22,10.50.4.0/22
+    python3 network-calc.py validate --vnet 10.50.0.0/20 --subnets 10.50.0.0/22,10.50.4.0/22
+    python3 network-calc.py plan-multi --base 10.50.0.0/16 --envs 3 --prefix 20
 """
 
 from __future__ import annotations
@@ -499,7 +499,7 @@ def main():
 
     # analyze
     analyze = sub.add_parser("analyze", help="Analyze VNet layout: utilization, gaps")
-    analyze.add_argument("--vnet", help="VNet CIDR (e.g., 10.248.0.0/20)")
+    analyze.add_argument("--vnet", help="VNet CIDR (e.g., 10.50.0.0/20)")
     analyze.add_argument("--subnets", help="Comma-separated subnet CIDRs")
     analyze.add_argument("--from-tfvars", help="Read from terraform.tfvars file")
 
