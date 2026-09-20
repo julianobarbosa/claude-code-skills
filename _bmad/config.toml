@@ -25,7 +25,7 @@ bmad_builder_output_folder = "{project-root}/skills"
 bmad_builder_reports = "{project-root}/skills/reports"
 
 [modules.cis]
-visual_tools = ["mermaid", "excalidraw", "gemini-nano"]
+visual_tools = "[\"mermaid\", \"excalidraw\", \"gemini-nano\"]"
 
 [modules.tea]
 test_artifacts = "{project-root}/_bmad-output/test-artifacts"
