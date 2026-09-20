@@ -89,3 +89,6 @@ _bmad/render/
 
 # Local identity denylist — real names must never be committed to this public repo
 .identity-denylist
+
+# One-shot local purge runbook — hardcodes a personal email and home path, never publish
+/scripts/history-purge-runbook.sh
