@@ -103,13 +103,13 @@ With default /24 per node:
 ### Overlap Rules
 
 - Pod CIDR **must not overlap** with:
-  - VNet address space (e.g., 10.248.0.0/20)
+  - VNet address space (e.g., 10.50.0.0/20)
   - Service CIDR
   - Docker bridge CIDR (172.17.0.0/16 by default)
   - Any peered VNet address space
 - Pod CIDR **can overlap** with:
   - Pod CIDRs in other, non-peered clusters (they are isolated)
-- The default 10.244.0.0/16 is safe for this project's 10.248.0.0/20 VNet (no overlap)
+- The default 10.244.0.0/16 is safe for the reference 10.50.0.0/20 VNet (no overlap)
 
 ## Service CIDR Planning
 
@@ -130,11 +130,11 @@ The service CIDR provides ClusterIP addresses for Kubernetes services.
 - A /16 supports 65,531 services (far exceeding most cluster needs)
 - For smaller clusters, /20 (4,091 services) is sufficient
 
-### Recommended Values for This Project
+### Recommended Values for The Reference Environment
 
 | Parameter | Value | Rationale |
 |-----------|-------|-----------|
-| VNet | 10.248.0.0/20 | Project allocation |
+| VNet | 10.50.0.0/20 | Project allocation |
 | Pod CIDR | 10.244.0.0/16 | Default, no overlap with VNet |
 | Service CIDR | 10.245.0.0/16 | Adjacent to pod CIDR, no overlap |
 | DNS Service IP | 10.245.0.10 | Convention: .10 offset |
@@ -164,7 +164,7 @@ A private AKS cluster exposes the API server only via a private endpoint inside 
 ```
 Developer/CI Agent
   └─> VPN / Bastion / Private Network
-       └─> Private Endpoint (10.248.x.x)
+       └─> Private Endpoint (10.50.x.x)
             └─> AKS API Server
                  └─> Node Pool (VNet subnet)
                       └─> Pods (overlay or VNet IPs)
@@ -222,25 +222,25 @@ resource "azurerm_kubernetes_cluster" "aks" {
 | VirtualNetwork | Intra-VNet traffic | Always |
 | AzureKeyVault | Key Vault access | When using CSI secret store |
 
-## Integration with This Project (10.248.0.0/20)
+## Integration with The Reference Environment (10.50.0.0/20)
 
 ### Available Space for AKS
 
 Based on current allocation analysis:
 
 ```
-VNet: 10.248.0.0/20 (4,096 IPs total)
+VNet: 10.50.0.0/20 (4,096 IPs total)
 
 Currently allocated:
-  GatewaySubnet:      10.248.0.0/22   (1,024 IPs)
-  PublicSubnet:        10.248.4.0/22   (1,024 IPs)
-  AzureBastionSubnet: 10.248.8.0/26   (64 IPs)
-  PrivateSubnet:      10.248.9.0/24   (256 IPs)
+  GatewaySubnet:      10.50.0.0/22   (1,024 IPs)
+  PublicSubnet:        10.50.4.0/22   (1,024 IPs)
+  AzureBastionSubnet: 10.50.8.0/26   (64 IPs)
+  PrivateSubnet:      10.50.9.0/24   (256 IPs)
 
-Best fit for AKS: 10.248.10.0/23 (512 IPs, 507 usable)
+Best fit for AKS: 10.50.10.0/23 (512 IPs, 507 usable)
 ```
 
-### What 10.248.10.0/23 Supports
+### What 10.50.10.0/23 Supports
 
 | CNI Model | Max Nodes | Max Pods (total) | Notes |
 |-----------|-----------|-------------------|-------|
@@ -250,10 +250,10 @@ Best fit for AKS: 10.248.10.0/23 (512 IPs, 507 usable)
 | CNI Overlay | 507 | 126,750 | Best density, overlay pods |
 | CNI + Cilium | 507 | 126,750 | Same density + eBPF benefits |
 
-### Recommendation for This Project
+### Recommendation for The Reference Environment
 
-- **CNI Overlay** at 10.248.10.0/23 supports up to 507 nodes with 250 pods each
-- Pod CIDR: 10.244.0.0/16 (no overlap with 10.248.0.0/20)
+- **CNI Overlay** at 10.50.10.0/23 supports up to 507 nodes with 250 pods each
+- Pod CIDR: 10.244.0.0/16 (no overlap with 10.50.0.0/20)
 - Service CIDR: 10.245.0.0/16 (no overlap)
 - DNS Service IP: 10.245.0.10
 

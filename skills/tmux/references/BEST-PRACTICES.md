@@ -18,7 +18,7 @@
 ### Session Names
 
 - Use kebab-case: `project-name`, `k8s-ops`, `dev-workspace`
-- **No periods** (tmux rejects them): `juliano-dev` not `juliano.dev`
+- **No periods** (tmux rejects them): `web-dev` not `web.dev`
 - **No colons** (tmux rejects them): `k8s-dev` not `k8s:dev`
 - Keep names short and descriptive for `tmux switch-client -t name`
 - Avoid `${USER}` prefix — usernames often contain periods

@@ -20,8 +20,8 @@ python3 scripts/network-calc.py analyze --from-tfvars terraform/terraform.tfvars
 python3 scripts/network-calc.py validate --from-tfvars terraform/terraform.tfvars
 
 # Find where to place a new subnet
-python3 scripts/network-calc.py first-fit --vnet 10.248.0.0/20 \
-  --subnets "10.248.0.0/22,10.248.4.0/22,10.248.8.0/26,10.248.9.0/24" --hosts 500
+python3 scripts/network-calc.py first-fit --vnet 10.50.0.0/20 \
+  --subnets "10.50.0.0/22,10.50.4.0/22,10.50.8.0/26,10.50.9.0/24" --hosts 500
 ```
 
 ## Commands
@@ -36,14 +36,14 @@ python3 scripts/network-calc.py first-fit --vnet 10.248.0.0/20 \
 
 ## Project Context
 
-This project's current VNet: `10.248.0.0/20` (4,096 IPs, 57.8% utilized)
+The reference VNet: `10.50.0.0/20` (4,096 IPs, 57.8% utilized)
 
 | Subnet | CIDR | Usable |
 |--------|------|--------|
-| GatewaySubnet | 10.248.0.0/22 | 1,019 |
-| PublicSubnet | 10.248.4.0/22 | 1,019 |
-| AzureBastionSubnet | 10.248.8.0/26 | 59 |
-| PrivateSubnet | 10.248.9.0/24 | 251 |
+| GatewaySubnet | 10.50.0.0/22 | 1,019 |
+| PublicSubnet | 10.50.4.0/22 | 1,019 |
+| AzureBastionSubnet | 10.50.8.0/26 | 59 |
+| PrivateSubnet | 10.50.9.0/24 | 251 |
 | **Available gaps** | | **1,708** |
 
 Key files: `terraform/terraform.tfvars`, `terraform/networking.tf`, `terraform/nsg.tf`

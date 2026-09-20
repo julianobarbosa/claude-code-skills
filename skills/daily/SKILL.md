@@ -41,7 +41,7 @@ Also check `inbox/` — list any unprocessed files. If the inbox philosophy from
 Present a concise morning briefing:
 
 ```
-Good morning, Juliano.
+Good morning.
 
 **Carried forward:**
 - [items from yesterday, or "Clean slate — nothing carried forward"]
