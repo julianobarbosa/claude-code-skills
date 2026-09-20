@@ -4,13 +4,13 @@ Comprehensive reference for IP address planning in Azure environments.
 
 ## CIDR Notation Fundamentals
 
-A CIDR block `10.248.0.0/20` means:
-- **Network address:** 10.248.0.0
+A CIDR block `10.50.0.0/20` means:
+- **Network address:** 10.50.0.0
 - **Prefix length:** /20 (20 bits for network, 12 bits for hosts)
 - **Total addresses:** 2^12 = 4,096
 - **Subnet mask:** 255.255.240.0
-- **Broadcast:** 10.248.15.255
-- **Usable range:** 10.248.0.1 - 10.248.15.254
+- **Broadcast:** 10.50.15.255
+- **Usable range:** 10.50.0.1 - 10.50.15.254
 
 ## Subnet Sizing Formula
 
@@ -42,24 +42,24 @@ To find unallocated space within a VNet:
 3. Check for gaps between each subnet's broadcast+1 and the next subnet's network address
 4. Report gaps as valid CIDR blocks using `summarize_address_range()`
 
-### Real Example: This Project (10.248.0.0/20)
+### Worked Example: The Reference Environment (10.50.0.0/20)
 
 ```
-VNet: 10.248.0.0/20 (4,096 IPs)
+VNet: 10.50.0.0/20 (4,096 IPs)
 
 Allocated:
-  GatewaySubnet:        10.248.0.0/22   (1,024 IPs)
-  PublicSubnet:          10.248.4.0/22   (1,024 IPs)
-  AzureBastionSubnet:   10.248.8.0/26   (64 IPs)
-  PrivateSubnet:         10.248.9.0/24   (256 IPs)
+  GatewaySubnet:        10.50.0.0/22   (1,024 IPs)
+  PublicSubnet:          10.50.4.0/22   (1,024 IPs)
+  AzureBastionSubnet:   10.50.8.0/26   (64 IPs)
+  PrivateSubnet:         10.50.9.0/24   (256 IPs)
   ─────────────────────────────────────────────
   Total allocated:       2,368 IPs (57.8%)
 
 Gaps (unallocated):
-  Gap 1: 10.248.8.64  - 10.248.8.255   (192 IPs)
-    = 10.248.8.64/26 + 10.248.8.128/25
-  Gap 2: 10.248.10.0  - 10.248.15.255  (1,536 IPs)
-    = 10.248.10.0/23 + 10.248.12.0/22
+  Gap 1: 10.50.8.64  - 10.50.8.255   (192 IPs)
+    = 10.50.8.64/26 + 10.50.8.128/25
+  Gap 2: 10.50.10.0  - 10.50.15.255  (1,536 IPs)
+    = 10.50.10.0/23 + 10.50.12.0/22
   ─────────────────────────────────────────────
   Total unallocated:     1,728 IPs (42.2%)
 ```
@@ -69,13 +69,13 @@ Gaps (unallocated):
 Two CIDRs overlap when either contains the other's network address.
 
 ```
-OVERLAP: 10.248.8.0/24 and 10.248.8.0/26
-  10.248.8.0/24 range: 10.248.8.0 - 10.248.8.255
-  10.248.8.0/26 range: 10.248.8.0 - 10.248.8.63
+OVERLAP: 10.50.8.0/24 and 10.50.8.0/26
+  10.50.8.0/24 range: 10.50.8.0 - 10.50.8.255
+  10.50.8.0/26 range: 10.50.8.0 - 10.50.8.63
   Overlap: 64 IPs in conflict
 ```
 
-Python: `ipaddress.IPv4Network('10.248.8.0/24').overlaps(IPv4Network('10.248.8.0/26'))` returns True.
+Python: `ipaddress.IPv4Network('10.50.8.0/24').overlaps(IPv4Network('10.50.8.0/26'))` returns True.
 
 ## Address Space Planning Best Practices
 
@@ -112,17 +112,17 @@ CIDR blocks must be naturally aligned. A /24 must start on a 256-address boundar
 
 | Attempted CIDR | Problem | Correct Alternative |
 |---------------|---------|-------------------|
-| 10.248.1.0/22 | /22 must start at .0.0, .4.0, .8.0, etc. | 10.248.0.0/22 or 10.248.4.0/22 |
-| 10.248.3.0/23 | /23 must start at even third octet | 10.248.2.0/23 or 10.248.4.0/23 |
-| 10.248.8.64/25 | /25 must start at .0 or .128 | 10.248.8.0/25 or 10.248.8.128/25 |
+| 10.50.1.0/22 | /22 must start at .0.0, .4.0, .8.0, etc. | 10.50.0.0/22 or 10.50.4.0/22 |
+| 10.50.3.0/23 | /23 must start at even third octet | 10.50.2.0/23 or 10.50.4.0/23 |
+| 10.50.8.64/25 | /25 must start at .0 or .128 | 10.50.8.0/25 or 10.50.8.128/25 |
 
 ## Supernetting and Summarization
 
 When multiple contiguous subnets can be expressed as a single larger block:
 
 ```
-10.248.0.0/24 + 10.248.1.0/24 = 10.248.0.0/23
-10.248.0.0/23 + 10.248.2.0/23 = 10.248.0.0/22
+10.50.0.0/24 + 10.50.1.0/24 = 10.50.0.0/23
+10.50.0.0/23 + 10.50.2.0/23 = 10.50.0.0/22
 ```
 
 **Rule:** Two adjacent CIDRs of the same size can be summarized only if the first starts on a boundary that is a multiple of the combined size.
@@ -153,7 +153,7 @@ When multiple contiguous subnets can be expressed as a single larger block:
 
 ```bash
 # Basic CIDR info
-python3 scripts/network-calc.py calculate 10.248.0.0/20
+python3 scripts/network-calc.py calculate 10.50.0.0/20
 
 # How many hosts fit in a /23?
 python3 scripts/network-calc.py calculate 10.0.0.0/23
@@ -162,18 +162,18 @@ python3 scripts/network-calc.py calculate 10.0.0.0/23
 python3 scripts/network-calc.py calculate --from-hosts 500
 
 # Split a /20 into /22 subnets
-python3 scripts/network-calc.py calculate 10.248.0.0/20 --split 22
+python3 scripts/network-calc.py calculate 10.50.0.0/20 --split 22
 
 # Analyze current VNet utilization
-python3 scripts/network-calc.py analyze --vnet 10.248.0.0/20 \
-  --subnets "10.248.0.0/22,10.248.4.0/22,10.248.8.0/26,10.248.9.0/24"
+python3 scripts/network-calc.py analyze --vnet 10.50.0.0/20 \
+  --subnets "10.50.0.0/22,10.50.4.0/22,10.50.8.0/26,10.50.9.0/24"
 
 # Find first available gap for 500 hosts
-python3 scripts/network-calc.py first-fit --vnet 10.248.0.0/20 \
-  --subnets "10.248.0.0/22,10.248.4.0/22,10.248.8.0/26,10.248.9.0/24" \
+python3 scripts/network-calc.py first-fit --vnet 10.50.0.0/20 \
+  --subnets "10.50.0.0/22,10.50.4.0/22,10.50.8.0/26,10.50.9.0/24" \
   --hosts 500
 
 # Validate for overlaps (pre-commit hook)
-python3 scripts/network-calc.py validate --vnet 10.248.0.0/20 \
-  --subnets "10.248.0.0/22,10.248.4.0/22,10.248.8.0/26,10.248.9.0/24"
+python3 scripts/network-calc.py validate --vnet 10.50.0.0/20 \
+  --subnets "10.50.0.0/22,10.50.4.0/22,10.50.8.0/26,10.50.9.0/24"
 ```

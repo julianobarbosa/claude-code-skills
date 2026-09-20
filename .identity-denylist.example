@@ -1,0 +1,5 @@
+# Copy to `.identity-denylist` (untracked) and list the names that must never reach
+# this public repo: employer, internal project codenames, DevOps org, client names.
+# One term per line. Matched case-insensitively on word boundaries. `#` starts a comment.
+acme-corp
+internal-project-codename
