@@ -52,7 +52,8 @@
 // --no-reviewer Skip the $SHIP_ADO_DEFAULT_REVIEWER fallback.
 // --no-complete-transition  Azure only: leave the Complete dialog's "Complete linked
 //               work items after merging" box UNCHECKED. By default ship sets
-//               completionOptions.transitionWorkItems=true at create time, so whoever
+//               completionOptions.transitionWorkItems=true right after create (a PATCH:
+//               the create call drops completionOptions), so whoever
 //               clicks Complete transitions the linked item instead of leaving it open.
 //               Ignored on GitHub, where "Closes #<id>" in the body does the same job.
 
@@ -297,11 +298,6 @@ async function runAzure(): Promise<void> {
       // Tags and reviewers packed into the create payload (one round trip).
       labels: tags.length ? tags.map((name) => ({ name })) : undefined,
       reviewers: reviewerRefs.length ? reviewerRefs.map(({ id, isRequired }) => ({ id, isRequired })) : undefined,
-      // Pre-arm the Complete dialog's "Complete linked work items after merging"
-      // checkbox. Without this the PR carries no completionOptions, ADO renders the
-      // box unchecked, and a linked work item silently survives the merge as active
-      // — the exact traceability gap the auto-link invariant above exists to close.
-      completionOptions: { transitionWorkItems: !noCompleteTransition },
     },
     repo,
     project,
@@ -312,7 +308,26 @@ async function runAzure(): Promise<void> {
   console.log(`pr_id=${prId}`);
   console.log(`pr_url=${orgUrl}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repo)}/pullrequest/${prId}`);
   if (wiIds.length) console.log(`work_items=${wiIds.join(" ")}`);
-  console.log(`complete_transitions_work_items=${!noCompleteTransition}`);
+
+  // Pre-arm the Complete dialog's "Complete linked work items after merging" box, so
+  // whoever clicks Complete transitions the linked item instead of leaving it active
+  // behind a merged PR. This CANNOT ride in the create payload: createPullRequest
+  // silently drops completionOptions (PR 1050 came back with completionOptions=null),
+  // so it is a PATCH right after create. Best-effort, like --transition: a failure warns
+  // and the run continues. The printed value is read back from the response, never
+  // echoed from the flag, so the output cannot claim a setting that did not land.
+  if (!noCompleteTransition) {
+    try {
+      const upd = await authFallback(() => git.updatePullRequest(
+        { completionOptions: { transitionWorkItems: true } }, repo, prId, project));
+      console.log(`complete_transitions_work_items=${upd.completionOptions?.transitionWorkItems === true}`);
+    } catch (e: any) {
+      console.error(`>> WARNING: could not pre-check "complete linked work items" on PR ${prId}: ${e?.message ?? e}`);
+      console.log("complete_transitions_work_items=false");
+    }
+  } else {
+    console.log("complete_transitions_work_items=false");
+  }
 
   // Best-effort: a bad/unsupported state name (process-specific — Agile uses Resolved,
   // Basic uses Doing) must not abort the run and skip tagging/reviewers below. Warn and

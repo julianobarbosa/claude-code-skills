@@ -146,11 +146,11 @@ bun scripts/ship-pr.ts --title "<title>" --body-file /tmp/pr-body.md \
   state first; see `references/azure-devops.md`. Omit `--transition` to leave the board untouched.
   (Created items start in the type's initial state, e.g. `New`/`To Do`.)
 - **The Complete dialog's "Complete linked work items after merging" box is pre-checked.** Ship sets
-  `completionOptions.transitionWorkItems=true` in the create call, so whoever clicks **Complete** on the
+  `completionOptions.transitionWorkItems=true` with a PATCH right after the create call, so whoever clicks **Complete** on the
   PR transitions the linked item rather than leaving it open behind a merged PR. This is independent of
   `--transition`, which fires at PR-open; this one fires at merge, and it is the one that closes the
   loop, because nobody remembers to tick a box at merge time. Pass `--no-complete-transition` to leave
-  it unchecked. The script prints `complete_transitions_work_items=true|false`. Ignored on GitHub,
+  it unchecked. The script prints `complete_transitions_work_items=true|false`, read back from the PATCH response. Ignored on GitHub,
   where `Closes #<id>` in the body does the same job.
 - The script prints `pr_url=…`; surface it to the user.
 
@@ -321,6 +321,10 @@ detected platform. The PR description starts from `assets/pr-template.md`.
   title to a literal `&amp;` (an entity the API doesn't decode), so titles render wrong. `ship-pr.ts`
   passes the title literally via the SDK + an arg array, so `&` stays `&` — another reason to use the
   script, not the raw path.
+- **`createPullRequest` silently drops `completionOptions`.** The payload is accepted and the PR comes
+  back with `completionOptions: null`, so a setting passed at create never lands (observed on ADO PR
+  1050). Completion options must be set with `updatePullRequest` after the PR exists. Never report
+  such a setting from the flag you passed; read it back from the API response.
 - Deleting a branch while its PR is still open abandons the PR — clean up only after merge (step 5).
 - `ship-open.ts` matches `--profile <email>` against the browser's **signed-in** account emails, so a
   profile with no account attached is only reachable as the Default fallback, not by email. It
