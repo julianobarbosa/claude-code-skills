@@ -158,8 +158,11 @@ function launch(os: OS, browser: Browser, profileDir: string, url: string): void
     // a URL with `&` (e.g. an Outlook deep link) reaches cmd unquoted and cmd
     // parses it as a command separator ("'viewmodel' is not recognized").
     // PowerShell's Start-Process takes each argument whole; it detaches too.
+    // Start-Process joins -ArgumentList with bare spaces and never quotes, so
+    // `Profile 2` reached Edge as `--profile-directory=Profile` + `2` and opened
+    // the last-used profile instead. Double-quote the value inside the arg.
     const psQuote = (s: string) => `'${s.replace(/'/g, "''")}'`;
-    const argList = [`--profile-directory=${profileDir}`, url].map(psQuote).join(",");
+    const argList = [`--profile-directory="${profileDir}"`, url].map(psQuote).join(",");
     execFileSync("powershell.exe", ["-NoProfile", "-Command", `Start-Process ${meta.winExe} -ArgumentList ${argList}`], { stdio: "ignore" });
   } else if (os === "macos") {
     // -n new instance, -a app, --args forwards the rest to the browser.
