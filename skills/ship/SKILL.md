@@ -325,6 +325,10 @@ detected platform. The PR description starts from `assets/pr-template.md`.
   back with `completionOptions: null`, so a setting passed at create never lands (observed on ADO PR
   1050). Completion options must be set with `updatePullRequest` after the PR exists. Never report
   such a setting from the flag you passed; read it back from the API response.
+- **Run the scripts from the target repo, by absolute path — never `cd` into the skill dir.** Platform
+  detection reads the cwd's git remote, and the skill dir is its own GitHub repo, so `cd ~/.claude/skills/ship
+  && bun scripts/ship-pr.ts` opens the PR against *that* repo (2026-09-23: only a 422 "No commits between
+  main and main" stopped it). Use `bun ~/.claude/skills/ship/scripts/ship-pr.ts` from the repo being shipped.
 - Deleting a branch while its PR is still open abandons the PR — clean up only after merge (step 5).
 - `ship-open.ts` matches `--profile <email>` against the browser's **signed-in** account emails, so a
   profile with no account attached is only reachable as the Default fallback, not by email. It
