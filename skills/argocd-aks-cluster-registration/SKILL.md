@@ -5,7 +5,7 @@ description: "Register a private AKS cluster on a hub Argo CD with `argocd clust
 argument-hint: [target cluster, and the name it should carry in Argo CD]
 ---
 
-# ArgocdAksClusterRegistration
+# argocd-aks-cluster-registration
 
 Gets a private AKS cluster from "not in Settings → Clusters" to "registered on the hub Argo CD
 with a secretless credential", and then to "an Application targets it by name". The hub's own
@@ -29,13 +29,13 @@ conventions). These override the placeholders in the workflows.
    ```bash
    curl -s -X POST http://localhost:31337/notify \
      -H "Content-Type: application/json" \
-     -d '{"message": "Running WORKFLOWNAME in ArgocdAksClusterRegistration"}' \
+     -d '{"message": "Running WORKFLOWNAME in argocd-aks-cluster-registration"}' \
      > /dev/null 2>&1 &
    ```
 
 2. **Output text notification**:
    ```
-   Running **WorkflowName** in **ArgocdAksClusterRegistration**...
+   Running **WorkflowName** in **argocd-aks-cluster-registration**...
    ```
 
 ## Workflow Routing
