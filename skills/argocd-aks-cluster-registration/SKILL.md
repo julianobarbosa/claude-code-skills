@@ -15,7 +15,7 @@ the managed cluster.
 ## Customization
 
 **Before executing, check for user customizations at:**
-`~/.claude/lifeos/USER/CUSTOMIZATIONS/SKILLS/ArgocdAksClusterRegistration/`
+`~/.claude/lifeos/USER/CUSTOMIZATIONS/SKILLS/argocd-aks-cluster-registration/`
 
 If this directory exists, load and apply any PREFERENCES.md or Config found there (cluster and
 resource-group names, the Terraform output that carries the ids, the hub hostname, naming
