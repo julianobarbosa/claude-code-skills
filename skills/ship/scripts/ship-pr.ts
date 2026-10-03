@@ -50,8 +50,9 @@
 //               With neither given, $SHIP_ADO_DEFAULT_REVIEWER (if set) is added as
 //               an optional reviewer.
 // --no-reviewer Skip the $SHIP_ADO_DEFAULT_REVIEWER fallback.
-// --no-complete-transition  Azure only: leave the Complete dialog's "Complete linked
-//               work items after merging" box UNCHECKED. By default ship sets
+// --no-complete-transition  Azure only: set the Complete dialog's "Complete linked
+//               work items after merging" box to an explicit false (unset would let the
+//               completer's last choice tick it). By default ship sets
 //               completionOptions.transitionWorkItems=true right after create (a PATCH:
 //               the create call drops completionOptions), so whoever
 //               clicks Complete transitions the linked item instead of leaving it open.
@@ -316,17 +317,18 @@ async function runAzure(): Promise<void> {
   // so it is a PATCH right after create. Best-effort, like --transition: a failure warns
   // and the run continues. The printed value is read back from the response, never
   // echoed from the flag, so the output cannot claim a setting that did not land.
-  if (!noCompleteTransition) {
-    try {
-      const upd = await authFallback(() => git.updatePullRequest(
-        { completionOptions: { transitionWorkItems: true } }, repo, prId, project));
-      console.log(`complete_transitions_work_items=${upd.completionOptions?.transitionWorkItems === true}`);
-    } catch (e: any) {
-      console.error(`>> WARNING: could not pre-check "complete linked work items" on PR ${prId}: ${e?.message ?? e}`);
-      console.log("complete_transitions_work_items=false");
-    }
-  } else {
-    console.log("complete_transitions_work_items=false");
+  // --no-complete-transition PATCHes an explicit false rather than skipping the call:
+  // left unset (null), the dialog falls back to the completer's last choice, which ticked
+  // the box and closed work item 1297 behind PR 1347 (2026-10-03) while this line printed false.
+  const wantTransition = !noCompleteTransition;
+  try {
+    const upd = await authFallback(() => git.updatePullRequest(
+      { completionOptions: { transitionWorkItems: wantTransition } }, repo, prId, project));
+    const got = upd.completionOptions?.transitionWorkItems;
+    console.log(`complete_transitions_work_items=${got === undefined || got === null ? "unset" : got}`);
+  } catch (e: any) {
+    console.error(`>> WARNING: could not set "complete linked work items" to ${wantTransition} on PR ${prId}: ${e?.message ?? e}`);
+    console.log("complete_transitions_work_items=unset");
   }
 
   // Best-effort: a bad/unsupported state name (process-specific — Agile uses Resolved,
