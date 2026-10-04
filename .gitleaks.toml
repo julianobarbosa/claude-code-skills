@@ -1,0 +1,38 @@
+# gitleaks configuration for a public documentation repo.
+#
+# Every finding allowlisted below was inspected and confirmed to be a documentation
+# placeholder, a vendor doc sample, or a structural false positive. Full audit: PR #5.
+# Allowlisting is deliberately narrow — matched on the secret text, not by muting rules
+# or excluding whole files, so a real credential in any of these files still fires.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Documentation placeholders and vendor doc samples"
+
+# Placeholder tokens that exist to be replaced by the reader.
+stopwords = [
+  "your-token",
+  "your-bot-token",
+  "YOUR_API_KEY",
+  "k8s-generated-api-key",
+  "SSH_PRIVATE_KEY_CONTENT",
+]
+
+regexes = [
+  # Truncated illustrative JWTs — the "..." proves they are not usable.
+  '''eyJ[A-Za-z0-9_-]{10,}\.\.\.''',
+  # base64("mysecretpassword") — the anti-patterns doc teaching that base64 is not encryption.
+  '''bXlzZWNyZXRwYXNzd29yZA==''',
+  # Grafana's own public-dashboards API doc sample body.
+  '''5c948bf96e6a4b13bd91975f9a2028b7''',
+  # Redacted key bodies shown as ellipses inside fenced examples.
+  '''-----BEGIN [A-Z ]*PRIVATE KEY( BLOCK)?-----[\s\S]{0,40}(\.\.\.|```)''',
+]
+
+paths = [
+  # External Secrets templates: SecretStore/target blocks are shaped like secrets but
+  # hold only key *names* pointing at a vault.
+  '''skills/senhasegura/References/ExternalSecretExample\.yaml$''',
+]

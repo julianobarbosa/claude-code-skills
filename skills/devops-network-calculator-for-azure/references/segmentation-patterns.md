@@ -14,13 +14,13 @@ Comprehensive guide to Azure VNet segmentation, NSG design, and subnet architect
 
 ### When to Use Flat VNet (Single VNet)
 
-- Single-purpose infrastructure (this project)
+- Single-purpose infrastructure (the reference environment)
 - All subnets serve one workload or one environment
 - No spoke-to-spoke routing requirements
 - Simpler operations and lower cost (no NVA/firewall required)
 - Fewer than 5 distinct network segments
 
-### This Project Uses Flat VNet -- Correctly
+### The Reference Environment Uses Flat VNet -- Correctly
 
 The project deploys a single /20 VNet with 4 subnets serving one environment. There is no cross-workload routing requirement, no shared services hub, and no multi-team isolation need. A hub-spoke topology would add unnecessary Azure Firewall cost (~$1,000/mo) and operational complexity for zero security benefit.
 
@@ -183,7 +183,7 @@ Outbound:
 - Data exfiltration prevention is a requirement
 - Services not supported by service endpoints
 
-### This Project's Approach
+### The Reference Approach
 
 Service endpoints are appropriate because:
 - Single VNet deployment (no cross-VNet access needed)
@@ -253,18 +253,18 @@ Service endpoints are appropriate because:
 
 **Fix:** Always use service tags (`AzureCloud`, `AzureMonitor`, `Storage`, etc.). Azure updates service tag definitions automatically.
 
-## This Project's Segmentation Design
+## The Reference Segmentation Design
 
 ### Current Layout
 
 ```
-10.248.0.0/20 (4,096 IPs)
-├── GatewaySubnet        10.248.0.0/22   (1,024 IPs) - VPN termination
-├── PublicSubnet          10.248.4.0/22   (1,024 IPs) - Internet-facing, NAT GW
-├── AzureBastionSubnet   10.248.8.0/26   (64 IPs)    - Bastion jump host
-├── PrivateSubnet         10.248.9.0/24   (256 IPs)   - Backend services, NAT GW
-├── [gap]                10.248.8.64/26  (192 IPs)   - Available
-└── [gap]                10.248.10.0/23  (1,536 IPs) - Available (AKS candidate)
+10.50.0.0/20 (4,096 IPs)
+├── GatewaySubnet        10.50.0.0/22   (1,024 IPs) - VPN termination
+├── PublicSubnet          10.50.4.0/22   (1,024 IPs) - Internet-facing, NAT GW
+├── AzureBastionSubnet   10.50.8.0/26   (64 IPs)    - Bastion jump host
+├── PrivateSubnet         10.50.9.0/24   (256 IPs)   - Backend services, NAT GW
+├── [gap]                10.50.8.64/26  (192 IPs)   - Available
+└── [gap]                10.50.10.0/23  (1,536 IPs) - Available (AKS candidate)
 ```
 
 ### Why This Design Is Correct

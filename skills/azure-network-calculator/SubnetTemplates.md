@@ -86,11 +86,11 @@ Infrastructure tooling — image builds, CI/CD agents, automation. Matches `rg-e
 - snet-workload-01: block 1 (+1.0, /24)
 - snet-private-endpoints: block 2 (+2.0, /24)
 
-**Offset calculation example** (VNet base 10.248.0.0/20):
-- snet-private: 10.248.12.0/24
-- snet-public: 10.248.14.0/24
-- snet-gateway: 10.248.15.0/27
-- AzureBastionSubnet: 10.248.15.32/27
+**Offset calculation example** (VNet base 10.50.0.0/20):
+- snet-private: 10.50.12.0/24
+- snet-public: 10.50.14.0/24
+- snet-gateway: 10.50.15.0/27
+- AzureBastionSubnet: 10.50.15.32/27
 
 ## Applying Templates
 

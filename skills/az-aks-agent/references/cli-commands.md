@@ -257,7 +257,7 @@ max_steps: 10
 ```yaml
 # ~/.azure/aksAgent.config
 llm_provider: anthropic
-anthropic_api_key: sk-ant-xxxxxxxxxxxx
+anthropic_api_key: "<ANTHROPIC_API_KEY>"
 model: claude-sonnet-4
 max_steps: 10
 ```

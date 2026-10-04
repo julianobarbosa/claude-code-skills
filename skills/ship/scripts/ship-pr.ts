@@ -8,7 +8,7 @@
 //                  [--assignee UPN] [--work-item-type TYPE] [--no-create-work-item]
 //                  [--transition STATE] [--tag "t1,t2" ...] [--no-tag]
 //                  [--reviewer UPN ...] [--required-reviewer UPN ...] [--no-reviewer]
-//                  [--draft] [-r remote]
+//                  [--no-complete-transition] [--draft] [-r remote]
 //
 // Prerequisites in one shot: on Azure, the work item, tags/labels, and reviewers
 // are packed into the single createPullRequest call — no create-then-patch round
@@ -50,6 +50,13 @@
 //               With neither given, $SHIP_ADO_DEFAULT_REVIEWER (if set) is added as
 //               an optional reviewer.
 // --no-reviewer Skip the $SHIP_ADO_DEFAULT_REVIEWER fallback.
+// --no-complete-transition  Azure only: set the Complete dialog's "Complete linked
+//               work items after merging" box to an explicit false (unset would let the
+//               completer's last choice tick it). By default ship sets
+//               completionOptions.transitionWorkItems=true right after create (a PATCH:
+//               the create call drops completionOptions), so whoever
+//               clicks Complete transitions the linked item instead of leaving it open.
+//               Ignored on GitHub, where "Closes #<id>" in the body does the same job.
 
 import { readFileSync } from "node:fs";
 import * as azdev from "azure-devops-node-api";
@@ -95,6 +102,7 @@ let title = "", body = "", bodyFile = "", target = "main", sourceBranch = "";
 let workItem = "", transition = "", remote = "origin", wiType = "Task";
 let assignee = process.env.SHIP_ADO_ASSIGNEE || "you@example.com";
 let draft = false, createWi = true, noTag = false, noReviewer = false;
+let noCompleteTransition = false;
 const tasks: string[] = [];
 const tagFlags: string[] = [];
 const reviewerFlags: string[] = [];
@@ -126,6 +134,7 @@ for (let i = 0; i < argv.length; i++) {
     case "--reviewer": { const v = argv[++i]; if (v === undefined) fail("--reviewer requires a value", 2); reviewerFlags.push(v); break; }
     case "--required-reviewer": { const v = argv[++i]; if (v === undefined) fail("--required-reviewer requires a value", 2); requiredReviewerFlags.push(v); break; }
     case "--no-reviewer": noReviewer = true; break;
+    case "--no-complete-transition": noCompleteTransition = true; break;
     case "--draft": draft = true; break;
     case "-r": case "--remote": remote = argv[++i]; break;
     case "-h": case "--help":
@@ -181,7 +190,9 @@ if (tags.length === 0 && !noTag) {
 // Same idea for reviewers: a PR with no reviewer record leaves no trace that
 // anyone was asked. SHIP_ADO_DEFAULT_REVIEWER supplies a non-blocking default
 // when the caller named none. Unset = previous behaviour, no reviewer.
-if (optionalReviewers.length === 0 && requiredReviewers.length === 0 && !noReviewer) {
+// Azure only: the value is ADO identities (UPNs), which mean nothing on GitHub,
+// and the same shell may ship both work and personal repos.
+if (kind === "azure" && optionalReviewers.length === 0 && requiredReviewers.length === 0 && !noReviewer) {
   const fallback = (process.env.SHIP_ADO_DEFAULT_REVIEWER ?? "").trim();
   if (fallback) {
     optionalReviewers.push(...parseTags([fallback]));
@@ -298,6 +309,27 @@ async function runAzure(): Promise<void> {
   console.log(`pr_id=${prId}`);
   console.log(`pr_url=${orgUrl}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repo)}/pullrequest/${prId}`);
   if (wiIds.length) console.log(`work_items=${wiIds.join(" ")}`);
+
+  // Pre-arm the Complete dialog's "Complete linked work items after merging" box, so
+  // whoever clicks Complete transitions the linked item instead of leaving it active
+  // behind a merged PR. This CANNOT ride in the create payload: createPullRequest
+  // silently drops completionOptions (PR 1050 came back with completionOptions=null),
+  // so it is a PATCH right after create. Best-effort, like --transition: a failure warns
+  // and the run continues. The printed value is read back from the response, never
+  // echoed from the flag, so the output cannot claim a setting that did not land.
+  // --no-complete-transition PATCHes an explicit false rather than skipping the call:
+  // left unset (null), the dialog falls back to the completer's last choice, which ticked
+  // the box and closed work item 1297 behind PR 1347 (2026-10-03) while this line printed false.
+  const wantTransition = !noCompleteTransition;
+  try {
+    const upd = await authFallback(() => git.updatePullRequest(
+      { completionOptions: { transitionWorkItems: wantTransition } }, repo, prId, project));
+    const got = upd.completionOptions?.transitionWorkItems;
+    console.log(`complete_transitions_work_items=${got === undefined || got === null ? "unset" : got}`);
+  } catch (e: any) {
+    console.error(`>> WARNING: could not set "complete linked work items" to ${wantTransition} on PR ${prId}: ${e?.message ?? e}`);
+    console.log("complete_transitions_work_items=unset");
+  }
 
   // Best-effort: a bad/unsupported state name (process-specific — Agile uses Resolved,
   // Basic uses Doing) must not abort the run and skip tagging/reviewers below. Warn and

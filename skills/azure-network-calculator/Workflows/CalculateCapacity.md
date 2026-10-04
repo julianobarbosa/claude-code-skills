@@ -6,7 +6,7 @@ Show remaining network capacity at subscription or VNet level.
 
 One of:
 1. **Subscription name** — show /20 VNet capacity (e.g., `infrastructure-dev`)
-2. **VNet CIDR** — show /24 subnet capacity within that VNet (e.g., `10.248.0.0/20`)
+2. **VNet CIDR** — show /24 subnet capacity within that VNet (e.g., `10.50.0.0/20`)
 3. **No input** — show summary across all subscriptions
 
 ## Mode 1: Subscription Capacity

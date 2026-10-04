@@ -4,7 +4,7 @@ Check whether a CIDR range is valid, within a known subscription, and free from 
 
 ## Inputs
 
-1. **CIDR to validate** — e.g., `10.248.0.0/20` or `10.144.17.0/24`
+1. **CIDR to validate** — e.g., `10.50.0.0/20` or `10.144.17.0/24`
 
 ## Steps
 

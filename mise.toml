@@ -1,0 +1,26 @@
+# Migrated from direnv (.envrc) → mise, 2026-09-20.
+#   - source_up_if_exists            → mise merges parent configs natively
+#                                      (../../mise.toml: python 3.12 + .venv)
+#   - $HOME/.direnv/.env FIFO load   → dormant (dir absent); re-add with _.file if resurrected
+#   - .env FIFO load                 → dormant (file absent); re-add with _.file if resurrected
+#   - .env.local (eval + op read)    → mise.local.toml (git-ignored, operator-local)
+#   - log_status KUBECONFIG/SENTRY   → dropped; `mise env` shows the live values
+# Operator-local values never land here: this file is committed.
+
+# devops-team tools
+# [tools]
+# azure-cli = { version = "latest", uvx_args = "--prerelease=allow" }
+# azure-kubelogin = "0.2.19"
+# entire = "latest"
+# k9s = "latest"
+# kubectl = "latest"
+# op = "latest"
+# oras = "latest"
+# sqlite = "latest"
+
+[tools]
+python = "3.12"
+
+[env]
+# Activate .venv (create it with the pinned python if missing) — replaces the uv-venv block.
+_.python.venv = { path = ".venv", create = true }

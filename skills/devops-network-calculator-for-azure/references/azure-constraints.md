@@ -24,7 +24,7 @@ Azure reserves 5 IP addresses in every subnet:
 | /17 | 32,768 | 32,763 | Multi-workload VNet |
 | /18 | 16,384 | 16,379 | Medium VNet |
 | /19 | 8,192 | 8,187 | Large subnet |
-| /20 | 4,096 | 4,091 | Standard VNet (this project) |
+| /20 | 4,096 | 4,091 | Standard VNet (the reference environment) |
 | /21 | 2,048 | 2,043 | Large workload subnet |
 | /22 | 1,024 | 1,019 | AKS nodes (Azure CNI) |
 | /23 | 512 | 507 | AKS nodes (CNI Overlay) |

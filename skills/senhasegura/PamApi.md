@@ -98,7 +98,7 @@ curl -X POST "$SENHASEGURA_URL/api/pam/sshkey" \
     "username": "deploy",
     "hostname": "*.prod.example.com",
     "public_key": "ssh-ed25519 AAAAC3Nza...",
-    "private_key": "-----BEGIN OPENSSH PRIVATE KEY-----...",
+    "private_key": "<SSH_PRIVATE_KEY_PEM>",
     "passphrase": "optional-passphrase",
     "auto_rotate": true,
     "rotation_days": 90

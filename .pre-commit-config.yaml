@@ -1,4 +1,11 @@
 repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+        name: Scan staged changes for secrets
+        description: Blocks API keys, tokens, and private keys before they reach this public repo.
+
   - repo: local
     hooks:
       - id: lint-skills
@@ -9,3 +16,13 @@ repos:
         pass_filenames: false
         files: ^skills/.*\.md$|^scripts/lint-skills\.ts$
         types_or: [markdown, ts]
+
+      - id: check-no-identity
+        name: Block personal and employer identifiers
+        description: >-
+          Runs scripts/check-no-identity.ts. Catches the class gitleaks misses — corporate
+          and personal emails, employer names, the real Azure DevOps org, and absolute home
+          paths. This repo is public; that content is not recoverable once pushed.
+        entry: bun scripts/check-no-identity.ts
+        language: system
+        exclude: ^scripts/check-no-identity\.ts$

@@ -108,7 +108,7 @@ sinksConfig:
   - slack_sink:
       name: main_slack
       slack_channel: alerts
-      api_key: xoxb-your-token
+      api_key: "<SLACK_BOT_TOKEN>"
 ```
 
 ### Microsoft Teams

@@ -93,7 +93,7 @@ holmes ask "payment service issues" --interactive
 # Send to Slack
 holmes ask "why did deployment fail?" \
   --destination slack \
-  --slack-token xoxb-your-token \
+  --slack-token "$SLACK_BOT_TOKEN" \
   --slack-channel "#deployments"
 
 # With specific namespace context
