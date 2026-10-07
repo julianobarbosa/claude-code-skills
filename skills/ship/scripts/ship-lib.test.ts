@@ -4,6 +4,7 @@
 
 import { expect, test, describe } from "bun:test";
 import {
+  githubOwnerRepo,
   parsePorcelainStatus,
   scopeAudit,
   defaultTagsFromTitle,
@@ -138,5 +139,23 @@ describe("adoParts", () => {
   });
   test("non-azure url is null", () => {
     expect(adoParts("git@github.com:user/repo.git")).toBeNull();
+  });
+});
+
+describe("githubOwnerRepo", () => {
+  test("ssh github.com", () => {
+    expect(githubOwnerRepo("git@github.com:user/repo.git")).toEqual({ owner: "user", repo: "repo" });
+  });
+  test("https github.com, no .git", () => {
+    expect(githubOwnerRepo("https://github.com/user/repo")).toEqual({ owner: "user", repo: "repo" });
+  });
+  test("ssh host alias with github in the name (2026-10-07: PR 83 fell back to gh)", () => {
+    expect(githubOwnerRepo("git@github-julianomb:julianobarbosa/.dotfiles.git")).toEqual({ owner: "julianobarbosa", repo: ".dotfiles" });
+  });
+  test("ssh:// form with alias", () => {
+    expect(githubOwnerRepo("ssh://git@github.com-work/org/svc.git")).toEqual({ owner: "org", repo: "svc" });
+  });
+  test("non-github url is null", () => {
+    expect(githubOwnerRepo("https://dev.azure.com/org/proj/_git/repo")).toBeNull();
   });
 });
