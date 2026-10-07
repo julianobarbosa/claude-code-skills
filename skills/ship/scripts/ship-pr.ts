@@ -63,7 +63,7 @@ import * as azdev from "azure-devops-node-api";
 import { Octokit } from "@octokit/rest";
 import {
   currentBranch, remoteUrl, detectKind, adoParts, adoToken, parseWorkItem, parseTags,
-  githubToken, defaultTagsFromTitle,
+  githubToken, defaultTagsFromTitle, githubOwnerRepo,
 } from "./ship-lib.ts";
 
 function fail(msg: string, code = 1): never {
@@ -352,9 +352,9 @@ async function runAzure(): Promise<void> {
 }
 
 async function runGitHub(): Promise<void> {
-  const m = url.match(/github\.com[:/]([^/]+)\/([^/]+?)(?:\.git)?$/);
-  if (!m) fail(`could not parse owner/repo from ${url}`);
-  const [, owner, repo] = m!;
+  const parsed = githubOwnerRepo(url);
+  if (!parsed) fail(`could not parse owner/repo from ${url}`);
+  const { owner, repo } = parsed;
   const token = githubToken(owner);
   if (!token) fail("no GitHub token: set GH_TOKEN/GITHUB_TOKEN or run `gh auth login`");
 

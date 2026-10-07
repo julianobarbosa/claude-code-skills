@@ -216,3 +216,11 @@ export function parseWorkItem(s: string = currentBranch()): string {
   if (m) return m[1];
   return "";
 }
+
+/** owner/repo from a GitHub remote. Accepts github.com and SSH host aliases whose host
+ *  name contains "github" (git@github-julianomb:owner/repo.git, ssh://git@github.com-work/...),
+ *  which a literal github.com match rejected. Null for anything else. */
+export function githubOwnerRepo(url: string): { owner: string; repo: string } | null {
+  const m = url.trim().match(/^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^:/]*github[^:/]*)[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
+  return m ? { owner: m[2], repo: m[3] } : null;
+}
