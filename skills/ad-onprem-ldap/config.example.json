@@ -1,0 +1,11 @@
+{
+  "domain": "corp.example.com",
+  "baseDn": "DC=corp,DC=example,DC=com",
+  "dcs": ["dc01.corp.example.com", "dc02.corp.example.com"],
+  "port": 636,
+  "bindUpn": "admin.account@corp.example.com",
+  "passwordRef": "op://<vault>/<item>/password",
+  "caBundle": "~/.config/ad-onprem/ca-bundle.pem",
+  "writeOuAllowlist": ["OU=Managed Users,DC=corp,DC=example,DC=com", "OU=Managed Groups,DC=corp,DC=example,DC=com"],
+  "passwordVault": "<vault for reset passwords>"
+}

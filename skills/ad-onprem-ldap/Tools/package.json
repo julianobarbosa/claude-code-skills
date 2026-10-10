@@ -1,0 +1,19 @@
+{
+  "name": "ad-onprem-ldap-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Manage on-prem Active Directory users and groups over LDAPS (no PowerShell)",
+  "scripts": {
+    "ad": "bun Ad.ts",
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit"
+  },
+  "dependencies": {
+    "ldapts": "9.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.7.0"
+  }
+}
