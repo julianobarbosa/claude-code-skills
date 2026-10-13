@@ -23,26 +23,34 @@ export function escapeFilter(value: string): string {
 export function escapeDnValue(value: string): string {
   let out = value.replace(/[,+"\\<>;=]/g, (c) => "\\" + c);
   if (out.startsWith(" ") || out.startsWith("#")) out = "\\" + out;
-  if (out.endsWith(" ") && !out.endsWith("\\ ")) out = out.slice(0, -1) + "\\ ";
+  // Test the raw value: one ending in a backslash and a space still needs its space escaped.
+  if (value.endsWith(" ") && value.length > 1) out = out.slice(0, -1) + "\\ ";
   return out;
 }
 
-/** Split a DN on unescaped commas. */
+/** Split a DN on unescaped commas, trimming only unescaped edge spaces. */
 export function splitDn(dn: string): string[] {
   const parts: string[] = [];
   let cur = "";
+  let keep = 0; // length of cur through its last escaped character: never trimmed
+  const flush = () => {
+    const head = cur.slice(0, keep);
+    parts.push((head + cur.slice(keep).trimEnd()).trimStart());
+    cur = "";
+    keep = 0;
+  };
   for (let i = 0; i < dn.length; i++) {
     const c = dn[i];
     if (c === "\\" && i + 1 < dn.length) {
       cur += c + dn[++i];
+      keep = cur.length;
     } else if (c === ",") {
-      parts.push(cur.trim());
-      cur = "";
+      flush();
     } else {
       cur += c;
     }
   }
-  parts.push(cur.trim());
+  flush();
   return parts.filter((p) => p !== "");
 }
 

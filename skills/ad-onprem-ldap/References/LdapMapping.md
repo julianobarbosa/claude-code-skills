@@ -4,16 +4,16 @@
 |---|---|---|
 | `Get-ADUser` | `find-user`, `user-status` | search `(&(objectCategory=person)(objectClass=user)(sAMAccountName=…))` |
 | `Get-ADGroup` | `find-group` | search `(&(objectClass=group)(sAMAccountName=…))` |
-| `Get-ADGroupMember [-Recursive]` | `group-members [--recursive]` | base read of `member;range=N-*`; recursive: `(memberOf:1.2.840.113556.1.4.1941:=<groupDN>)` |
-| `Get-ADPrincipalGroupMembership` | `user-groups [--recursive]` | `memberOf`; recursive: `(member:1.2.840.113556.1.4.1941:=<userDN>)` |
+| `Get-ADGroupMember [-Recursive]` | `group-members [--recursive]` | base read of `member;range=N-*`, plus `(primaryGroupID=<primaryGroupToken>)`; recursive: `(memberOf:1.2.840.113556.1.4.1941:=<groupDN>)` plus the same primary-group search |
+| `Get-ADPrincipalGroupMembership` | `user-groups [--recursive]` | ranged `memberOf`, plus the primary group (user's `objectSid` with its RID replaced by `primaryGroupID`); recursive: `(member:1.2.840.113556.1.4.1941:=<userDN>)` for the user and for the primary group |
 | `Add-ADGroupMember` / `Remove-ADGroupMember` | `add-member` / `remove-member` | modify group, add/delete `member` |
 | `New-ADUser` | `create-user` | add with objectClass `user`, `userAccountControl=514` |
 | `New-ADGroup` | `create-group` | add with objectClass `group`, `groupType` |
-| `Disable-ADAccount` / `Enable-ADAccount` | `disable` / `enable` | replace `userAccountControl`, bit `0x2` |
+| `Disable-ADAccount` / `Enable-ADAccount` | `disable` / `enable` | swap `userAccountControl` (delete old value + add new in one modify), bit `0x2` |
 | `Unlock-ADAccount` | `unlock` | replace `lockoutTime` with `0` |
 | `Move-ADObject` | `move` | modifyDN with `newSuperior` |
 | `Set-ADAccountPassword -Reset` | `reset-password` | replace `unicodePwd` with `"password"` as UTF-16LE (LDAPS only); `pwdLastSet=0` forces a change at next logon |
-| `Set-ADGroup -GroupScope` | `set-group-scope` | replace `groupType` |
+| `Set-ADGroup -GroupScope` | `set-group-scope` | swap `groupType` (delete old value + add new in one modify) |
 | `Remove-ADUser` / `Remove-ADGroup` | not implemented | |
 
 ## Bit fields

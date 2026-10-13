@@ -14,9 +14,11 @@ import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { parseArgs } from "node:util";
-import { Attribute, Change, Client, InvalidCredentialsError } from "ldapts";
+import { Attribute, Change, Client, EqualityFilter, InvalidCredentialsError, NoSuchObjectError } from "ldapts";
 import {
   type AdConfig,
+  isDnUnder,
+  normalizeDn,
   NEW_USER_UAC,
   UAC_COMPUTED,
   asArray,
@@ -190,13 +192,34 @@ async function findOne(s: Session, base: string, filter: string, attributes: str
 }
 
 async function byDn(s: Session, dn: string, attributes: string[], what: string): Promise<Entry> {
+  let entries: Entry[];
   try {
-    const { searchEntries } = await s.client.search(dn, { scope: "base", filter: "(objectClass=*)", attributes });
-    if (searchEntries[0]) return searchEntries[0];
-  } catch {
-    // fall through to not-found
+    entries = (await s.client.search(dn, { scope: "base", filter: "(objectClass=*)", attributes })).searchEntries;
+  } catch (e) {
+    // Only a missing object is "not found"; any other LDAP failure surfaces as itself.
+    if (e instanceof NoSuchObjectError) throw new AdError(EXIT.NOT_FOUND, `${what} not found: ${dn}`);
+    throw e;
   }
-  throw new AdError(EXIT.NOT_FOUND, `${what} not found: ${dn}`);
+  if (!entries[0]) throw new AdError(EXIT.NOT_FOUND, `${what} not found: ${dn}`);
+  return entries[0];
+}
+
+type Kind = "user" | "group" | "principal";
+
+/** Object classes each kind accepts. A principal is anything that can be a group member; OUs and containers never are. */
+function kindAccepts(kind: Kind, classes: string[]): boolean {
+  const c = classes.map((x) => x.toLowerCase());
+  if (kind === "user") return c.includes("user") && !c.includes("computer");
+  if (kind === "group") return c.includes("group");
+  return ["user", "group", "contact", "computer"].some((k) => c.includes(k));
+}
+
+/** A DN given on the command line must sit under baseDn and be the kind of object the command works on. */
+async function byTypedDn(s: Session, base: string, dn: string, attrs: string[], kind: Kind): Promise<Entry> {
+  if (!isDnUnder(dn, base)) throw new AdError(EXIT.REFUSED, `${dn} is outside baseDn ${base}`);
+  const e = await byDn(s, dn, [...attrs.filter((a) => a !== "1.1"), "objectClass"], kind);
+  if (!kindAccepts(kind, asArray(e.objectClass))) throw new AdError(EXIT.REFUSED, `${dn} is not a ${kind} (objectClass ${asArray(e.objectClass).join(",")})`);
+  return e;
 }
 
 function idFilter(id: string): string {
@@ -205,12 +228,12 @@ function idFilter(id: string): string {
 }
 
 export function resolveUser(s: Session, base: string, id: string, attrs = USER_ATTRS): Promise<Entry> {
-  if (looksLikeDn(id)) return byDn(s, id, attrs, "user");
+  if (looksLikeDn(id)) return byTypedDn(s, base, id, attrs, "user");
   return findOne(s, base, `(&(objectCategory=person)(objectClass=user)${idFilter(id)})`, attrs, "user", id);
 }
 
 export function resolveGroup(s: Session, base: string, id: string, attrs = GROUP_ATTRS): Promise<Entry> {
-  if (looksLikeDn(id)) return byDn(s, id, attrs, "group");
+  if (looksLikeDn(id)) return byTypedDn(s, base, id, attrs, "group");
   const v = escapeFilter(id);
   return findOne(s, base, `(&(objectClass=group)(|(sAMAccountName=${v})(cn=${v})))`, attrs, "group", id);
 }
@@ -218,23 +241,24 @@ export function resolveGroup(s: Session, base: string, id: string, attrs = GROUP
 /** A group member can be a user, a group, a contact or a computer. */
 function resolvePrincipal(s: Session, base: string, id: string): Promise<Entry> {
   const attrs = ["sAMAccountName", "objectClass", "adminCount"];
-  if (looksLikeDn(id)) return byDn(s, id, attrs, "principal");
+  if (looksLikeDn(id)) return byTypedDn(s, base, id, attrs, "principal");
   const v = escapeFilter(id);
   const filter = `(|(sAMAccountName=${v})(sAMAccountName=${v}$)(userPrincipalName=${v})(&(objectClass=group)(cn=${v})))`;
   return findOne(s, base, filter, attrs, "principal", id);
 }
 
-/** Direct members, using ranged retrieval so groups past the server's MaxValRange are complete. */
-export async function directMembers(s: Session, groupDn: string): Promise<string[]> {
+/** Every value of a multi-valued attribute, using ranged retrieval so values past the server's MaxValRange are included. */
+export async function rangedValues(s: Session, dn: string, attr: string): Promise<string[]> {
   const out: string[] = [];
   let start = 0;
   for (;;) {
-    const { searchEntries } = await s.client.search(groupDn, { scope: "base", filter: "(objectClass=*)", attributes: [`member;range=${start}-*`] });
+    const { searchEntries } = await s.client.search(dn, { scope: "base", filter: "(objectClass=*)", attributes: [`${attr};range=${start}-*`] });
     const e = searchEntries[0];
     if (!e) break;
-    const key = Object.keys(e).find((k) => k.toLowerCase().startsWith("member;range="));
+    const prefix = `${attr.toLowerCase()};range=`;
+    const key = Object.keys(e).find((k) => k.toLowerCase().startsWith(prefix));
     if (!key) {
-      out.push(...asArray(e.member));
+      out.push(...asArray(e[attr]));
       break;
     }
     out.push(...asArray(e[key]));
@@ -243,6 +267,44 @@ export async function directMembers(s: Session, groupDn: string): Promise<string
     start = Number(end) + 1;
   }
   return out;
+}
+
+export const directMembers = (s: Session, groupDn: string) => rangedValues(s, groupDn, "member");
+
+/**
+ * Primary-group membership is stored on the member (primaryGroupID = the group's RID), never in
+ * member/memberOf, so Domain Users and friends need their own lookups.
+ */
+async function primaryGroupMembers(s: Session, base: string, groupDn: string): Promise<Entry[]> {
+  const g = await byDn(s, groupDn, ["primaryGroupToken"], "group");
+  const token = asInt(g.primaryGroupToken);
+  if (token === undefined) return [];
+  const { searchEntries } = await s.client.search(base, { scope: "sub", filter: `(primaryGroupID=${token})`, attributes: ["sAMAccountName", "objectClass"], paged: { pageSize: 500 } });
+  return searchEntries;
+}
+
+/** The DN of a user's primary group: the user's own SID with its last sub-authority (the RID) swapped for primaryGroupID. */
+async function primaryGroupOf(s: Session, base: string, userDn: string): Promise<string | undefined> {
+  // objectSid is binary: without explicitBufferAttributes ldapts decodes it as a mangled string.
+  const { searchEntries } = await s.client.search(userDn, { scope: "base", filter: "(objectClass=*)", attributes: ["objectSid", "primaryGroupID"], explicitBufferAttributes: ["objectSid"] });
+  const u = searchEntries[0];
+  if (!u) return undefined;
+  const rid = asInt(u.primaryGroupID);
+  const raw = Array.isArray(u.objectSid) ? u.objectSid[0] : u.objectSid;
+  if (rid === undefined || !Buffer.isBuffer(raw) || raw.length < 12) return undefined;
+  const sid = Buffer.from(raw);
+  sid.writeUInt32LE(rid, sid.length - 4);
+  // A filter string will not do: ldapts turns hex escapes into a JS string and sends it as UTF-8,
+  // so every byte >= 0x80 goes out as two bytes and the SID never matches. Send the raw octets.
+  const filter = new EqualityFilter({ attribute: "objectSid", value: sid });
+  const { searchEntries: groups } = await s.client.search(base, { scope: "sub", filter, attributes: ["1.1"] });
+  return groups[0]?.dn;
+}
+
+function union(...lists: string[][]): string[] {
+  const seen = new Map<string, string>();
+  for (const dn of lists.flat()) if (!seen.has(normalizeDn(dn))) seen.set(normalizeDn(dn), dn);
+  return [...seen.values()];
 }
 
 async function isDirectMember(s: Session, groupDn: string, memberDn: string): Promise<boolean> {
@@ -294,6 +356,8 @@ interface WritePlan {
   noop?: string;
   exec(): Promise<void>;
   after(): Promise<unknown>;
+  /** Non-secret facts the audit line and the result must carry even if the read-back fails (e.g. a vault ref). */
+  extra?(): Record<string, unknown>;
 }
 
 async function write(deps: Deps, s: Session, flags: Flags, plan: WritePlan) {
@@ -305,15 +369,33 @@ async function write(deps: Deps, s: Session, flags: Flags, plan: WritePlan) {
   if (!flags.apply) return { mode: "dry-run", hint: "re-run with --apply to execute", ...base };
 
   const ts = new Date().toISOString();
+  const auditBase = { ts, op: plan.op, dn: plan.dn, dc: s.dc, bindUpn: deps.config.bindUpn, changes: plan.changes };
   try {
     await plan.exec();
   } catch (e) {
-    deps.audit({ ts, ...base, before: undefined, result: "error", error: e instanceof Error ? e.message : String(e) });
+    // A lost response can still mean the server applied the change: the line records an error, not "nothing happened".
+    tryAudit(deps, { ...auditBase, ...plan.extra?.(), result: "error", error: e instanceof Error ? e.message : String(e) });
     throw e;
   }
-  const after = await plan.after();
-  deps.audit({ ts, op: plan.op, dn: plan.dn, dc: s.dc, bindUpn: deps.config.bindUpn, changes: plan.changes, result: "applied" });
-  return { mode: "applied", ...base, after };
+  // From here AD has changed: record it first, and never let a read-back or audit failure report the write as failed.
+  const extra = plan.extra?.() ?? {};
+  const auditError = tryAudit(deps, { ...auditBase, ...extra, result: "applied" });
+  let after: unknown;
+  try {
+    after = await plan.after();
+  } catch (e) {
+    after = { readBackError: e instanceof Error ? e.message : String(e) };
+  }
+  return { mode: "applied", ...base, ...extra, after, ...(auditError ? { auditError } : {}) };
+}
+
+function tryAudit(deps: Deps, record: Record<string, unknown>): string | undefined {
+  try {
+    deps.audit(record);
+    return undefined;
+  } catch (e) {
+    return e instanceof Error ? e.message : String(e);
+  }
 }
 
 function assertAllowedOu(deps: Deps, ou: string) {
@@ -345,24 +427,56 @@ async function membership(op: "add" | "delete", deps: Deps, s: Session, args: st
   need(args, 2, `${name} <group> <member> [<member>...] [--apply]`);
   const base = deps.config.baseDn;
   const group = await resolveGroup(s, base, args[0]);
-  const results = [];
+  const results: unknown[] = [];
   for (const id of args.slice(1)) {
-    const member = await resolvePrincipal(s, base, id);
-    const was = await isDirectMember(s, group.dn, member.dn);
-    results.push(
-      await write(deps, s, flags, {
-        op: name,
-        dn: group.dn,
-        changes: { member: { [op]: member.dn } },
-        protected: asInt(group.adminCount) === 1,
-        before: { isDirectMember: was },
-        noop: op === "add" && was ? "already a direct member" : op === "delete" && !was ? "not a direct member" : undefined,
-        exec: () => s.client.modify(group.dn, new Change({ operation: op, modification: new Attribute({ type: "member", values: [member.dn] }) })),
-        after: async () => ({ isDirectMember: await isDirectMember(s, group.dn, member.dn) }),
-      }),
-    );
+    try {
+      const member = await resolvePrincipal(s, base, id);
+      const was = await isDirectMember(s, group.dn, member.dn);
+      results.push(
+        await write(deps, s, flags, {
+          op: name,
+          dn: group.dn,
+          changes: { member: { [op]: member.dn } },
+          protected: asInt(group.adminCount) === 1,
+          before: { isDirectMember: was },
+          noop: op === "add" && was ? "already a direct member" : op === "delete" && !was ? "not a direct member" : undefined,
+          async exec() {
+            try {
+              await s.client.modify(group.dn, new Change({ operation: op, modification: new Attribute({ type: "member", values: [member.dn] }) }));
+            } catch (e) {
+              // Someone else made the same change first: the requested end state holds, so this is success.
+              if ((await isDirectMember(s, group.dn, member.dn)) === (op === "add")) return;
+              throw e;
+            }
+          },
+          after: async () => ({ isDirectMember: await isDirectMember(s, group.dn, member.dn) }),
+        }),
+      );
+    } catch (e) {
+      // Earlier members are already changed: report them with the failure, not just the failure.
+      if (results.length === 0) throw e;
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new AdError(e instanceof AdError ? e.code : EXIT.FAILED, `${name} stopped at ${id}: ${msg}`, { completed: results, pending: args.slice(1 + results.length) });
+    }
   }
   return results.length === 1 ? results[0] : results;
+}
+
+/**
+ * Swap one single-valued integer attribute from the value we read to the value we computed.
+ * delete-old + add-new in one modify is atomic, and AD rejects it with noSuchAttribute when
+ * another writer changed the value in between, so a concurrent edit to an unrelated bit is
+ * never silently reverted.
+ */
+async function swapValue(s: Session, dn: string, type: string, from: number, to: number): Promise<void> {
+  try {
+    await s.client.modify(dn, [
+      new Change({ operation: "delete", modification: new Attribute({ type, values: [String(from)] }) }),
+      new Change({ operation: "add", modification: new Attribute({ type, values: [String(to)] }) }),
+    ]);
+  } catch (e) {
+    throw new AdError(EXIT.FAILED, `${type} on ${dn} changed since it was read, or the swap was refused; nothing was overwritten, re-run to retry (${e instanceof Error ? e.message : e})`);
+  }
 }
 
 async function toggleEnabled(disable: boolean, deps: Deps, s: Session, args: string[], flags: Flags) {
@@ -377,7 +491,7 @@ async function toggleEnabled(disable: boolean, deps: Deps, s: Session, args: str
     protected: asInt(u.adminCount) === 1,
     before: { enabled: !isDisabled(uac) },
     noop: next === uac ? `already ${disable ? "disabled" : "enabled"}` : undefined,
-    exec: () => s.client.modify(u.dn, new Change({ operation: "replace", modification: new Attribute({ type: "userAccountControl", values: [String(next)] }) })),
+    exec: () => swapValue(s, u.dn, "userAccountControl", uac, next),
     after: async () => ({ enabled: !isDisabled(asInt((await resolveUser(s, deps.config.baseDn, u.dn)).userAccountControl) ?? 0) }),
   });
 }
@@ -398,10 +512,19 @@ async function userStatus(deps: Deps, s: Session, id: string) {
   };
 }
 
-export const COMMANDS: Record<string, { usage: string; write: boolean; run: Handler }> = {
+/** What a command needs before it may connect: positional count and required flags. */
+interface Needs {
+  args: number;
+  flags?: string[];
+  /** Skip the positional count when this flag is given (find-user --prefix). */
+  unless?: string;
+}
+
+export const COMMANDS: Record<string, { usage: string; write: boolean; need: Needs; run: Handler }> = {
   "find-user": {
     usage: "find-user <sam|upn|dn> | find-user --prefix <text>",
     write: false,
+    need: { args: 1, unless: "prefix" },
     async run(deps, s, args, flags) {
       const prefix = flagStr(flags, "prefix");
       if (prefix) {
@@ -417,6 +540,7 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
   "find-group": {
     usage: "find-group <sam|cn|dn>",
     write: false,
+    need: { args: 1 },
     async run(deps, s, args) {
       need(args, 1, this.usage);
       const g = await resolveGroup(s, deps.config.baseDn, args[0]);
@@ -426,62 +550,83 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
   "group-members": {
     usage: "group-members <group> [--recursive]",
     write: false,
+    need: { args: 1 },
     async run(deps, s, args, flags) {
       need(args, 1, this.usage);
-      const g = await resolveGroup(s, deps.config.baseDn, args[0]);
+      const base = deps.config.baseDn;
+      const g = await resolveGroup(s, base, args[0]);
+      const primary = await primaryGroupMembers(s, base, g.dn);
       if (!flags.recursive) {
-        const dns = await directMembers(s, g.dn);
-        return { group: g.dn, recursive: false, count: dns.length, members: dns };
+        const dns = union(
+          await directMembers(s, g.dn),
+          primary.map((e) => e.dn),
+        );
+        return { group: g.dn, recursive: false, count: dns.length, viaPrimaryGroup: primary.length, members: dns };
       }
-      // LDAP_MATCHING_RULE_IN_CHAIN walks nested groups server-side.
-      const { searchEntries } = await s.client.search(deps.config.baseDn, {
+      // LDAP_MATCHING_RULE_IN_CHAIN walks nested groups server-side; it does not see primary-group links.
+      const { searchEntries } = await s.client.search(base, {
         scope: "sub",
         filter: `(memberOf:1.2.840.113556.1.4.1941:=${escapeFilter(g.dn)})`,
         attributes: ["sAMAccountName", "objectClass"],
         paged: { pageSize: 500 },
       });
-      const members = searchEntries.map((e) => ({ dn: e.dn, sAMAccountName: asString(e.sAMAccountName), objectClass: asArray(e.objectClass).at(-1) }));
-      return { group: g.dn, recursive: true, count: members.length, members };
+      const chained = new Set(searchEntries.map((e) => normalizeDn(e.dn)));
+      const members = [...searchEntries, ...primary.filter((e) => !chained.has(normalizeDn(e.dn)))].map((e) => ({
+        dn: e.dn,
+        sAMAccountName: asString(e.sAMAccountName),
+        objectClass: asArray(e.objectClass).at(-1),
+      }));
+      return { group: g.dn, recursive: true, count: members.length, viaPrimaryGroup: primary.length, members };
     },
   },
   "user-groups": {
     usage: "user-groups <user> [--recursive]",
     write: false,
+    need: { args: 1 },
     async run(deps, s, args, flags) {
       need(args, 1, this.usage);
-      const u = await resolveUser(s, deps.config.baseDn, args[0], ["memberOf", "primaryGroupID"]);
-      const note = "the primary group (primaryGroupID, usually Domain Users) is not listed in memberOf";
+      const base = deps.config.baseDn;
+      const u = await resolveUser(s, base, args[0], ["1.1"]);
+      // memberOf never lists the primary group, so it is resolved from primaryGroupID and added.
+      const primaryGroup = await primaryGroupOf(s, base, u.dn);
+      const primary = primaryGroup ? [primaryGroup] : [];
       if (!flags.recursive) {
-        const groups = asArray(u.memberOf);
-        return { user: u.dn, recursive: false, count: groups.length, groups, primaryGroupID: asInt(u.primaryGroupID), note };
+        const groups = union(await rangedValues(s, u.dn, "memberOf"), primary);
+        return { user: u.dn, recursive: false, count: groups.length, primaryGroup: primaryGroup ?? null, groups };
       }
-      const { searchEntries } = await s.client.search(deps.config.baseDn, {
-        scope: "sub",
-        filter: `(&(objectClass=group)(member:1.2.840.113556.1.4.1941:=${escapeFilter(u.dn)}))`,
-        attributes: ["1.1"],
-        paged: { pageSize: 500 },
-      });
-      const groups = searchEntries.map((e) => e.dn);
-      return { user: u.dn, recursive: true, count: groups.length, groups, primaryGroupID: asInt(u.primaryGroupID), note };
+      const inChain = async (dn: string) =>
+        (
+          await s.client.search(base, {
+            scope: "sub",
+            filter: `(&(objectClass=group)(member:1.2.840.113556.1.4.1941:=${escapeFilter(dn)}))`,
+            attributes: ["1.1"],
+            paged: { pageSize: 500 },
+          })
+        ).searchEntries.map((e) => e.dn);
+      // Groups the primary group is nested in count too.
+      const groups = union(await inChain(u.dn), primary, primaryGroup ? await inChain(primaryGroup) : []);
+      return { user: u.dn, recursive: true, count: groups.length, primaryGroup: primaryGroup ?? null, groups };
     },
   },
   "user-status": {
     usage: "user-status <user>",
     write: false,
+    need: { args: 1 },
     async run(deps, s, args) {
       need(args, 1, this.usage);
       return userStatus(deps, s, args[0]);
     },
   },
 
-  "add-member": { usage: "add-member <group> <member>... [--apply]", write: true, run: (d, s, a, f) => membership("add", d, s, a, f) },
-  "remove-member": { usage: "remove-member <group> <member>... [--apply]", write: true, run: (d, s, a, f) => membership("delete", d, s, a, f) },
-  disable: { usage: "disable <user> [--apply]", write: true, run: (d, s, a, f) => toggleEnabled(true, d, s, a, f) },
-  enable: { usage: "enable <user> [--apply]", write: true, run: (d, s, a, f) => toggleEnabled(false, d, s, a, f) },
+  "add-member": { usage: "add-member <group> <member>... [--apply]", write: true, need: { args: 2 }, run: (d, s, a, f) => membership("add", d, s, a, f) },
+  "remove-member": { usage: "remove-member <group> <member>... [--apply]", write: true, need: { args: 2 }, run: (d, s, a, f) => membership("delete", d, s, a, f) },
+  disable: { usage: "disable <user> [--apply]", write: true, need: { args: 1 }, run: (d, s, a, f) => toggleEnabled(true, d, s, a, f) },
+  enable: { usage: "enable <user> [--apply]", write: true, need: { args: 1 }, run: (d, s, a, f) => toggleEnabled(false, d, s, a, f) },
 
   unlock: {
     usage: "unlock <user> [--apply]",
     write: true,
+    need: { args: 1 },
     async run(deps, s, args, flags) {
       need(args, 1, this.usage);
       const st = await userStatus(deps, s, args[0]);
@@ -501,6 +646,7 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
   move: {
     usage: "move <user|group|dn> --to <ou-dn> [--apply]",
     write: true,
+    need: { args: 1, flags: ["to"] },
     async run(deps, s, args, flags) {
       need(args, 1, this.usage);
       const to = flagStr(flags, "to", true)!;
@@ -522,6 +668,7 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
   "reset-password": {
     usage: "reset-password <user> [--must-change] [--vault <name>] [--apply]",
     write: true,
+    need: { args: 1 },
     async run(deps, s, args, flags) {
       need(args, 1, this.usage);
       const vault = flagStr(flags, "vault") ?? deps.config.passwordVault;
@@ -547,7 +694,8 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
             throw new AdError(EXIT.FAILED, `AD rejected the reset (${e instanceof Error ? e.message : e}); vault item ${ref} holds an unused password`);
           }
         },
-        after: async () => ({ passwordRef: ref, pwdLastSet: filetimeToIso(asString((await resolveUser(s, deps.config.baseDn, u.dn)).pwdLastSet)) }),
+        extra: () => ({ passwordRef: ref }),
+        after: async () => ({ pwdLastSet: filetimeToIso(asString((await resolveUser(s, deps.config.baseDn, u.dn)).pwdLastSet)) }),
       });
     },
   },
@@ -555,6 +703,7 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
   "create-user": {
     usage: "create-user <sam> --ou <ou-dn> --given <first> --sn <last> [--display <name>] [--upn <upn>] [--apply]",
     write: true,
+    need: { args: 1, flags: ["ou", "given", "sn"] },
     async run(deps, s, args, flags) {
       need(args, 1, this.usage);
       const sam = args[0];
@@ -573,6 +722,7 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
       if (clash.length) throw new AdError(EXIT.REFUSED, `sAMAccountName or UPN already in use`, clash.map((e) => e.dn));
       const entry = {
         objectClass: ["top", "person", "organizationalPerson", "user"],
+        cn: display,
         sAMAccountName: sam,
         userPrincipalName: upn,
         givenName: given,
@@ -594,6 +744,7 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
   "create-group": {
     usage: "create-group <sam> --ou <ou-dn> [--scope global|domainlocal|universal] [--type security|distribution] [--description <text>] [--apply]",
     write: true,
+    need: { args: 1, flags: ["ou"] },
     async run(deps, s, args, flags) {
       need(args, 1, this.usage);
       const sam = args[0];
@@ -606,7 +757,7 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
       const dn = `CN=${escapeDnValue(sam)},${ou}`;
       const { searchEntries: clash } = await s.client.search(deps.config.baseDn, { scope: "sub", filter: `(sAMAccountName=${escapeFilter(sam)})`, attributes: ["1.1"] });
       if (clash.length) throw new AdError(EXIT.REFUSED, "sAMAccountName already in use", clash.map((e) => e.dn));
-      const entry: Record<string, string | string[]> = { objectClass: ["top", "group"], sAMAccountName: sam, groupType: String(encodeGroupType(scope, type)) };
+      const entry: Record<string, string | string[]> = { objectClass: ["top", "group"], cn: sam, sAMAccountName: sam, groupType: String(encodeGroupType(scope, type)) };
       const description = flagStr(flags, "description");
       if (description) entry.description = description;
       return write(deps, s, flags, {
@@ -623,6 +774,7 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
   "set-group-scope": {
     usage: "set-group-scope <group> --scope global|domainlocal|universal [--apply]",
     write: true,
+    need: { args: 1, flags: ["scope"] },
     async run(deps, s, args, flags) {
       need(args, 1, this.usage);
       const to = parseScope(flagStr(flags, "scope", true));
@@ -640,7 +792,7 @@ export const COMMANDS: Record<string, { usage: string; write: boolean; run: Hand
         protected: asInt(g.adminCount) === 1,
         before: { scope: cur.scope },
         noop: cur.scope === to ? `already ${to}` : undefined,
-        exec: () => s.client.modify(g.dn, new Change({ operation: "replace", modification: new Attribute({ type: "groupType", values: [String(next)] }) })),
+        exec: () => swapValue(s, g.dn, "groupType", asInt(g.groupType) ?? 0, next),
         after: async () => ({ scope: decodeGroupType(asInt((await resolveGroup(s, deps.config.baseDn, g.dn)).groupType) ?? 0).scope }),
       });
     },
@@ -686,9 +838,25 @@ export async function main(argv: string[], makeDeps: (configPath?: string) => De
   const cmd = COMMANDS[name];
   if (!cmd) return { code: EXIT.USAGE, err: { error: `unknown command: ${name}`, help: helpText() } };
 
+  // Usage and config problems are exit 2, and are caught before any credential is read or bind attempted.
+  const flags = parsed.values as Flags;
+  const n = cmd.need;
+  try {
+    if (!(n.unless && flagStr(flags, n.unless))) need(args, n.args, cmd.usage);
+    for (const f of n.flags ?? []) flagStr(flags, f, true);
+  } catch (e) {
+    return { code: EXIT.USAGE, err: { error: (e as Error).message } };
+  }
+  let deps: Deps;
+  try {
+    deps = makeDeps(parsed.values.config);
+  } catch (e) {
+    if (e instanceof AdError) return { code: e.code, err: { error: e.message, detail: e.detail } };
+    return { code: EXIT.USAGE, err: { error: e instanceof Error ? e.message : String(e) } };
+  }
+
   let session: Session | undefined;
   try {
-    const deps = makeDeps(parsed.values.config);
     session = await deps.connect();
     return { code: EXIT.OK, out: await cmd.run(deps, session, args, parsed.values) };
   } catch (e) {
