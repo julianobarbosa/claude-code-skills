@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import type { Change } from "ldapts";
+import { type Change, EqualityFilter, NoSuchObjectError } from "ldapts";
 import { type Deps, EXIT, type LdapClient, main } from "./Ad";
 import {
   NEW_USER_UAC,
@@ -34,10 +34,17 @@ describe("escaping", () => {
     expect(escapeDnValue("#ops")).toBe("\\#ops");
     expect(escapeDnValue("a+b=c")).toBe("a\\+b\\=c");
     expect(escapeDnValue("trailing ")).toBe("trailing\\ ");
+    // A raw value ending in backslash + space: both are escaped.
+    expect(escapeDnValue("a\\ ")).toBe("a\\\\\\ ");
   });
 
   test("splitDn keeps escaped commas inside one RDN", () => {
     expect(splitDn("CN=Doe\\, Jane, OU=Users,DC=x")).toEqual(["CN=Doe\\, Jane", "OU=Users", "DC=x"]);
+  });
+
+  test("splitDn keeps an escaped trailing space", () => {
+    expect(splitDn("CN=a\\ ,DC=x")).toEqual(["CN=a\\ ", "DC=x"]);
+    expect(splitDn("CN=a\\  , DC=x ")).toEqual(["CN=a\\ ", "DC=x"]);
   });
 });
 
@@ -133,7 +140,7 @@ describe("config", () => {
 // CLI against an in-memory directory
 // =============================================================================
 
-type FakeEntry = Record<string, string | string[]> & { dn: string };
+type FakeEntry = Record<string, string | string[] | Buffer> & { dn: string };
 
 const BASE = VALID.baseDn;
 const GROUP_DN = "CN=App Readers,OU=Managed,DC=corp,DC=example,DC=com";
@@ -152,16 +159,30 @@ const unescape = (v: string) => v.replace(/\\([0-9a-f]{2})/gi, (_, h) => String.
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
 /** Just enough filter matching for the shapes Ad.ts sends. */
-function fakeClient(entries: FakeEntry[], log: { op: string; dn: string; arg: unknown }[], memberPages?: string[][]): LdapClient {
+interface FakeOpts {
+  memberPages?: string[][];
+  /** Runs inside modify, before it fails: simulates another writer getting there first. */
+  race?: (entries: FakeEntry[]) => void;
+  /** Base reads throw a non-NoSuchObject error once a write has happened. */
+  breakReadsAfterWrite?: boolean;
+}
+
+function fakeClient(entries: FakeEntry[], log: { op: string; dn: string; arg: unknown }[], o: FakeOpts = {}): LdapClient {
+  const memberPages = o.memberPages;
   return {
     async search(base, opts) {
+      if (opts.filter instanceof EqualityFilter && Buffer.isBuffer(opts.filter.value)) {
+        const want = opts.filter.value;
+        return { searchEntries: entries.filter((e) => Buffer.isBuffer(e.objectSid) && e.objectSid.equals(want)) };
+      }
       const filter = String(opts.filter ?? "(objectClass=*)");
       const attrs = (opts.attributes as string[]) ?? [];
       if (opts.scope === "base") {
+        if (o.breakReadsAfterWrite && log.some((l) => l.op !== "store")) throw new Error("socket hang up");
         const e = entries.find((x) => same(x.dn, base));
-        if (!e) throw new Error("NoSuchObject");
+        if (!e) throw new NoSuchObjectError("no such object");
         const m = filter.match(/^\(member=(.*)\)$/);
-        if (m) return { searchEntries: [e.member].flat().some((d) => d && same(d, unescape(m[1]))) ? [e] : [] };
+        if (m) return { searchEntries: ([e.member].flat() as string[]).some((d) => d && same(d, unescape(m[1]))) ? [e] : [] };
         const ranged = attrs.find((a) => a.startsWith("member;range="));
         if (ranged && memberPages) {
           const start = Number(ranged.slice("member;range=".length).split("-")[0]);
@@ -177,6 +198,8 @@ function fakeClient(entries: FakeEntry[], log: { op: string; dn: string; arg: un
         }
         return { searchEntries: [e] };
       }
+      const pg = filter.match(/^\(primaryGroupID=(\d+)\)$/);
+      if (pg) return { searchEntries: entries.filter((e) => e.primaryGroupID === pg[1]) };
       const values = [...filter.matchAll(/(?:sAMAccountName|userPrincipalName|cn)=([^)]*)/g)].map((m) => unescape(m[1]).replace(/\$$/, ""));
       const wantUser = filter.startsWith("(&(objectCategory=person)");
       const wantGroup = filter.startsWith("(&(objectClass=group)");
@@ -189,7 +212,19 @@ function fakeClient(entries: FakeEntry[], log: { op: string; dn: string; arg: un
       return { searchEntries: hits };
     },
     async modify(dn, changes) {
+      if (o.race) {
+        o.race(entries);
+        throw new Error("attributeOrValueExists");
+      }
       log.push({ op: "modify", dn, arg: changes });
+      const e = entries.find((x) => same(x.dn, dn));
+      for (const c of [changes].flat()) {
+        if (e && c.modification.type === "member") {
+          const v = String(c.modification.values[0]);
+          const cur = [e.member ?? []].flat() as string[];
+          e.member = c.operation === "add" ? [...cur, v] : cur.filter((d) => !same(d, v));
+        }
+      }
     },
     async add(dn, entry) {
       log.push({ op: "add", dn, arg: entry });
@@ -201,7 +236,7 @@ function fakeClient(entries: FakeEntry[], log: { op: string; dn: string; arg: un
   };
 }
 
-function harness(opts: { memberPages?: string[][]; storeFails?: boolean } = {}) {
+function harness(opts: FakeOpts & { storeFails?: boolean; badConfig?: boolean } = {}) {
   const entries = directory();
   const log: { op: string; dn: string; arg: unknown }[] = [];
   const audits: Record<string, unknown>[] = [];
@@ -211,7 +246,7 @@ function harness(opts: { memberPages?: string[][]; storeFails?: boolean } = {}) 
     config: parseConfig(VALID),
     async connect() {
       connects++;
-      return { client: fakeClient(entries, log, opts.memberPages), dc: "dc01.corp.example.com" };
+      return { client: fakeClient(entries, log, opts), dc: "dc01.corp.example.com" };
     },
     async storeSecret(vault, _title, secret) {
       if (opts.storeFails) throw new Error("op item create failed");
@@ -222,7 +257,11 @@ function harness(opts: { memberPages?: string[][]; storeFails?: boolean } = {}) 
     audit: (r) => audits.push(r),
     generatePassword: () => "Gen3rated!Passw0rd-xyz",
   };
-  const run = (...argv: string[]) => main(argv, () => deps);
+  const run = (...argv: string[]) =>
+    main(argv, () => {
+      if (opts.badConfig) throw new Error("invalid config:\n  - domain must be a non-empty string");
+      return deps;
+    });
   return { run, log, audits, stored, connects: () => connects, entries };
 }
 
@@ -267,7 +306,9 @@ describe("write gate", () => {
     expect(h.log).toHaveLength(0);
     const ok = await h.run("disable", "radmin", "--apply", "--allow-protected");
     expect(ok.code).toBe(EXIT.OK);
-    expect(changeOf(h.log[0].arg)).toEqual({ operation: "replace", type: "userAccountControl", values: ["514"] });
+    // delete-old + add-new: AD refuses it if another writer changed the value in between.
+    const [del, add] = h.log[0].arg as Change[];
+    expect([del.operation, del.modification.values, add.operation, add.modification.values]).toEqual(["delete", ["512"], "add", ["514"]]);
   });
 
   test("creates outside the OU allowlist are refused before anything is sent", async () => {
@@ -285,6 +326,7 @@ describe("write gate", () => {
     expect(out.dn).toBe("CN=Doe\\, Jane,OU=Managed,DC=corp,DC=example,DC=com");
     expect(out.changes.add.userAccountControl).toBe("514");
     expect(out.changes.add.userPrincipalName).toBe("doej@corp.example.com");
+    expect(out.changes.add.cn).toBe("Doe, Jane");
   });
 
   test("set-group-scope refuses global to domainlocal", async () => {
@@ -346,5 +388,88 @@ describe("reads", () => {
     expect((await h.run("frobnicate")).code).toBe(EXIT.USAGE);
     expect((await h.run("find-user", "--bogus")).code).toBe(EXIT.USAGE);
     expect(h.connects()).toBe(0);
+  });
+});
+
+describe("review fixes", () => {
+  test("a failed read-back still reports applied, and the audit line is written first", async () => {
+    const h = harness({ breakReadsAfterWrite: true });
+    const r = await h.run("add-member", "app-readers", "jdoe", "--apply");
+    expect(r.code).toBe(EXIT.OK);
+    expect(r.out).toMatchObject({ mode: "applied", after: { readBackError: expect.stringContaining("socket") } });
+    expect(h.audits.map((a) => a.result)).toEqual(["applied"]);
+  });
+
+  test("reset-password keeps its vault ref in the audit and the result even when read-back fails", async () => {
+    const h = harness({ breakReadsAfterWrite: true });
+    const r = await h.run("reset-password", "jdoe", "--apply");
+    expect(r.code).toBe(EXIT.OK);
+    expect((r.out as { passwordRef: string }).passwordRef).toBe("op://Vault/newitem/password");
+    expect(h.audits[0]).toMatchObject({ result: "applied", passwordRef: "op://Vault/newitem/password" });
+  });
+
+  test("config errors exit 2, and missing arguments or flags never connect", async () => {
+    expect((await harness({ badConfig: true }).run("find-user", "jdoe")).code).toBe(EXIT.USAGE);
+    const h = harness();
+    expect((await h.run("move", "jdoe")).code).toBe(EXIT.USAGE);
+    expect((await h.run("create-user", "x", "--ou", "OU=Managed,DC=corp,DC=example,DC=com")).code).toBe(EXIT.USAGE);
+    expect((await h.run("find-user")).code).toBe(EXIT.USAGE);
+    expect(h.connects()).toBe(0);
+  });
+
+  test("a DN argument must be under baseDn and of the right object class", async () => {
+    const h = harness();
+    h.entries.push({ dn: "OU=Managed,DC=corp,DC=example,DC=com", objectClass: ["top", "organizationalUnit"] });
+    expect((await h.run("find-user", "CN=X,DC=other,DC=com")).code).toBe(EXIT.REFUSED);
+    expect((await h.run("find-user", GROUP_DN)).code).toBe(EXIT.REFUSED);
+    expect((await h.run("move", "OU=Managed,DC=corp,DC=example,DC=com", "--to", "OU=Sub,OU=Managed,DC=corp,DC=example,DC=com", "--apply")).code).toBe(EXIT.REFUSED);
+    expect(h.log).toHaveLength(0);
+    expect((await h.run("find-user", "CN=Gone,OU=Managed,DC=corp,DC=example,DC=com")).code).toBe(EXIT.NOT_FOUND);
+  });
+
+  test("only a missing object is NOT_FOUND; other LDAP failures surface as failures", async () => {
+    const h = harness({ breakReadsAfterWrite: true });
+    h.log.push({ op: "modify", dn: "", arg: null });
+    expect((await h.run("find-user", JANE_DN)).code).toBe(EXIT.FAILED);
+  });
+
+  test("a batch that fails part-way reports the members it already changed", async () => {
+    const h = harness();
+    const r = await h.run("add-member", "app-readers", "jdoe", "nobody", "--apply");
+    expect(r.code).toBe(EXIT.NOT_FOUND);
+    const err = r.err as { error: string; detail: { completed: unknown[]; pending: string[] } };
+    expect(err.error).toContain("stopped at nobody");
+    expect(err.detail.completed).toHaveLength(1);
+    expect(err.detail.pending).toEqual(["nobody"]);
+  });
+
+  test("a membership change another writer already made counts as applied", async () => {
+    const h = harness({ race: (entries) => (entries[0].member as string[]).push(JANE_DN) });
+    const r = await h.run("add-member", "app-readers", "jdoe", "--apply");
+    expect(r.code).toBe(EXIT.OK);
+    expect(r.out).toMatchObject({ mode: "applied", after: { isDirectMember: true } });
+  });
+
+  test("group-members includes members whose primary group it is", async () => {
+    const h = harness();
+    h.entries[0].primaryGroupToken = "1234";
+    h.entries[2].primaryGroupID = "1234";
+    const r = await h.run("group-members", "app-readers");
+    expect(r.out).toMatchObject({ count: 1, viaPrimaryGroup: 1, members: [ADMIN_DN] });
+  });
+
+  test("user-groups adds the primary group, found by the user's SID with the RID swapped", async () => {
+    const h = harness();
+    const domain = "010500000000000515000000aaaaaaaabbbbbbbbcccccccc";
+    const rid = (n: number) => {
+      const b = Buffer.alloc(4);
+      b.writeUInt32LE(n);
+      return b.toString("hex");
+    };
+    h.entries[1].objectSid = Buffer.from(domain + rid(1105), "hex");
+    h.entries[1].primaryGroupID = "1234";
+    h.entries[0].objectSid = Buffer.from(domain + rid(1234), "hex");
+    const r = await h.run("user-groups", "jdoe");
+    expect(r.out).toMatchObject({ primaryGroup: GROUP_DN, count: 1, groups: [GROUP_DN] });
   });
 });

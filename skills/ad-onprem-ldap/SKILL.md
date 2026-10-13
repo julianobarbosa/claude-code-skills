@@ -65,7 +65,13 @@ config, 3 no DC reachable, 4 not found or ambiguous, 5 refused by a safety gate.
 - **`lockoutTime > 0` does not mean locked.** The lockout may already have expired. `user-status`
   reads the constructed `msDS-User-Account-Control-Computed`, which AD returns only on a
   base-scope read of the object.
-- **`memberOf` omits the primary group** (normally Domain Users, via `primaryGroupID`).
+- **`member` and `memberOf` omit the primary group** (normally Domain Users, via `primaryGroupID`).
+  `group-members` and `user-groups` add it back; a hand-rolled `ldapsearch` will not.
+- **Bit flags are swapped, not replaced.** `disable`, `enable` and `set-group-scope` delete the
+  value they read and add the new one in a single modify, so AD refuses the write if someone
+  changed the attribute in between. Re-run on that error; nothing was overwritten.
+- **After `--apply`, the write is audited before it is read back.** A failed read-back shows up
+  as `after.readBackError` with `mode: applied`, never as a failed command.
 - **Large groups truncate `member` silently** past MaxValRange (1500 values by default).
   `group-members` uses ranged retrieval; a hand-rolled `ldapsearch` must too.
 - **Scope changes go through universal.** Global and domain local never convert directly.
