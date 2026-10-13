@@ -92,3 +92,6 @@ _bmad/render/
 
 # One-shot local purge runbook — hardcodes a personal email and home path, never publish
 /scripts/history-purge-runbook.sh
+
+# skill-creator eval workspaces: transcripts carry real emails and home paths
+/skills/*-workspace/
