@@ -83,17 +83,26 @@ function azAuthHeader(pat: string | undefined): string {
 // reviewers payload needs). A value that already looks like a GUID passes through.
 // Best-effort: any failure returns null so the caller can skip + warn, never abort
 // the PR. Uses the vssps identities endpoint (Accounts/Identity area).
-async function resolveAzureIdentity(orgUrl: string, header: string, upn: string): Promise<string | null> {
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(upn)) return upn;
+// A PAT that 401/403s here gets one retry with the az OAuth bearer, mirroring
+// authFallback: an under-scoped PAT used to make every reviewer resolve to null,
+// so PRs opened with no reviewers at all (PR 1438, 2026-10-14).
+async function resolveAzureIdentity(orgUrl: string, header: string, upn: string): Promise<{ id: string | null; why?: string }> {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(upn)) return { id: upn };
   const org = orgUrl.replace(/^https:\/\/dev\.azure\.com\//, "").replace(/\/$/, "");
   const api = `https://vssps.dev.azure.com/${org}/_apis/identities?searchFilter=General&filterValue=${encodeURIComponent(upn)}&api-version=7.1`;
+  const lookup = (auth: string) => fetch(api, { headers: { Authorization: auth, Accept: "application/json" } });
   try {
-    const res = await fetch(api, { headers: { Authorization: header, Accept: "application/json" } });
-    if (!res.ok) return null;
+    let res = await lookup(header);
+    if ((res.status === 401 || res.status === 403) && header.startsWith("Basic ")) {
+      console.error(`>> identity lookup: PAT got HTTP ${res.status}; retrying with az OAuth bearer`);
+      res = await lookup(azAuthHeader(undefined));
+    }
+    if (!res.ok) return { id: null, why: `HTTP ${res.status}` };
     const data: any = await res.json();
-    return data?.value?.[0]?.id ?? null;
-  } catch {
-    return null;
+    const id = data?.value?.[0]?.id ?? null;
+    return id ? { id } : { id: null, why: "no matching identity" };
+  } catch (e: any) {
+    return { id: null, why: String(e?.message ?? e) };
   }
 }
 
@@ -274,13 +283,15 @@ async function runAzure(): Promise<void> {
   // Resolve reviewers (optional + required) to identity GUIDs so they can ride
   // along in the create call — no separate add-reviewers round trip. Best-effort:
   // an unresolved name is warned + skipped, never blocking the PR.
-  const header = azAuthHeader(pat);
+  // Follow the credential the SDK calls ended up on: after authFallback switches to
+  // the bearer, the raw `pat` is known-bad and must not be reused here.
+  const header = azAuthHeader(usingPat ? pat : undefined);
   const reviewerRefs: { id: string; isRequired: boolean; upn: string }[] = [];
   for (const [list, isRequired] of [[optionalReviewers, false], [requiredReviewers, true]] as const) {
     for (const upn of list) {
-      const id = await resolveAzureIdentity(orgUrl, header, upn);
+      const { id, why } = await resolveAzureIdentity(orgUrl, header, upn);
       if (!id) {
-        console.error(`>> WARNING: could not resolve reviewer '${upn}'; skipping`);
+        console.error(`>> WARNING: could not resolve reviewer '${upn}' (${why}); skipping`);
         console.log(`reviewer_skipped=${upn}`);
         continue;
       }
