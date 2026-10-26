@@ -96,7 +96,7 @@ git ls-remote https://github.com/<org>/<repo> <branch>
 Shrink it in this order, re-running after each move, and stop as soon as it fits. The order goes from "removes noise" to "removes signal":
 
 1. Narrow to what teaches: `--include "docs/**,README.md,**/*.md"` for a docs Gem. Most repos carry their whole explanation in a fraction of their files.
-2. Drop what nobody asks a Gem about: `-i "**/*.test.*,**/tests/**,**/fixtures/**,**/*.snap,**/CHANGELOG*,**/i18n/**"`. Translated docs are a common silent multiplier; keep one language.
+2. Drop what nobody asks a Gem about: `-i "**/*.test.*,**/tests/**,**/fixtures/**,**/*.snap,**/CHANGELOG*,**/i18n/**"`. Translated docs are a common silent multiplier; keep one language. They hide under different names (`i18n/`, `docs/<locale>/`, `website/src/<lang>/`), so look in the token tree for sibling folders of similar size and exclude each by its real path. Generated assets do the same thing: one bundled `.html` page or diagram export can outweigh the whole docs folder, and the `Top 5 Files` list is where they show up.
 3. For source code the Gem must understand but not quote, add `--compress`, which keeps signatures and structure and drops bodies.
 4. Only then accept a larger budget, with the user's say-so.
 
@@ -130,7 +130,9 @@ Pull out, in the source's own vocabulary:
 
 If a section of the template below has nothing behind it in the source, leave that section out. An empty methodology heading filled with plausible-sounding steps is the failure this step exists to prevent.
 
-For a bundle too large to read whole, read the directory structure at the top of the file, then the README, overview, and getting-started pages, then search the rest for the terms those pages introduce.
+For a bundle too large to read whole, read the directory structure at the top of the file, then the README, overview, and getting-started pages, then search the rest for the terms those pages introduce. `grep -n '^## File: ' <knowledge file>` prints the line number of every entry, which lets you read exactly the pages you need by offset.
+
+Say in the handoff what your reading covered. Instructions written from the docs pages of a repo whose source you only skimmed are fine, as long as the user knows that is what they are.
 
 ## Step 4: Write the instructions
 
@@ -209,7 +211,7 @@ From {{FOLDER_THAT_CONTAINS_THE_GEM_FOLDER}}, run this, re-upload the knowledge 
 
 Make the five test prompts earn their place. Three should have answers you can point to in the knowledge (one definition, one how-to, one "produce this artifact"), one should need two parts of the docs combined, and one should fall outside the knowledge so the user can see the Gem say so. Beside each of the first four, put the path inside the repository where the answer lives (`guide/configuration.md`), not the name of the knowledge file.
 
-The refresh command is the exact command you ran, flags and all, so the Gem can be kept current without rediscovering the scope. Its output path is relative, so say which folder to run it from. Write dates as `YYYY-MM-DD`.
+The refresh command is the exact command you ran, flags and all, so the Gem can be kept current without rediscovering the scope. Leave out flags that only printed diagnostics, such as `--token-count-tree`. Its output path is relative, so say which folder to run it from, and name that folder by what it is ("the folder that contains `gem-<slug>/`", "the repository root"), never by an absolute path: packs get committed and shared, and a home directory does not belong in them. Write dates as `YYYY-MM-DD`.
 
 ## Step 6: Check the pack before handing it over
 
@@ -222,3 +224,23 @@ wc -c gem-<slug>/gem-instructions.md                       # about a page: a few
 ```
 
 Then tell the user: where the folder is, the file and token totals, what you excluded and why, and anything in the source you could not confirm. If the security scan flagged a file or you went past the token target, lead with that.
+
+## Creating the Gem in the browser (only when asked)
+
+The folder is the deliverable. When the user also asks you to create the Gem and you have a tool that drives their signed-in browser, these are the places it goes wrong (observed 2026-10; the page changes, so check before relying on a selector):
+
+- **Confirm the Google account first, and say which one it is.** A browser profile that is not signed in still loads Gemini, just without Gems. A work profile and a personal profile put the Gem under different owners, and that choice is the user's.
+- **`https://gemini.google.com/gems/create` opens the form directly.** Name is `#gem-name-input`, description is `#gem-description-input`.
+- **The Instructions box is a rich-text editor, not a textarea.** Typing multi-line text into it keeps the first line and turns the rest into empty paragraphs. Set the text through the editor itself (the `.ql-container` element's `__quill.setText(text, 'user')`) or a paste event, then read it back and compare the length with the file.
+- **There are two hidden file inputs and the first one takes images only.** Attach knowledge to the one whose `accept` list includes `.txt`.
+- **A "Gem saved" message is not proof.** Reload the edit page and read back the name, description, instruction length, and knowledge file before you report it created.
+- **The chat box can ignore synthetic Enter and click.** If a test prompt will not send, leave it typed and hand that one keypress to the user. Report the Gem as created but untested; do not describe an answer you did not see.
+
+## Gotchas
+
+- **A `/tree/<branch>/<path>` URL given to `--remote` packs the whole repository.** Scope only takes effect through `--include` (Step 2).
+- **Pack the whole repo once before you narrow it.** The token tree from that first run is what tells you where the weight is. A real run went from 596 files and 1.18M tokens to 308 files and 432k by dropping five translated doc sets, a docs site, tests, and two generated assets, none of which was guessable from the repo's front page.
+- **`--include` and `-i` combine.** Include the folders that teach, then ignore the heavy paths inside them, in one command.
+- **The `## File:` header count can exceed `Total Files`.** Documentation that quotes the header in its own examples adds matches. A higher count is not a packing error; a lower one is.
+- **Repomix's token count uses an OpenAI tokenizer.** Near a limit, leave margin instead of trusting the number.
+- **Commands inside the source stay as the source wrote them.** When the repo's docs say `npx`, the Gem's knowledge and instructions say `npx`. Your own runner preference applies to the commands you run, not to what you quote.
