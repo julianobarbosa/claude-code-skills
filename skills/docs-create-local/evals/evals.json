@@ -1,0 +1,55 @@
+{
+  "skill_name": "docs-create-local",
+  "evals": [
+    {
+      "id": 0,
+      "name": "azure-smart-tier-from-blog",
+      "prompt": "using context7 or microsoft docs create a entirely local documentation about: https://azure.microsoft.com/en-us/blog/optimize-object-storage-costs-automatically-with-smart-tier-now-generally-available/",
+      "expected_output": "A self-contained markdown doc on Azure Blob Storage smart tier: mechanics (30/90 day thresholds, 128 KiB small-object rule, Get/Put as access ops), prerequisites (GPv2 + ZRS/GZRS/RA-GZRS, block blobs only), the billing table, the SmartHot/SmartCool/SmartCold metric values, per-tool enablement with the 2025-08-01 api-version, and the lifecycle-management comparison. Sources cited with retrieval date.",
+      "files": [],
+      "assertions": [
+        "States both tiering thresholds correctly: hot to cool after 30 days of no access, cool to cold after 60 more days (90 total)",
+        "Documents the 128 KiB small-object rule: objects below that size stay on hot and are not charged the monitoring fee",
+        "Contains a billing breakdown showing that tier transitions within smart tier, early deletion, and data retrieval are NOT charged",
+        "Lists all three prerequisites: Standard GPv2 (not GPv1 or premium), zone-redundant storage (ZRS/GZRS/RA-GZRS), and block blobs only",
+        "Includes a runnable enablement command quoting the 2025-08-01 API version",
+        "Names the smart-tier-specific metric values used for monitoring (SmartHot, SmartCool, SmartCold, SmartHot-small)",
+        "Distinguishes access operations that reset the timer (Get Blob, Put Blob) from those that do not (Get Blob Properties, Metadata, Tags)",
+        "Documents the one-way door: once an object is set to an explicit tier it cannot be returned to smart tier",
+        "Cites its sources with a retrieval date"
+      ]
+    },
+    {
+      "id": 1,
+      "name": "azurerm-v5-breaking-changes-at-pin",
+      "prompt": "azurerm just went to 5.x and we're still pinned at ~> 4.73 in iac/. can you write up a doc in docs/ covering what actually breaks for us, from https://github.com/hashicorp/terraform-provider-azurerm/releases/tag/v5.0.0 — needs to be something i can hand to the team without them having to read the whole changelog",
+      "expected_output": "A doc scoped to THIS repo's pin: reads iac/*/versions.tf to find ~> 4.73, identifies which v5.0.0 breaking changes touch resources actually used in iac/ (azurerm_consumption_budget_*, azurerm_policy_*), and verifies claims against released artifacts rather than paraphrasing the changelog. Explicitly separates 'affects us' from 'does not affect us'.",
+      "files": [],
+      "assertions": [
+        "Reads the repo's actual provider pin from iac/*/versions.tf and states it (~> 4.73)",
+        "Names the specific azurerm resources actually used in iac/ (consumption budget and/or policy resources) rather than discussing the provider generically",
+        "Scopes the breaking changes to what touches this repo instead of reproducing the full changelog",
+        "Explicitly separates changes that affect this repo from changes that do not",
+        "Verifies at least one claim against a released artifact at a version tag (raw source file, provider docs at tag, registry metadata) rather than relying only on the release notes",
+        "Cites its sources with a retrieval date",
+        "Does not assert the upgrade is safe or breaking-change-free without supporting evidence"
+      ]
+    },
+    {
+      "id": 2,
+      "name": "storage-actions-no-announcement",
+      "prompt": "add a doc for azure storage actions — we keep debating it vs lifecycle policies for the finops work and nobody remembers which does what. should live in docs/",
+      "expected_output": "A decision-oriented doc built from canonical Learn pages (no announcement URL was given): what Storage Actions is, its cost model vs lifecycle management's free-but-limited model, a comparison table covering predicates/deployment/monitoring, and a clear 'use X when' guide. Should match the repo's docs house style.",
+      "files": [],
+      "assertions": [
+        "Sources content from canonical learn.microsoft.com pages rather than a blog post or announcement",
+        "Contains a comparison table covering Storage Actions vs lifecycle management across at least deployment model, cost, and targeting/predicates",
+        "States the cost difference correctly: lifecycle management has no service charge while Storage Actions carries a service fee",
+        "Gives a concrete decision guide saying when to pick each option",
+        "Mentions smart tier as the third option in the same cost-optimization decision space",
+        "Cites its sources with a retrieval date",
+        "Matches the destination repo's docs house style (heading structure and table usage consistent with sibling files in docs/)"
+      ]
+    }
+  ]
+}
