@@ -59,11 +59,10 @@
 //               Ignored on GitHub, where "Closes #<id>" in the body does the same job.
 
 import { readFileSync } from "node:fs";
-import * as azdev from "azure-devops-node-api";
 import { Octokit } from "@octokit/rest";
 import {
-  currentBranch, remoteUrl, detectKind, adoParts, adoToken, parseWorkItem, parseTags,
-  githubToken, defaultTagsFromTitle, githubOwnerRepo,
+  currentBranch, remoteUrl, detectKind, adoParts, adoCredentials, adoConnection, adoAuthHeader,
+  isAuthError, parseWorkItem, parseTags, githubToken, defaultTagsFromTitle, githubOwnerRepo,
 } from "./ship-lib.ts";
 
 function fail(msg: string, code = 1): never {
@@ -71,31 +70,25 @@ function fail(msg: string, code = 1): never {
   process.exit(code);
 }
 
-// HTTP Authorization header matching the SDK's auth: a PAT uses Basic (empty user
-// + PAT); otherwise an az OAuth bearer. Used for the raw identities lookup below,
-// which the SDK doesn't expose a typed client for in this version.
-function azAuthHeader(pat: string | undefined): string {
-  if (pat) return `Basic ${Buffer.from(":" + pat).toString("base64")}`;
-  return `Bearer ${adoToken()}`;
-}
-
 // Resolve a reviewer UPN/email to an Azure DevOps identity GUID (what the PR
 // reviewers payload needs). A value that already looks like a GUID passes through.
 // Best-effort: any failure returns null so the caller can skip + warn, never abort
-// the PR. Uses the vssps identities endpoint (Accounts/Identity area).
-// A PAT that 401/403s here gets one retry with the az OAuth bearer, mirroring
-// authFallback: an under-scoped PAT used to make every reviewer resolve to null,
-// so PRs opened with no reviewers at all (PR 1438, 2026-10-14).
-async function resolveAzureIdentity(orgUrl: string, header: string, upn: string): Promise<{ id: string | null; why?: string }> {
+// the PR. Uses the vssps identities endpoint (Accounts/Identity area), which the SDK
+// doesn't expose a typed client for in this version.
+// `headers` are tried in order, moving on after a 401/403, mirroring authFallback:
+// a bad credential used to make every reviewer resolve to null, so PRs opened with
+// no reviewers at all (PR 1438, 2026-10-14).
+async function resolveAzureIdentity(orgUrl: string, headers: string[], upn: string): Promise<{ id: string | null; why?: string }> {
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(upn)) return { id: upn };
   const org = orgUrl.replace(/^https:\/\/dev\.azure\.com\//, "").replace(/\/$/, "");
   const api = `https://vssps.dev.azure.com/${org}/_apis/identities?searchFilter=General&filterValue=${encodeURIComponent(upn)}&api-version=7.1`;
   const lookup = (auth: string) => fetch(api, { headers: { Authorization: auth, Accept: "application/json" } });
   try {
-    let res = await lookup(header);
-    if ((res.status === 401 || res.status === 403) && header.startsWith("Basic ")) {
-      console.error(`>> identity lookup: PAT got HTTP ${res.status}; retrying with az OAuth bearer`);
-      res = await lookup(azAuthHeader(undefined));
+    let res = await lookup(headers[0]);
+    for (const next of headers.slice(1)) {
+      if (res.status !== 401 && res.status !== 403) break;
+      console.error(`>> identity lookup got HTTP ${res.status}; retrying with the next credential`);
+      res = await lookup(next);
     }
     if (!res.ok) return { id: null, why: `HTTP ${res.status}` };
     const data: any = await res.json();
@@ -214,34 +207,26 @@ async function runAzure(): Promise<void> {
   if (!parts) fail(`could not parse org/project/repo from ${url}`);
   const { orgUrl, project, repo } = parts!;
 
-  // Prefer a configured PAT (the standard ADO credential, used by `az devops`).
-  // The az-OAuth token only works when the logged-in az identity is an org member;
-  // when it differs from the ADO identity it resolves to anonymous (TF400813).
-  const pat = process.env.AZURE_DEVOPS_EXT_PAT || process.env.AZURE_DEVOPS_PAT;
-  const handler = pat ? azdev.getPersonalAccessTokenHandler(pat) : azdev.getBearerHandler(adoToken());
-  const conn = new azdev.WebApi(orgUrl, handler);
+  // The az OAuth bearer first, a configured PAT second (see adoCredentials). If
+  // the first one 401/403s (az identity not an org member resolves to TF400813;
+  // an under-scoped PAT can't write Work Items / Pull Requests), retry on the next.
+  const creds = adoCredentials();
+  if (!creds.length) fail("no Azure DevOps credential: run 'az login' (or set AZURE_DEVOPS_EXT_PAT)");
+  let ci = 0;
+  const conn = adoConnection(orgUrl, creds[ci]);
   let wit = await conn.getWorkItemTrackingApi();
   let git = await conn.getGitApi();
-  let usingPat = !!pat;
 
-  // A PAT that is present but under-scoped (e.g. Code-only, missing Work Items /
-  // Pull Request write) makes the write calls below 401 even though the az OAuth
-  // identity may be a full org member. Detect that and retry once with the bearer.
-  const isAuthError = (e: any): boolean => {
-    const code = e?.statusCode ?? e?.status;
-    if (code === 401 || code === 403) return true;
-    return /\((?:401|403)\)/.test(String(e?.message ?? e));
-  };
   const authFallback = async <T>(op: () => Promise<T>): Promise<T> => {
     try {
       return await op();
     } catch (e) {
-      if (!usingPat || !isAuthError(e)) throw e;
-      console.error(">> PAT auth failed (401/403); falling back to az OAuth bearer token");
-      const bconn = new azdev.WebApi(orgUrl, azdev.getBearerHandler(adoToken()));
-      wit = await bconn.getWorkItemTrackingApi();
-      git = await bconn.getGitApi();
-      usingPat = false;
+      if (ci + 1 >= creds.length || !isAuthError(e)) throw e;
+      console.error(`>> ${creds[ci].kind} auth failed (401/403); falling back to ${creds[ci + 1].kind}`);
+      ci++;
+      const next = adoConnection(orgUrl, creds[ci]);
+      wit = await next.getWorkItemTrackingApi();
+      git = await next.getGitApi();
       return await op();
     }
   };
@@ -283,13 +268,13 @@ async function runAzure(): Promise<void> {
   // Resolve reviewers (optional + required) to identity GUIDs so they can ride
   // along in the create call — no separate add-reviewers round trip. Best-effort:
   // an unresolved name is warned + skipped, never blocking the PR.
-  // Follow the credential the SDK calls ended up on: after authFallback switches to
-  // the bearer, the raw `pat` is known-bad and must not be reused here.
-  const header = azAuthHeader(usingPat ? pat : undefined);
+  // Follow the credential the SDK calls ended up on: anything before creds[ci]
+  // already failed authFallback and must not be reused here.
+  const headers = creds.slice(ci).map(adoAuthHeader);
   const reviewerRefs: { id: string; isRequired: boolean; upn: string }[] = [];
   for (const [list, isRequired] of [[optionalReviewers, false], [requiredReviewers, true]] as const) {
     for (const upn of list) {
-      const { id, why } = await resolveAzureIdentity(orgUrl, header, upn);
+      const { id, why } = await resolveAzureIdentity(orgUrl, headers, upn);
       if (!id) {
         console.error(`>> WARNING: could not resolve reviewer '${upn}' (${why}); skipping`);
         console.log(`reviewer_skipped=${upn}`);

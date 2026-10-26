@@ -83,25 +83,59 @@ export function adoToken(): string {
   ]);
 }
 
-/** True if an SDK error is a 401/403 — the signal to fall back from a PAT to the
- *  az OAuth bearer (an under-scoped PAT fails write calls a full org member can make). */
+/** adoToken that never throws: "" when `az` is missing or not logged in. */
+export function tryAdoToken(): string {
+  try {
+    return adoToken();
+  } catch {
+    return "";
+  }
+}
+
+/** `git -c` args that authenticate one git call with an az bearer. credential.helper
+ *  is emptied because a stored HTTPS credential still answers git's 401 challenge
+ *  even with the header set, so a stale one (e.g. from before an Entra account
+ *  rename, 2026-10-26) fails the call exactly like a normal push. */
+export function adoBearerGitArgs(token: string): string[] {
+  return ["-c", "credential.helper=", "-c", `http.extraHeader=Authorization: Bearer ${token}`];
+}
+
+/** True if an SDK error is a 401/403 — the signal to move to the next credential. */
 export function isAuthError(e: any): boolean {
   const code = e?.statusCode ?? e?.status;
   if (code === 401 || code === 403) return true;
   return /\((?:401|403)\)/.test(String(e?.message ?? e));
 }
 
-/** Build an Azure DevOps WebApi connection. Prefers a configured PAT
- *  (AZURE_DEVOPS_EXT_PAT / AZURE_DEVOPS_PAT, the standard `az devops` credential);
- *  otherwise mints an az OAuth bearer. `usingPat` lets the caller retry with the
- *  bearer on a 401/403 — see isAuthError and the authFallback pattern in ship-pr.ts. */
-export function adoConnection(
-  orgUrl: string,
-  opts: { forceBearer?: boolean } = {},
-): { conn: azdev.WebApi; usingPat: boolean } {
-  const pat = opts.forceBearer ? "" : (process.env.AZURE_DEVOPS_EXT_PAT || process.env.AZURE_DEVOPS_PAT);
-  const handler = pat ? azdev.getPersonalAccessTokenHandler(pat) : azdev.getBearerHandler(adoToken());
-  return { conn: new azdev.WebApi(orgUrl, handler), usingPat: !!pat };
+export type AdoCred = { kind: "bearer"; token: string } | { kind: "pat"; pat: string };
+
+/** Azure DevOps credentials in the order to try them. The az OAuth bearer comes
+ *  first: it is minted from whoever `az login` is right now, so it cannot go stale
+ *  the way a stored PAT can (and a stray PAT used to silently win). A configured
+ *  PAT (AZURE_DEVOPS_EXT_PAT / AZURE_DEVOPS_PAT) is the fallback, for when az is not
+ *  logged in or its identity is not an org member (that resolves to TF400813). */
+export function adoCredentials(): AdoCred[] {
+  const creds: AdoCred[] = [];
+  const token = tryAdoToken();
+  if (token) creds.push({ kind: "bearer", token });
+  const pat = process.env.AZURE_DEVOPS_EXT_PAT || process.env.AZURE_DEVOPS_PAT;
+  if (pat) creds.push({ kind: "pat", pat });
+  return creds;
+}
+
+/** WebApi connection for one credential. */
+export function adoConnection(orgUrl: string, cred: AdoCred): azdev.WebApi {
+  const handler = cred.kind === "bearer"
+    ? azdev.getBearerHandler(cred.token)
+    : azdev.getPersonalAccessTokenHandler(cred.pat);
+  return new azdev.WebApi(orgUrl, handler);
+}
+
+/** Raw HTTP Authorization header for one credential (PAT = Basic with empty user). */
+export function adoAuthHeader(cred: AdoCred): string {
+  return cred.kind === "bearer"
+    ? `Bearer ${cred.token}`
+    : `Basic ${Buffer.from(":" + cred.pat).toString("base64")}`;
 }
 
 /** Resolve a GitHub token for a repo, preferring the account that OWNS it.

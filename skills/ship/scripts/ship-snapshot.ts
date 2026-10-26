@@ -16,14 +16,14 @@
 //   --daily                  Name = v<YYYY.MM.DD> (one tag/day). Default includes
 //                            -HHMM so multiple snapshots/day don't collide.
 //   --name <tag>             Use this exact tag name, ignoring the date scheme.
-//   --push                   Push the tag to origin after creating it (Azure
-//                            OAuth Bearer fallback on auth failure, like ship-push).
+//   --push                   Push the tag to origin after creating it (on Azure,
+//                            with the az OAuth Bearer first, like ship-push).
 //   -h, --help               Show usage.
 //
 // Output (stdout): tag=<name>  commit=<shorthash>  branch=<branch>  pushed=<yes|no>
 
 import { execFileSync } from "node:child_process";
-import { sh, currentBranch, remoteUrl, detectKind, adoToken } from "./ship-lib.ts";
+import { sh, currentBranch, remoteUrl, detectKind, tryAdoToken, adoBearerGitArgs } from "./ship-lib.ts";
 
 function fail(msg: string, code = 1): never {
   console.error(msg);
@@ -96,20 +96,15 @@ if (push) {
   const remote = "origin";
   const kind = detectKind(remoteUrl(remote));
   console.error(`>> pushing tag ${name} -> ${remote} (${kind})`);
-  if (gitStreamed(["push", remote, name])) {
-    pushed = "yes";
-  } else if (kind === "azure") {
-    // Mirror ship-push: under-scoped/absent git creds but `az` logged in.
-    console.error(">> normal push failed; trying Azure DevOps OAuth Bearer fallback");
-    let token = "";
-    try { token = adoToken(); } catch { /* handled below */ }
-    if (!token) fail("tag created locally, but push failed: could not mint token (is 'az login' done?)");
-    if (!gitStreamed(["-c", "credential.helper=", "-c", `http.extraHeader=Authorization: Bearer ${token}`, "push", remote, name])) {
-      fail(`tag '${name}' created locally, but OAuth Bearer push also failed`);
-    }
+  // Mirror ship-push: on Azure the az OAuth bearer goes first, the stored git
+  // credential is only the fallback for when `az` is not logged in.
+  const token = kind === "azure" ? tryAdoToken() : "";
+  if (token && gitStreamed([...adoBearerGitArgs(token), "push", remote, name])) {
     pushed = "yes-oauth-bearer";
   } else {
-    fail(`tag '${name}' created locally, but push failed (remote is ${kind}; no OAuth fallback)`);
+    if (token) console.error(">> OAuth Bearer push failed; trying the stored git credential");
+    if (!gitStreamed(["push", remote, name])) fail(`tag '${name}' created locally, but push failed`);
+    pushed = "yes";
   }
 }
 
