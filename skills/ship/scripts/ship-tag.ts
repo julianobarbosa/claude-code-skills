@@ -20,13 +20,13 @@
 // -r, --remote Git remote to resolve coordinates from (default: origin).
 //
 // Tags are visible to the team but reversible and low-blast — no destructive
-// confirm. Auth mirrors ship-pr.ts: a configured PAT, falling back to an az OAuth
-// bearer on a 401/403 (an under-scoped PAT can't write labels a full member can).
+// confirm. Auth mirrors ship-pr.ts: the az OAuth bearer, falling back to a
+// configured PAT on a 401/403 (see adoCredentials in ship-lib.ts).
 
 import { readFileSync } from "node:fs";
 import { Octokit } from "@octokit/rest";
 import {
-  remoteUrl, detectKind, adoParts, adoConnection, isAuthError, parseTags,
+  remoteUrl, detectKind, adoParts, adoConnection, adoCredentials, isAuthError, parseTags,
   githubToken, githubOwnerRepo,
 } from "./ship-lib.ts";
 
@@ -79,17 +79,18 @@ async function runAzure(): Promise<void> {
   const { orgUrl, project, repo } = parts!;
   const id = Number(prId);
 
-  let { conn, usingPat } = adoConnection(orgUrl);
-  let git = await conn.getGitApi();
+  const creds = adoCredentials();
+  if (!creds.length) fail("no Azure DevOps credential: run 'az login' (or set AZURE_DEVOPS_EXT_PAT)");
+  let ci = 0;
+  let git = await adoConnection(orgUrl, creds[ci]).getGitApi();
   const authFallback = async <T>(op: () => Promise<T>): Promise<T> => {
     try {
       return await op();
     } catch (e) {
-      if (!usingPat || !isAuthError(e)) throw e;
-      console.error(">> PAT auth failed (401/403); falling back to az OAuth bearer token");
-      ({ conn } = adoConnection(orgUrl, { forceBearer: true }));
-      git = await conn.getGitApi();
-      usingPat = false;
+      if (ci + 1 >= creds.length || !isAuthError(e)) throw e;
+      console.error(`>> ${creds[ci].kind} auth failed (401/403); falling back to ${creds[ci + 1].kind}`);
+      ci++;
+      git = await adoConnection(orgUrl, creds[ci]).getGitApi();
       return await op();
     }
   };

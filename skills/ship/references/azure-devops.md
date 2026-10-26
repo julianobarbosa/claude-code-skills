@@ -2,21 +2,23 @@
 
 Detail for the Azure Repos + Boards half of `ship`. Read this when the remote is `dev.azure.com` / `*.visualstudio.com`.
 
-## Authentication: the OAuth Bearer fallback
+## Authentication: `az account get-access-token` first
 
-Azure DevOps git over HTTPS needs a credential. On a workstation where the SSH key isn't loaded and no HTTPS credential helper is configured, both push transports fail — but if `az login` is done, you can borrow its token.
+Every Azure DevOps call `ship` makes authenticates with a token minted from the logged-in `az` CLI. The token follows whoever `az login` is right now, so it cannot go stale the way a stored PAT or a keychain entry for `dev.azure.com` can (an Entra account rename left the stored credential answering 401 on 2026-10-26).
 
-`scripts/ship-push.ts` does this automatically: it tries a normal `git push` first, and only on failure mints a token and retries with a Bearer header. The mechanics, if you ever run it by hand:
+`scripts/ship-push.ts` and `ship-snapshot.ts --push` mint the token and push with a Bearer header first. They fall back to the stored git credential or SSH only when `az` is not logged in or the Bearer push fails. The mechanics, if you ever run git by hand:
 
 ```bash
 TOKEN=$(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)
-git -c http.extraHeader="Authorization: Bearer $TOKEN" push -u origin <branch>
+git -c credential.helper= -c http.extraHeader="Authorization: Bearer $TOKEN" push -u origin <branch>
 ```
 
 - `499b84ac-1321-427f-aa17-267ca6975798` is the **constant** Azure DevOps API resource id — not a secret, the same for every org.
+- `-c credential.helper=` is required: a stored credential still answers git's 401 challenge even with the header set, and a stale one fails the call.
 - The token lives ~60 minutes. Re-mint per command if a long session crosses the boundary.
-- The token goes in a **header**, never in the URL — URLs leak to logs, history, and referrers.
-- The same token drives the SDK: `ship-pr.ts` passes it to `azdev.getBearerHandler(token)` and builds a `WebApi` connection (no `AZURE_DEVOPS_EXT_PAT` env var needed — that was the CLI path).
+- The token goes in a **header**, never in the URL — URLs leak to logs, history, and referrers. Never echo it.
+- The same token drives the SDK: `ship-pr.ts` / `ship-tag.ts` take credentials from `adoCredentials()` in `ship-lib.ts`, which orders them **az bearer, then `AZURE_DEVOPS_EXT_PAT` / `AZURE_DEVOPS_PAT`**. On a 401/403 the script moves to the next credential and retries.
+- For `az devops` / `az repos` CLI calls, set `AZURE_DEVOPS_EXT_PAT` to the same token for the one command.
 
 ## Coordinates
 
@@ -106,9 +108,8 @@ They are advisory triage signals — independent of work-item links and of Board
 
 Tags are **free-form**: the definition is created on first use, so there's no pre-registration step.
 Re-adding an existing tag returns the existing definition (not an error); removing a tag the PR
-doesn't carry returns 404 (treated as non-fatal). Auth reuses the PAT→`az` OAuth-bearer fallback —
-an under-scoped PAT (Code-only, missing **Pull Request** write) 401s, and the script retries with the
-bearer.
+doesn't carry returns 404 (treated as non-fatal). Auth reuses the `az` bearer → PAT order from
+`adoCredentials()`: a 401/403 on the first credential retries once on the next.
 
 ```bash
 # At PR open:
@@ -170,7 +171,7 @@ For anything beyond open-PR-and-link — WIQL queries, batch work-item updates, 
 ## Gotchas
 
 - **Branch policies can block direct push to `main`.** That's the signal to use the PR path, not to force-push. Never bypass a policy.
-- **`AZURE_DEVOPS_EXT_PAT` shadows interactive login** — if it holds a stale/expired token, `az repos` fails confusingly. ship-pr.ts always sets a fresh one.
+- **`AZURE_DEVOPS_EXT_PAT` shadows interactive login** — if it holds a stale/expired token, `az repos` fails confusingly. The ship scripts no longer prefer it (the `az` bearer goes first); for a hand-run `az repos` command, set it to a fresh `az account get-access-token` value.
 - **Work-item link doesn't change state** — linking and transitioning are independent. You need both if you want the board to move.
 - **`--assigned-to` must resolve to an org member** — an email/UPN that isn't a project member errors (or silently leaves the item unassigned on some orgs). Set your default via `$SHIP_ADO_ASSIGNEE`, or pass `--assignee` per run.
 - **Created items land in the initial state, not "Active"** — a freshly created Task is `New` (Agile/Scrum) or `To Do` (Basic). If a policy expects in-progress work, add `--transition`.

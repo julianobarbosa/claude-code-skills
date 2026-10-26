@@ -1,13 +1,15 @@
 #!/usr/bin/env bun
 // Push the current (or named) branch and set upstream.
-// On Azure DevOps, if the normal push fails on auth, mint an OAuth token and
-// retry with a Bearer header — the fallback for when SSH and the HTTPS
-// credential helper are both unavailable but `az` is logged in.
+// On Azure DevOps, the push authenticates with an az OAuth token as a Bearer
+// header FIRST: it is minted from whoever `az login` is right now, so it cannot
+// go stale the way a stored HTTPS credential can (an Entra account rename left
+// the keychain entry answering 401, 2026-10-26). The stored credential / SSH is
+// only the fallback, for when `az` is not logged in.
 //
 // Usage: bun ship-push.ts [-r remote] [-b branch]
 
 import { execFileSync } from "node:child_process";
-import { currentBranch, remoteUrl, detectKind, adoToken } from "./ship-lib.ts";
+import { currentBranch, remoteUrl, detectKind, tryAdoToken, adoBearerGitArgs } from "./ship-lib.ts";
 
 function fail(msg: string, code = 1): never {
   console.error(msg);
@@ -43,28 +45,17 @@ const url = remoteUrl(remote);
 const kind = detectKind(url);
 console.error(`>> pushing ${branch} -> ${remote} (${kind})`);
 
-if (git(["push", "-u", remote, branch])) {
-  console.log("push_ok=normal");
-  process.exit(0);
+if (kind === "azure") {
+  // Token is passed as a request header, never in the URL. It is short-lived (~60 min).
+  const token = tryAdoToken();
+  if (token && git([...adoBearerGitArgs(token), "push", "-u", remote, branch])) {
+    console.log("push_ok=oauth-bearer");
+    process.exit(0);
+  }
+  console.error(token
+    ? ">> OAuth Bearer push failed; trying the stored git credential"
+    : ">> could not mint an az token (is 'az login' done?); trying the stored git credential");
 }
 
-if (kind !== "azure") {
-  fail("push failed and remote is not Azure DevOps; not attempting OAuth fallback");
-}
-
-console.error(">> normal push failed; trying Azure DevOps OAuth Bearer fallback");
-let token: string;
-try {
-  token = adoToken();
-} catch {
-  fail("failed to mint token (is 'az login' done?)");
-}
-if (!token) fail("failed to mint token (is 'az login' done?)");
-
-// Token is passed as a request header, never in the URL. It is short-lived (~60 min).
-// credential.helper is emptied so a stale stored credential (e.g. from before an
-// Entra account rename) cannot answer the 401 challenge in place of the header.
-if (!git(["-c", "credential.helper=", "-c", `http.extraHeader=Authorization: Bearer ${token}`, "push", "-u", remote, branch])) {
-  fail("OAuth Bearer push also failed");
-}
-console.log("push_ok=oauth-bearer");
+if (!git(["push", "-u", remote, branch])) fail("push failed");
+console.log("push_ok=normal");

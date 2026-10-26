@@ -4,7 +4,7 @@ description: >-
   End-to-end branch delivery: commit (no AI attribution) → push → open a pull request → ensure a
   Board work item exists (create one per task, assigned to the configured user, if none) and link
   it → after merge, clean up branch and worktree. Auto-detects the platform from the remote —
-  Azure Repos + Boards (azure-devops-node-api SDK; OAuth Bearer push fallback via `az`) or GitHub
+  Azure Repos + Boards (azure-devops-node-api SDK; auth via `az account get-access-token` Bearer) or GitHub
   (Octokit; `gh` for auth). Scripts are TypeScript, run via `bun`. Use whenever
   asked to "ship", "ship it", "ship this branch", "open a PR", "push and open a PR", "raise a PR",
   "deliver this", "send this for review", or "create a PR and link the work item" — and when a
@@ -90,9 +90,9 @@ backstop, but don't rely on it — don't write them in the first place). If pre-
 ```bash
 bun scripts/ship-push.ts         # pushes current branch, sets upstream
 ```
-On Azure DevOps, if the normal push fails on auth, this automatically mints an `az` OAuth token and
-retries with a Bearer header — the fallback for when neither SSH nor an HTTPS credential helper is
-available. See `references/azure-devops.md` for the mechanics.
+On Azure DevOps, the push authenticates with an `az account get-access-token` Bearer header first
+(`push_ok=oauth-bearer`), and falls back to the stored git credential only when `az` is not logged
+in (`push_ok=normal`). See `references/azure-devops.md` for the mechanics.
 
 ### 4. Open the PR (+ ensure/link work item, + transition state)
 
@@ -261,7 +261,7 @@ The script auto-fills what's easy to get wrong by hand:
   someone relies on.
 
 Tags are **local until pushed** (shared/visible — confirm first, like opening a PR). Add `--push` to
-push to `origin`; on Azure it falls back to the `az` OAuth Bearer header the same way `ship-push.ts`
+push to `origin`; on Azure it uses the `az` OAuth Bearer header first, the same way `ship-push.ts`
 does. The script prints `tag=`, `commit=`, `branch=`, `pushed=`.
 
 ## Bundled tools
@@ -270,11 +270,11 @@ does. The script prints `tag=`, `commit=`, `branch=`, `pushed=`.
 |--------|------|
 | `bun scripts/ship-preflight.ts [remote]` | Anything-to-deliver + working-tree scope audit (`scope_clean=…`); advisory, never blocks. Run first |
 | `bun scripts/ship-detect.ts [remote]` | Print platform + Azure coordinates + branch + inferred work item |
-| `bun scripts/ship-push.ts [-r remote] [-b branch]` | Push + set upstream; Azure OAuth Bearer fallback on auth failure |
+| `bun scripts/ship-push.ts [-r remote] [-b branch]` | Push + set upstream; on Azure, `az` OAuth Bearer first, stored credential as fallback |
 | `bun scripts/ship-pr.ts --title … [opts]` | Open PR on the detected platform; ensure/create + link work item(s) (assigned to the configured user); optional Board transition; auto-tag from title/branch (override `--tag`, disable `--no-tag`); optional `--reviewer`/`--required-reviewer` (default `$SHIP_ADO_DEFAULT_REVIEWER`, disable `--no-reviewer`); pre-checks "Complete linked work items after merging" (disable `--no-complete-transition`) — work item + tags + reviewers packed into one create call on Azure |
 | `bun scripts/ship-tag.ts <pr-id> [--add\|--remove "t1,t2"] [--list]` | Add / remove / list PR tags (Azure) or labels (GitHub) on an existing PR |
 | `bun scripts/ship-open.ts <url> [--profile <email>] [--dry-run]` | Open a PR/URL in a chosen browser **account profile** (email→profile via the browser's `Local State`); WSL→Edge/Chrome, macOS→Chrome/Edge; also `--list-profiles`, `--set-default` |
-| `bun scripts/ship-snapshot.ts [-m "para"]… [--daily] [--name <tag>] [--push]` | Save current state as an annotated **git tag** (date-named, self-describing subject); optional push with Azure OAuth fallback |
+| `bun scripts/ship-snapshot.ts [-m "para"]… [--daily] [--name <tag>] [--push]` | Save current state as an annotated **git tag** (date-named, self-describing subject); optional push (Azure: `az` OAuth Bearer first) |
 
 Scripts are TypeScript run via `bun`; shared helpers live in `scripts/ship-lib.ts`. Run `bun install`
 in the skill dir once (installs `azure-devops-node-api` + `@octokit/rest`). Git/push stays a
@@ -306,15 +306,22 @@ detected platform. The PR description starts from `assets/pr-template.md`.
   moves it when the PR is *completed*. A PR created before this default existed carries no completion
   options at all, so its box stays unchecked — that setting is baked in at create time and cannot be
   added to an already-merged PR.
-- If `AZURE_DEVOPS_EXT_PAT` is set but under-scoped (e.g. Code-only, missing Work Items / Pull
-  Request write), `ship-pr.ts` auto-detects the 401/403 and retries with the `az` OAuth bearer
-  token — no need to unset the PAT manually. The fallback requires `az login` as an org member.
-- **The Azure Bearer fallback empties `credential.helper`.** A stored HTTPS credential (the
-  keychain entry for `dev.azure.com`) still answers git's 401 challenge even when an
-  `http.extraHeader` Bearer is set, so a stale one fails the fallback with the same
-  `Authentication failed` as the normal push. On 2026-10-26 both pushes failed after an Entra
-  account rename while the same token returned 200 on `git-receive-pack` via curl;
-  `-c credential.helper=` fixed it. Any hand-rolled Bearer git call needs the same flag.
+- **Azure auth is `az account get-access-token` first, everywhere** (push, snapshot push, SDK,
+  reviewer lookup). The token follows whoever `az login` is right now, so it can't go stale the way
+  a stored PAT or keychain entry can. A set `AZURE_DEVOPS_EXT_PAT` / `AZURE_DEVOPS_PAT` is only the
+  fallback: the scripts move to it on a 401/403, or use it alone when `az` isn't logged in. So
+  `az login` as an org member is the one prerequisite; a stray PAT no longer silently wins.
+- **Every Bearer git call empties `credential.helper`** (`adoBearerGitArgs` in `ship-lib.ts`). A
+  stored HTTPS credential (the keychain entry for `dev.azure.com`) still answers git's 401
+  challenge even when an `http.extraHeader` Bearer is set, so a stale one fails the call with
+  `Authentication failed`. On 2026-10-26 a plain `git pull` and both pushes failed after an Entra
+  account rename while the same token returned 200 via curl; `-c credential.helper=` fixed it.
+  Hand-rolled git calls need the same shape:
+  `git -c credential.helper= -c http.extraHeader="Authorization: Bearer $(az account get-access-token --resource 499b84ac-1321-427f-aa17-267ca6975798 --query accessToken -o tsv)" pull --ff-only`.
+- **`TF400813` with an `az` token right after an Entra UPN rename is ADO's identity cache, not a
+  missing grant.** On 2026-10-26 the renamed account was already Project Collection Administrator
+  and still got `TF400813` on every repo call for a few minutes, then 200 with no change made. Check
+  the org membership before adding the account again: a re-add can't fix it.
 - **A GitHub `404 Not Found` on create is almost always the wrong account, not a missing repo.**
   `gh auth token` answers as whatever account is *active*, ignoring who owns the repo, and GitHub
   hides a private repo you can't see rather than returning 403. `ship-pr.ts` / `ship-tag.ts` now call
