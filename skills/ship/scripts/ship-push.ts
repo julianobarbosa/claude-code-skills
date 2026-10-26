@@ -62,7 +62,9 @@ try {
 if (!token) fail("failed to mint token (is 'az login' done?)");
 
 // Token is passed as a request header, never in the URL. It is short-lived (~60 min).
-if (!git(["-c", `http.extraHeader=Authorization: Bearer ${token}`, "push", "-u", remote, branch])) {
+// credential.helper is emptied so a stale stored credential (e.g. from before an
+// Entra account rename) cannot answer the 401 challenge in place of the header.
+if (!git(["-c", "credential.helper=", "-c", `http.extraHeader=Authorization: Bearer ${token}`, "push", "-u", remote, branch])) {
   fail("OAuth Bearer push also failed");
 }
 console.log("push_ok=oauth-bearer");

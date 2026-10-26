@@ -309,6 +309,12 @@ detected platform. The PR description starts from `assets/pr-template.md`.
 - If `AZURE_DEVOPS_EXT_PAT` is set but under-scoped (e.g. Code-only, missing Work Items / Pull
   Request write), `ship-pr.ts` auto-detects the 401/403 and retries with the `az` OAuth bearer
   token — no need to unset the PAT manually. The fallback requires `az login` as an org member.
+- **The Azure Bearer fallback empties `credential.helper`.** A stored HTTPS credential (the
+  keychain entry for `dev.azure.com`) still answers git's 401 challenge even when an
+  `http.extraHeader` Bearer is set, so a stale one fails the fallback with the same
+  `Authentication failed` as the normal push. On 2026-10-26 both pushes failed after an Entra
+  account rename while the same token returned 200 on `git-receive-pack` via curl;
+  `-c credential.helper=` fixed it. Any hand-rolled Bearer git call needs the same flag.
 - **A GitHub `404 Not Found` on create is almost always the wrong account, not a missing repo.**
   `gh auth token` answers as whatever account is *active*, ignoring who owns the repo, and GitHub
   hides a private repo you can't see rather than returning 403. `ship-pr.ts` / `ship-tag.ts` now call

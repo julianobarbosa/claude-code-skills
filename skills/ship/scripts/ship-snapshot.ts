@@ -104,7 +104,7 @@ if (push) {
     let token = "";
     try { token = adoToken(); } catch { /* handled below */ }
     if (!token) fail("tag created locally, but push failed: could not mint token (is 'az login' done?)");
-    if (!gitStreamed(["-c", `http.extraHeader=Authorization: Bearer ${token}`, "push", remote, name])) {
+    if (!gitStreamed(["-c", "credential.helper=", "-c", `http.extraHeader=Authorization: Bearer ${token}`, "push", remote, name])) {
       fail(`tag '${name}' created locally, but OAuth Bearer push also failed`);
     }
     pushed = "yes-oauth-bearer";
