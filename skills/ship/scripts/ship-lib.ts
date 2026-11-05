@@ -258,3 +258,27 @@ export function githubOwnerRepo(url: string): { owner: string; repo: string } | 
   const m = url.trim().match(/^(?:[a-z+]+:\/\/)?(?:[^@/]+@)?([^:/]*github[^:/]*)[:/]([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
   return m ? { owner: m[2], repo: m[3] } : null;
 }
+
+/**
+ * Work-item ids for `--related`: comma-separated and/or repeatable, deduped, in order.
+ * Throws on anything that is not a positive integer, so a typo never becomes a link.
+ */
+export function parseRelatedIds(values: string[]): number[] {
+  const out: number[] = [];
+  for (const raw of values.flatMap((v) => v.split(","))) {
+    const t = raw.trim().replace(/^(AB)?#/i, "");
+    if (!t) continue;
+    if (!/^[1-9]\d*$/.test(t)) throw new Error(`--related: '${raw.trim()}' is not a work-item id`);
+    const n = Number(t);
+    if (!out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
+/**
+ * True when `text` mentions work item `id` the way Azure Repos turns into a link on a PR
+ * description or a commit message: `#id` or `AB#id`, not as part of a longer number or word.
+ */
+export function mentionsWorkItem(text: string, id: number): boolean {
+  return new RegExp(`(^|[^\\w#])(AB)?#${id}(?!\\d)`, "i").test(text);
+}

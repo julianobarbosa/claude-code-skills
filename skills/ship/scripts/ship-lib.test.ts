@@ -4,6 +4,8 @@
 
 import { expect, test, describe } from "bun:test";
 import {
+  mentionsWorkItem,
+  parseRelatedIds,
   githubOwnerRepo,
   parsePorcelainStatus,
   scopeAudit,
@@ -157,5 +159,29 @@ describe("githubOwnerRepo", () => {
   });
   test("non-github url is null", () => {
     expect(githubOwnerRepo("https://dev.azure.com/org/proj/_git/repo")).toBeNull();
+  });
+});
+
+describe("parseRelatedIds", () => {
+  test("CSV and repeated flags, deduped, AB#/# prefixes accepted", () => {
+    expect(parseRelatedIds(["4242,1717", "AB#4242", " #77 "])).toEqual([4242, 1717, 77]);
+    expect(parseRelatedIds([])).toEqual([]);
+  });
+  test("a non-numeric id throws instead of becoming a link", () => {
+    expect(() => parseRelatedIds(["23a"])).toThrow("is not a work-item id");
+    expect(() => parseRelatedIds(["0"])).toThrow();
+  });
+});
+
+describe("mentionsWorkItem", () => {
+  test("#id and AB#id are mentions", () => {
+    expect(mentionsWorkItem("pending (AB#4242): x", 4242)).toBe(true);
+    expect(mentionsWorkItem("see #4242.", 4242)).toBe(true);
+    expect(mentionsWorkItem("#4242", 4242)).toBe(true);
+  });
+  test("a longer number, a bare number or a word-attached hash is not", () => {
+    expect(mentionsWorkItem("#42420", 4242)).toBe(false);
+    expect(mentionsWorkItem("issue 4242", 4242)).toBe(false);
+    expect(mentionsWorkItem("x#4242", 4242)).toBe(false);
   });
 });
