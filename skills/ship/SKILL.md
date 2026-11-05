@@ -154,6 +154,17 @@ bun scripts/ship-pr.ts --title "<title>" --body-file /tmp/pr-body.md \
   where `Closes #<id>` in the body does the same job.
 - The script prints `pr_url=…`; surface it to the user.
 
+#### Related work items (`--related`)
+A long-lived item the PR touches but does not finish (a backlog item, an epic) must **not** be
+linked to the PR: on **Complete**, ADO rewrites the PR's completion options from the dialog, and a
+ticked "Complete linked work items" box closes every linked item, whatever ship set beforehand.
+Pass it as `--related <id>` (comma-separated or repeatable): ship verifies it, links the PR to its
+**own** item (the `--work-item`, or the Task it creates), and links that own item *Related* to the
+long-lived one (`related_linked=<own>-><id>`). Completing the PR then closes only the own item.
+Keep `#<id>` / `AB#<id>` out of the PR body and the commit messages for that item: Azure Repos
+links a mentioned item on its own, and ship warns when it sees one. Azure only; on GitHub, write
+`Refs #<id>` in the body.
+
 ### 4b. Tags + reviewers (applied by default)
 Azure DevOps calls them **tags**; GitHub calls them **labels** — same idea: a small, visible signal
 that helps reviewers triage and helps the team organize PRs. Microsoft's guidance is that tags

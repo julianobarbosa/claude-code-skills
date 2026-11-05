@@ -8,7 +8,7 @@
 //                  [--assignee UPN] [--work-item-type TYPE] [--no-create-work-item]
 //                  [--transition STATE] [--tag "t1,t2" ...] [--no-tag]
 //                  [--reviewer UPN ...] [--required-reviewer UPN ...] [--no-reviewer]
-//                  [--no-complete-transition] [--draft] [-r remote]
+//                  [--no-complete-transition] [--related ID ...] [--draft] [-r remote]
 //
 // Prerequisites in one shot: on Azure, the work item, tags/labels, and reviewers
 // are packed into the single createPullRequest call — no create-then-patch round
@@ -57,12 +57,23 @@
 //               the create call drops completionOptions), so whoever
 //               clicks Complete transitions the linked item instead of leaving it open.
 //               Ignored on GitHub, where "Closes #<id>" in the body does the same job.
+//               This only pre-fills the dialog: completing a PR rewrites its whole
+//               completionOptions, so the box ticked at Complete decides. An item that must
+//               stay open belongs in --related, not linked to the PR.
+// --related     Azure only. Work item(s) this PR relates to but does NOT finish (a
+//               long-lived backlog item). Comma-separated and/or repeatable. Each is
+//               verified, never linked to the PR, and linked "Related" to the PR's own work
+//               item (the --work-item, or the Task ship creates), so completing the PR closes
+//               only that own item. Branch-name inference is skipped when given, and ship
+//               warns if the body or a commit mentions #<id> / AB#<id>, which Azure Repos
+//               turns into a PR link of its own.
 
 import { readFileSync } from "node:fs";
 import { Octokit } from "@octokit/rest";
 import {
   currentBranch, remoteUrl, detectKind, adoParts, adoCredentials, adoConnection, adoAuthHeader,
   isAuthError, parseWorkItem, parseTags, githubToken, defaultTagsFromTitle, githubOwnerRepo,
+  parseRelatedIds, mentionsWorkItem, sh,
 } from "./ship-lib.ts";
 
 function fail(msg: string, code = 1): never {
@@ -105,6 +116,7 @@ let workItem = "", transition = "", remote = "origin", wiType = "Task";
 let assignee = process.env.SHIP_ADO_ASSIGNEE || "you@example.com";
 let draft = false, createWi = true, noTag = false, noReviewer = false;
 let noCompleteTransition = false;
+const relatedFlags: string[] = [];
 const tasks: string[] = [];
 const tagFlags: string[] = [];
 const reviewerFlags: string[] = [];
@@ -137,6 +149,7 @@ for (let i = 0; i < argv.length; i++) {
     case "--required-reviewer": { const v = argv[++i]; if (v === undefined) fail("--required-reviewer requires a value", 2); requiredReviewerFlags.push(v); break; }
     case "--no-reviewer": noReviewer = true; break;
     case "--no-complete-transition": noCompleteTransition = true; break;
+    case "--related": { const v = argv[++i]; if (v === undefined) fail("--related requires a value", 2); relatedFlags.push(v); break; }
     case "--draft": draft = true; break;
     case "-r": case "--remote": remote = argv[++i]; break;
     case "-h": case "--help":
@@ -154,7 +167,14 @@ if (!sourceBranch) sourceBranch = currentBranch();
 // chore/19-4-* linked unrelated Epic #19; bmad/story-24-2-* linked Epic #24
 // despite --task, 2026-07-13). Existence-verification downstream can't catch
 // these because the mis-parsed id IS a real (wrong) item.
-if (!workItem && tasks.length === 0) workItem = parseWorkItem(sourceBranch);
+let relatedIds: number[] = [];
+try { relatedIds = parseRelatedIds(relatedFlags); } catch (e: any) { fail(e.message, 2); }
+// A --related id must never end up as the PR's own (closing) link: skip branch-number
+// inference when --related is given (the branch often carries that very id), and refuse
+// a --work-item that is also --related.
+if (!workItem && tasks.length === 0 && relatedIds.length === 0) workItem = parseWorkItem(sourceBranch);
+if (workItem && relatedIds.includes(Number(workItem)))
+  fail(`work item ${workItem} is both --work-item and --related; a related item is never linked to the PR`, 2);
 
 const url = remoteUrl(remote);
 const kind = detectKind(url);
@@ -230,6 +250,24 @@ async function runAzure(): Promise<void> {
       return await op();
     }
   };
+
+  // --related ids are verified BEFORE anything is created, so a typo stops the run with
+  // nothing written instead of leaving a PR without its relation.
+  for (const rid of relatedIds) {
+    let ok = false;
+    try { ok = !!(await authFallback(() => wit.getWorkItem(rid)))?.id; } catch { ok = false; }
+    if (!ok) fail(`--related ${rid}: work item not found`, 2);
+  }
+  // Azure Repos links a work item mentioned as #id / AB#id in the PR description or in a
+  // commit message, and that link closes it on Complete like any other. Warn, don't fail:
+  // the text is the author's to fix.
+  if (relatedIds.length) {
+    const commits = sh("git", ["log", "--format=%B", `${remote}/${target}..${sourceBranch}`], { allowFail: true });
+    for (const rid of relatedIds) {
+      const where = [mentionsWorkItem(body, rid) && "the PR body", mentionsWorkItem(commits, rid) && "a commit message"].filter(Boolean);
+      if (where.length) console.error(`>> WARNING: ${where.join(" and ")} mention #${rid}; Azure Repos may link it to the PR, and Complete would then close it. Reword it (e.g. "item ${rid}") before completing.`);
+    }
+  }
 
   // Resolve the work item(s) to link: verify any inferred/passed id exists,
   // otherwise create one per task (each assigned to `assignee`).
@@ -316,6 +354,25 @@ async function runAzure(): Promise<void> {
   // --no-complete-transition PATCHes an explicit false rather than skipping the call:
   // left unset (null), the dialog falls back to the completer's last choice, which ticked
   // the box and closed work item 1297 behind PR 1347 (2026-10-03) while this line printed false.
+  // --related: link each of the PR's own items "Related" to each related item. The PR never
+  // references the related item, so completing it cannot close that item. Idempotent: ADO
+  // accepts a repeat of an existing relation and leaves it as is (no duplicate, no error).
+  if (relatedIds.length && !wiIds.length)
+    console.error(">> WARNING: --related given but the PR has no work item of its own to relate it to; nothing linked");
+  for (const own of wiIds) {
+    for (const rid of relatedIds) {
+      try {
+        await authFallback(() => wit.updateWorkItem(null, [{
+          op: "add", path: "/relations/-",
+          value: { rel: "System.LinkTypes.Related", url: `${orgUrl}/_apis/wit/workItems/${rid}`, attributes: { comment: `Related via PR ${prId}` } },
+        }], own, project));
+        console.log(`related_linked=${own}->${rid}`);
+      } catch (e: any) {
+        console.error(`>> WARNING: could not link work item ${own} Related to ${rid}: ${e?.message ?? e}`);
+      }
+    }
+  }
+
   const wantTransition = !noCompleteTransition;
   try {
     const upd = await authFallback(() => git.updatePullRequest(
@@ -348,6 +405,7 @@ async function runAzure(): Promise<void> {
 }
 
 async function runGitHub(): Promise<void> {
+  if (relatedIds.length) console.error(">> NOTE: --related is Azure-only; on GitHub write \"Refs #<id>\" in the body (unlike \"Closes\", it does not close the issue)");
   const parsed = githubOwnerRepo(url);
   if (!parsed) fail(`could not parse owner/repo from ${url}`);
   const { owner, repo } = parsed;
