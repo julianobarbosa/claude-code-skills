@@ -23,16 +23,27 @@ enum Command {
         #[arg(value_name = "REMOTE", default_value = "origin")]
         remote: String,
     },
+    /// Push the current branch and set upstream (Azure: az Bearer token first)
+    Push {
+        /// Git remote to push to
+        #[arg(short, long, default_value = "origin")]
+        remote: String,
+        /// Branch to push (default: the current branch)
+        #[arg(short, long)]
+        branch: Option<String>,
+    },
 }
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let result = match cli.command {
-        Command::Detect { remote } => ship::detect::run(&remote),
-        Command::Preflight { remote: _ } => ship::preflight::run(),
+        Command::Detect { remote } => ship::detect::run(&remote).map(|()| 0),
+        Command::Preflight { remote: _ } => ship::preflight::run().map(|()| 0),
+        Command::Push { remote, branch } => ship::push::run(&remote, branch.as_deref()),
     };
     match result {
-        Ok(()) => ExitCode::SUCCESS,
+        Ok(0) => ExitCode::SUCCESS,
+        Ok(code) => ExitCode::from(code),
         // A closed pipe (`ship detect | head -1`) is the reader's choice, not a failure.
         Err(e) if e.kind() == ErrorKind::BrokenPipe => ExitCode::SUCCESS,
         Err(e) => {
