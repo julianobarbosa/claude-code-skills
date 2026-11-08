@@ -56,6 +56,66 @@ pub fn status_porcelain() -> String {
         .unwrap_or_default()
 }
 
+/// Short hash of HEAD (`git rev-parse --short HEAD`). Errors outside a repo and
+/// in a repo with no commits yet.
+pub fn short_head() -> io::Result<String> {
+    run(&["rev-parse", "--short", "HEAD"])
+}
+
+/// Output of `date <fmt>` (e.g. `+v%Y.%m.%d`), run as a subprocess so the local
+/// timezone applies exactly as in the TS script.
+pub fn date(fmt: &str) -> io::Result<String> {
+    let out = Command::new("date")
+        .arg(fmt)
+        .stdin(Stdio::null())
+        .stderr(Stdio::inherit())
+        .output()
+        .map_err(|e| io::Error::new(e.kind(), format!("failed to run date: {e}")))?;
+    if !out.status.success() {
+        return Err(io::Error::other(format!("Command failed: date {fmt} ({})", out.status)));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// True when `git check-ref-format refs/tags/<name>` accepts the name. Quiet: a
+/// rejected name is reported by the caller, not by git.
+pub fn valid_tag_name(name: &str) -> bool {
+    Command::new("git")
+        .args(["check-ref-format", &format!("refs/tags/{name}")])
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
+/// True when `refs/tags/<name>` already resolves (`rev-parse -q --verify`).
+pub fn tag_exists(name: &str) -> bool {
+    run(&["rev-parse", "-q", "--verify", &format!("refs/tags/{name}")])
+        .map(|s| !s.is_empty())
+        .unwrap_or(false)
+}
+
+/// Create the annotated tag `name` on HEAD: `git tag -a <name> -m <m>...`. Never
+/// `-f`, so an existing tag is an error rather than moved. Each message is its own
+/// `-m`, passed verbatim through the argument array.
+pub fn create_tag(name: &str, messages: &[String]) -> io::Result<()> {
+    let args = tag_args(name, messages);
+    let args: Vec<&str> = args.iter().map(String::as_str).collect();
+    run_raw(&args).map(|_| ())
+}
+
+/// argv for [`create_tag`]: `tag -a <name>` then one `-m <message>` pair per message.
+pub fn tag_args(name: &str, messages: &[String]) -> Vec<String> {
+    let mut args: Vec<String> = ["tag", "-a", name].map(String::from).into();
+    for m in messages {
+        args.push("-m".into());
+        args.push(m.clone());
+    }
+    args
+}
+
 /// Azure DevOps API resource id: the same constant for every org, not a secret.
 const ADO_RESOURCE: &str = "499b84ac-1321-427f-aa17-267ca6975798";
 

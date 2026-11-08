@@ -24,3 +24,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-2-audit-delivery-scope-with-ship-preflight.md`
   summary: `commits_ahead_of_upstream` is 0 for a never-pushed branch with local commits, and counting `log --oneline` lines can be inflated by `log.showSignature`; use `rev-list --count` and report the no-upstream case distinctly.
   evidence: Same `git log --oneline @{u}..` as TS, whose comment promises the no-upstream case is "surfaced separately below" but never does it.
+- source_spec: `_bmad-output/implementation-artifacts/spec-2-2-save-a-checkpoint-with-ship-snapshot.md`
+  summary: A `ship snapshot -m` paragraph that starts with `#` (e.g. `#123 fixed`) is silently dropped from the tag message by git's default `--cleanup=strip`; pass `--cleanup=whitespace` (or `verbatim`) to keep it.
+  evidence: Reproduced on git 2.53: `-m '#123 fixed' -m keep` produced a body with only the subject and `keep`. Same `git tag -a -m` call in `ship-snapshot.ts`, so fixing it changes tag bodies versus TS and needs the principal's decision (like the Story 1.2 trim fix).
