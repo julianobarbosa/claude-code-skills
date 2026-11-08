@@ -10,6 +10,8 @@ struct Cli {
 }
 
 #[derive(Subcommand)]
+// Parsed once per process; boxing the `Pr` flags would only add indirection.
+#[allow(clippy::large_enum_variant)]
 enum Command {
     /// Print the delivery platform and coordinates for a remote, as key=value lines
     Detect {
@@ -32,7 +34,7 @@ enum Command {
         #[arg(short, long)]
         branch: Option<String>,
     },
-    /// Open a pull request (GitHub: create, then labels and reviewers)
+    /// Open a pull request (GitHub: create, then labels and reviewers; Azure: link an existing work item)
     Pr {
         /// PR title (required)
         #[arg(long, allow_hyphen_values = true)]
@@ -73,6 +75,12 @@ enum Command {
         /// Azure-only: work item(s) related to the PR; on GitHub this only prints a note
         #[arg(long = "related", value_name = "IDS", allow_hyphen_values = true)]
         related: Vec<String>,
+        /// Azure-only: existing work item to link (default: the number in the branch name)
+        #[arg(long, value_name = "ID", allow_hyphen_values = true)]
+        work_item: Option<String>,
+        /// Azure-only: never create a work item (the PR opens unlinked if none is found)
+        #[arg(long)]
+        no_create_work_item: bool,
     },
     /// Save HEAD as an annotated, self-describing git tag (a checkpoint)
     Snapshot {
@@ -111,6 +119,8 @@ fn main() -> ExitCode {
             required_reviewers,
             no_reviewer,
             related,
+            work_item,
+            no_create_work_item,
         } => ship::pr::run(&ship::pr::Args {
             title,
             body,
@@ -125,6 +135,8 @@ fn main() -> ExitCode {
             required_reviewers,
             no_reviewer,
             related,
+            work_item,
+            no_create_work_item,
         }),
         Command::Snapshot { message, daily, name, push } => {
             ship::snapshot::run(&message, daily, name.as_deref(), push)

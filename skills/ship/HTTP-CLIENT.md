@@ -34,6 +34,23 @@ ureq's default rustls roots (bundled `webpki-roots`) ignore the OS trust store, 
 
 Only `ureq` and `serde_json` were added to the crate (alongside `clap` and `regex`). No async runtime, no OpenSSL.
 
+## Azure DevOps (Story 3.2)
+
+`src/azure.rs` holds the Azure calls; the agent, the https-or-loopback guard and path encoding are shared with GitHub in `src/http.rs`.
+
+| Call | Request |
+|---|---|
+| Work-item read | `GET {org}/_apis/wit/workitems/{id}?api-version=7.1` (200 = exists, 404 = missing, anything else fails the run) |
+| PR create | `POST {org}/{project}/_apis/git/repositories/{repo}/pullrequests?api-version=7.1` with `sourceRefName`, `targetRefName`, `title`, `description`, `isDraft`, `workItemRefs`, `labels` |
+
+`{org}` is `https://dev.azure.com/<org>`; project and repo are percent-encoded in the path.
+
+**Auth order (NFR5).** The `az` token (`git::try_ado_token`) is sent as `Authorization: Bearer`. A PAT (`AZURE_DEVOPS_EXT_PAT`, else `AZURE_DEVOPS_PAT`) is sent as `Authorization: Basic base64(":" + pat)`. With neither, the run exits 1 before any request. A 401 or 403 moves to the next credential once, prints `>> bearer auth failed (401/403); falling back to pat`, and later calls stay on it. With no credential left, the rejection is `ship-pr failed: HTTP <status>: <message>`.
+
+**The 203 rule.** Azure DevOps answers a bad PAT with `203` (an HTML sign-in page) or a redirect to one. A 203 or any 3xx is therefore treated like a 401/403: it triggers the fallback, or fails the run when no credential is left. Redirects are never followed, so a credential cannot reach another host.
+
+**Test seam.** `SHIP_ADO_API_URL` replaces the `https://dev.azure.com` origin of API calls (same https-or-loopback guard as `SHIP_GITHUB_API_URL`). The printed `pr_url` still uses the real org URL.
+
 ## musl note
 
 `ring` compiles C. On `x86_64-unknown-linux-musl`, cc-rs looks for `musl-gcc`, so the musl leg of `.github/workflows/ship-release.yml` installs `musl-tools`. The macOS leg needs nothing extra.

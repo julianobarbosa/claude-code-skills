@@ -4,7 +4,7 @@
 
 use serde_json::{Value, json};
 use std::process::{Command, Stdio};
-use std::time::Duration;
+use crate::http;
 
 const DEFAULT_API: &str = "https://api.github.com";
 const API_VERSION: &str = "2022-11-28";
@@ -74,20 +74,9 @@ impl Client {
             .ok()
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| DEFAULT_API.to_string());
-        check_base(&base)?;
-        let agent: ureq::Agent = ureq::Agent::config_builder()
-            .http_status_as_error(false)
-            .max_redirects(0)
-            .timeout_global(Some(Duration::from_secs(60)))
-            .tls_config(
-                ureq::tls::TlsConfig::builder()
-                    .root_certs(ureq::tls::RootCerts::PlatformVerifier)
-                    .build(),
-            )
-            .build()
-            .into();
+        http::check_base("SHIP_GITHUB_API_URL", &base)?;
         Ok(Client {
-            agent,
+            agent: http::agent(),
             base: base.trim_end_matches('/').to_string(),
             token,
             owner: owner.to_string(),
@@ -96,7 +85,7 @@ impl Client {
     }
 
     fn repo_url(&self, tail: &str) -> String {
-        format!("{}/repos/{}/{}/{tail}", self.base, enc(&self.owner), enc(&self.repo))
+        format!("{}/repos/{}/{}/{tail}", self.base, http::enc(&self.owner), http::enc(&self.repo))
     }
 
     /// POST `payload`; `Ok(parsed body)` on 2xx, else `Err("HTTP <status>: <message>")`.
@@ -163,41 +152,6 @@ impl Client {
     }
 }
 
-/// Refuse a base URL that would put the token on the wire unencrypted.
-fn check_base(base: &str) -> Result<(), String> {
-    if base.starts_with("https://") {
-        return Ok(());
-    }
-    if let Some(rest) = base.strip_prefix("http://") {
-        let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
-        let host_port = authority.rsplit('@').next().unwrap_or("");
-        let host = if let Some(v6) = host_port.strip_prefix('[') {
-            v6.split(']').next().unwrap_or("")
-        } else {
-            host_port.split(':').next().unwrap_or("")
-        };
-        if matches!(host, "127.0.0.1" | "::1" | "localhost") {
-            return Ok(());
-        }
-    }
-    Err(format!(
-        "refusing SHIP_GITHUB_API_URL '{base}': the token is only sent over https:// (or http:// to localhost)"
-    ))
-}
-
-/// Percent-encode one URL path segment (owner and repo come from a remote URL).
-fn enc(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for b in s.bytes() {
-        if b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b'~') {
-            out.push(b as char);
-        } else {
-            out.push_str(&format!("%{b:02X}"));
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,21 +163,5 @@ mod tests {
         let p = create_payload("t", "h", "b", false, "line1\n& more");
         assert_eq!(p["body"], "line1\n& more");
         assert_eq!(p["draft"], false);
-    }
-
-    #[test]
-    fn base_url_must_be_https_or_loopback() {
-        for ok in ["https://api.github.com", "http://127.0.0.1:8080", "http://localhost", "http://[::1]:9/x"] {
-            assert!(check_base(ok).is_ok(), "{ok}");
-        }
-        for bad in ["http://example.com", "http://127.0.0.1@evil.com", "ftp://x", "api.github.com", "http://localhost.evil.com"] {
-            assert!(check_base(bad).is_err(), "{bad}");
-        }
-    }
-
-    #[test]
-    fn path_segments_are_encoded() {
-        assert_eq!(enc("my repo"), "my%20repo");
-        assert_eq!(enc(".dotfiles"), ".dotfiles");
     }
 }
