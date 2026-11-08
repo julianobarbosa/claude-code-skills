@@ -15,3 +15,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-1-1-detect-the-delivery-platform-with-ship-detect.md`
   summary: No CI job builds or tests the Rust crate (`cargo test`, `cargo clippy -D warnings`).
   evidence: `.github/workflows/` holds only `lint-skills.yml`; natural home is Story 1.3 (prebuilt binaries).
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-audit-delivery-scope-with-ship-preflight.md`
+  summary: Preflight's scope guard passes when `status.showUntrackedFiles=no` is configured (untracked files vanish) and counts a collapsed untracked directory as one file; pass `--untracked-files=all` (or `normal`) explicitly.
+  evidence: Reproduced: `git -c status.showUntrackedFiles=no status --porcelain` prints nothing for an untracked file. Same command in `ship-preflight.ts`; high severity because it is the PR #192 miss the guard exists for. Candidate for the same treatment as the approved trim-bug fix.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-audit-delivery-scope-with-ship-preflight.md`
+  summary: A failed `git status --porcelain` (corrupt index, I/O error) is read as an empty, clean tree and prints `scope_clean=true`.
+  evidence: `unwrap_or_default()` mirrors TS `sh(..., { allowFail: true })`; the guard certifies a tree it never read.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-audit-delivery-scope-with-ship-preflight.md`
+  summary: Porcelain v1 parsing keeps C-quoted paths (spaces, non-ASCII under `core.quotePath`), splits a quoted rename containing ` -> ` at the wrong arrow, and treats unmerged entries as generic staged+unstaged; switch to `status --porcelain -z`.
+  evidence: Per `git-status(1)`; parser is a 1:1 port of `parsePorcelainStatus`.
+- source_spec: `_bmad-output/implementation-artifacts/spec-1-2-audit-delivery-scope-with-ship-preflight.md`
+  summary: `commits_ahead_of_upstream` is 0 for a never-pushed branch with local commits, and counting `log --oneline` lines can be inflated by `log.showSignature`; use `rev-list --count` and report the no-upstream case distinctly.
+  evidence: Same `git log --oneline @{u}..` as TS, whose comment promises the no-upstream case is "surfaced separately below" but never does it.

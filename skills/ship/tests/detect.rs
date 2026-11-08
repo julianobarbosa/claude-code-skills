@@ -40,17 +40,25 @@ impl Drop for Scratch {
     }
 }
 
+/// Isolate a command from the developer's git config and exported git env.
+fn isolate(c: &mut Command) -> &mut Command {
+    c.env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
+}
+
 fn git(dir: &Path, args: &[&str]) {
-    let st = Command::new("git").current_dir(dir).args(args).status().unwrap();
+    let st = isolate(Command::new("git").current_dir(dir).args(args)).status().unwrap();
     assert!(st.success(), "git {args:?} failed");
 }
 
 fn ship(dir: &Path) -> Command {
     let mut c = Command::new(env!("CARGO_BIN_EXE_ship"));
     c.current_dir(dir)
-        .env_remove("SHIP_PLATFORM")
-        .env_remove("GIT_DIR")
-        .env_remove("GIT_WORK_TREE");
+        .env_remove("SHIP_PLATFORM");
+    isolate(&mut c);
     c
 }
 
