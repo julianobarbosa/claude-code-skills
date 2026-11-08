@@ -1,0 +1,25 @@
+[package]
+name = "ship"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Branch delivery CLI: detect the platform, open the PR, link the work item"
+publish = false
+
+[lib]
+name = "ship"
+path = "src/lib.rs"
+
+[[bin]]
+name = "ship"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+
+[profile.release]
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"

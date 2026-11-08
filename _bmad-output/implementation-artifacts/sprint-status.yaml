@@ -29,14 +29,14 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-08-2026 18:31
-last_updated: 11-08-2026 18:31
+last_updated: 11-08-2026 18:50
 project: claude-code-skills
 project_key: NOKEY
 tracking_system: file-system
 story_location: _bmad-output/implementation-artifacts
 development_status:
-  epic-1: backlog
-  1-1-detect-the-delivery-platform-with-ship-detect: backlog
+  epic-1: in-progress
+  1-1-detect-the-delivery-platform-with-ship-detect: review
   1-2-audit-delivery-scope-with-ship-preflight: backlog
   1-3-install-a-prebuilt-binary-without-bun: backlog
   epic-1-retrospective: optional
