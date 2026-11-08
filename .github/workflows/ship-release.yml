@@ -1,0 +1,132 @@
+name: ship-release
+
+# Builds the `ship` binary for Linux x86_64 (static musl) and macOS arm64.
+# - tag `ship-v*`         : build, smoke-test, then create the GitHub Release with the assets
+# - pull_request / manual : build and smoke-test, upload workflow artifacts only (no release)
+
+on:
+  push:
+    tags: ['ship-v*']
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'skills/ship/**'
+      - '.github/workflows/ship-release.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
+
+      - name: Read crate version
+        id: ver
+        run: |
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' skills/ship/Cargo.toml | head -n 1)
+          [ -n "$version" ] || { echo "cannot read version from Cargo.toml" >&2; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Check tag matches crate version
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/ship-v')
+        env:
+          TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          if [ "$TAG" != "ship-v$VERSION" ]; then
+            echo "tag $TAG does not match Cargo.toml version $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Build
+        working-directory: skills/ship
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Stage asset and checksum
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          mkdir -p dist
+          asset="ship-$TARGET"
+          cp "skills/ship/target/$TARGET/release/ship" "dist/$asset"
+          cd dist
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "$asset" > "$asset.sha256"
+          else
+            shasum -a 256 "$asset" > "$asset.sha256"
+          fi
+          cat "$asset.sha256"
+
+      - name: Smoke test on this runner
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          chmod +x "dist/ship-$TARGET"
+          out=$("dist/ship-$TARGET" --version)
+          echo "$out"
+          [ "$out" = "ship $VERSION" ] || { echo "expected 'ship $VERSION'" >&2; exit 1; }
+
+      - name: Install from staged assets
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          SHIP_ASSET_DIR=dist SHIP_INSTALL_DIR="$RUNNER_TEMP/bin" sh skills/ship/install.sh
+          out=$("$RUNNER_TEMP/bin/ship" --version)
+          [ "$out" = "ship $VERSION" ] || { echo "installed binary printed '$out'" >&2; exit 1; }
+
+      - name: Install rejects a wrong checksum
+        run: |
+          rm -rf "$RUNNER_TEMP/bad" "$RUNNER_TEMP/bad-bin"
+          cp -R dist "$RUNNER_TEMP/bad"
+          for f in "$RUNNER_TEMP"/bad/*.sha256; do
+            echo "0000000000000000000000000000000000000000000000000000000000000000  x" > "$f"
+          done
+          if SHIP_ASSET_DIR="$RUNNER_TEMP/bad" SHIP_INSTALL_DIR="$RUNNER_TEMP/bad-bin" \
+              sh skills/ship/install.sh 2> "$RUNNER_TEMP/bad.err"; then
+            echo "install succeeded with a wrong checksum" >&2; exit 1
+          fi
+          cat "$RUNNER_TEMP/bad.err"
+          grep -q 'checksum mismatch' "$RUNNER_TEMP/bad.err"
+          [ ! -e "$RUNNER_TEMP/bad-bin/ship" ] || { echo "ship was installed" >&2; exit 1; }
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ship-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/ship-v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          ls -l dist
+          gh release create "$TAG" dist/* --title "$TAG" --verify-tag --notes "Prebuilt ship binaries. Install with skills/ship/install.sh."
