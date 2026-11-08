@@ -11,11 +11,14 @@
 # ─────────────────────────────────────────────────────────────────
 
 [core]
+user_name = "BMad"
+communication_language = "English"
 project_name = "claude-code-skills"
 document_output_language = "English"
 output_folder = "{project-root}/_bmad-output"
 
 [modules.bmm]
+user_skill_level = "intermediate"
 planning_artifacts = "{project-root}/_bmad-output/planning-artifacts"
 implementation_artifacts = "{project-root}/_bmad-output/implementation-artifacts"
 project_knowledge = "{project-root}/docs"
@@ -26,7 +29,6 @@ bmad_builder_reports = "{project-root}/skills/reports"
 
 [modules.tea]
 test_artifacts = "{project-root}/_bmad-output/test-artifacts"
-tea_evaluations_folder = "{project-root}/evals"
 tea_use_playwright_utils = true
 tea_use_pactjs_utils = true
 tea_pact_mcp = "mcp"
@@ -37,6 +39,9 @@ test_stack_type = "auto"
 ci_platform = "auto"
 test_framework = "auto"
 risk_threshold = "p3"
+test_design_output = "_bmad-output/test-artifacts/test-design"
+test_review_output = "_bmad-output/test-artifacts/test-reviews"
+trace_output = "_bmad-output/test-artifacts/traceability"
 
 [agents.bmad-agent-analyst]
 module = "bmm"
