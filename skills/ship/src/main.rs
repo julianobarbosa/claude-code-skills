@@ -34,7 +34,7 @@ enum Command {
         #[arg(short, long)]
         branch: Option<String>,
     },
-    /// Open a pull request (GitHub: create, then labels and reviewers; Azure: link an existing work item)
+    /// Open a pull request (GitHub: create, then labels and reviewers; Azure: link or create work items)
     Pr {
         /// PR title (required)
         #[arg(long, allow_hyphen_values = true)]
@@ -81,6 +81,18 @@ enum Command {
         /// Azure-only: never create a work item (the PR opens unlinked if none is found)
         #[arg(long)]
         no_create_work_item: bool,
+        /// Azure-only: title of a work item to create (repeatable; one per task)
+        #[arg(long = "task", value_name = "TITLE", allow_hyphen_values = true)]
+        tasks: Vec<String>,
+        /// Azure-only: file with one work-item title per line (appended after --task)
+        #[arg(long, value_name = "FILE", allow_hyphen_values = true)]
+        tasks_file: Option<String>,
+        /// Azure-only: assignee of created work items (default: $SHIP_ADO_ASSIGNEE; empty = unassigned)
+        #[arg(long, allow_hyphen_values = true)]
+        assignee: Option<String>,
+        /// Azure-only: type of created work items
+        #[arg(long, default_value = "Task", allow_hyphen_values = true)]
+        work_item_type: String,
     },
     /// Save HEAD as an annotated, self-describing git tag (a checkpoint)
     Snapshot {
@@ -121,6 +133,10 @@ fn main() -> ExitCode {
             related,
             work_item,
             no_create_work_item,
+            tasks,
+            tasks_file,
+            assignee,
+            work_item_type,
         } => ship::pr::run(&ship::pr::Args {
             title,
             body,
@@ -137,6 +153,10 @@ fn main() -> ExitCode {
             related,
             work_item,
             no_create_work_item,
+            tasks,
+            tasks_file,
+            assignee,
+            work_item_type,
         }),
         Command::Snapshot { message, daily, name, push } => {
             ship::snapshot::run(&message, daily, name.as_deref(), push)

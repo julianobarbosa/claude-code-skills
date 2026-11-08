@@ -43,6 +43,8 @@ Only `ureq` and `serde_json` were added to the crate (alongside `clap` and `rege
 | Work-item read | `GET {org}/_apis/wit/workitems/{id}?api-version=7.1` (200 = exists, 404 = missing, anything else fails the run) |
 | PR create | `POST {org}/{project}/_apis/git/repositories/{repo}/pullrequests?api-version=7.1` with `sourceRefName`, `targetRefName`, `title`, `description`, `isDraft`, `workItemRefs`, `labels` |
 
+| Work-item create (Story 3.3) | `POST {org}/{project}/_apis/wit/workitems/${type}?api-version=7.1`, `Content-Type: application/json-patch+json`, body `[{"op":"add","path":"/fields/System.Title","value":<title>}]` plus an `/fields/System.AssignedTo` op when the assignee is non-empty. The `$type` segment is percent-encoded (`User Story` becomes `%24User%20Story`); the printed id is the response's `id`. |
+
 `{org}` is `https://dev.azure.com/<org>`; project and repo are percent-encoded in the path.
 
 **Auth order (NFR5).** The `az` token (`git::try_ado_token`) is sent as `Authorization: Bearer`. A PAT (`AZURE_DEVOPS_EXT_PAT`, else `AZURE_DEVOPS_PAT`) is sent as `Authorization: Basic base64(":" + pat)`. With neither, the run exits 1 before any request. A 401 or 403 moves to the next credential once, prints `>> bearer auth failed (401/403); falling back to pat`, and later calls stay on it. With no credential left, the rejection is `ship-pr failed: HTTP <status>: <message>`.
