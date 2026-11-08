@@ -2,9 +2,11 @@
 //! tested without git; subprocess work is in [`git`], command output in [`detect`]
 //! and [`preflight`].
 
+pub mod azure;
 pub mod detect;
 pub mod git;
 pub mod github;
+pub mod http;
 pub mod pr;
 pub mod preflight;
 pub mod push;

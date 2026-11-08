@@ -1,11 +1,16 @@
-//! `ship pr`: open a pull request. GitHub only in this story; Azure Repos is Story 3.2.
+//! `ship pr`: open a pull request on GitHub or, for an existing work item, on Azure Repos.
 
 use crate::push::validate_target;
 use crate::{
-    Platform, default_tags_from_title, detect_kind, git, github, github_owner_repo, parse_related_ids,
-    parse_tags, tag_from_branch_prefix,
+    Platform, ado_parts, azure, default_tags_from_title, detect_kind, git, github, github_owner_repo, http,
+    parse_related_ids, parse_tags, parse_work_item, tag_from_branch_prefix,
 };
+use regex::Regex;
 use std::io::{self, Write};
+use std::sync::LazyLock;
+
+/// `AB#<...>` placeholder left in the PR template for the work-item id.
+static AB_PLACEHOLDER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"AB#<[^>]*>").unwrap());
 
 /// Parsed `pr` flags. `title` is checked in [`run`] so the TS message and exit code apply.
 #[derive(Debug, Default)]
@@ -23,6 +28,10 @@ pub struct Args {
     pub required_reviewers: Vec<String>,
     pub no_reviewer: bool,
     pub related: Vec<String>,
+    /// Azure: existing work item to link (default: the number in the branch name).
+    pub work_item: Option<String>,
+    /// Azure: never create a work item.
+    pub no_create_work_item: bool,
 }
 
 /// The tags a PR gets when the caller named none, with the stderr line to print.
@@ -92,10 +101,7 @@ pub fn run(a: &Args) -> io::Result<u8> {
 
     match kind {
         Platform::Github => run_github(a, &url, title, &body, &source, &tags),
-        Platform::Azure => fail(
-            "ship pr: Azure Repos is not yet supported by the binary; use bun scripts/ship-pr.ts",
-            1,
-        ),
+        Platform::Azure => run_azure(a, &url, title, &body, &source, &tags),
         Platform::Unknown => fail(
             &format!(
                 "unknown platform for remote '{}' ({url}); set SHIP_PLATFORM=azure|github",
@@ -104,6 +110,107 @@ pub fn run(a: &Args) -> io::Result<u8> {
             1,
         ),
     }
+}
+
+/// Azure Repos: verify the work item, create the PR in one call that carries the link, the
+/// tags and `--draft`. Creating work items, reviewers, completion options and `--related`
+/// are later stories; their flags fail fast here rather than being silently dropped.
+fn run_azure(a: &Args, url: &str, title: &str, body: &str, source: &str, tags: &[String]) -> io::Result<u8> {
+    let reviewers = parse_tags(&a.reviewers);
+    let required = parse_tags(&a.required_reviewers);
+    let related = parse_related_ids(&a.related).unwrap_or_default();
+    for (flag, given) in [
+        ("--reviewer", !reviewers.is_empty()),
+        ("--required-reviewer", !required.is_empty()),
+        ("--related", !related.is_empty()),
+    ] {
+        if given {
+            return fail(
+                &format!("ship pr: {flag} is not yet supported on Azure by the binary; use bun scripts/ship-pr.ts"),
+                1,
+            );
+        }
+    }
+    if reviewers.is_empty() && required.is_empty() && !a.no_reviewer {
+        let fallback = std::env::var("SHIP_ADO_DEFAULT_REVIEWER").unwrap_or_default();
+        if !fallback.trim().is_empty() {
+            eprintln!(">> NOTE: SHIP_ADO_DEFAULT_REVIEWER is not applied yet (Story 3.4)");
+        }
+    }
+
+    let Some(parts) = ado_parts(url) else {
+        return fail(&format!("could not parse org/project/repo from {url}"), 1);
+    };
+
+    let creds = azure::credentials();
+    if creds.is_empty() {
+        return fail("no Azure DevOps credential: run 'az login' (or set AZURE_DEVOPS_EXT_PAT)", 1);
+    }
+    let mut client = match azure::Client::new(creds, &parts.org_url, &parts.project, &parts.repo) {
+        Ok(c) => c,
+        Err(e) => return fail(&format!("ship-pr failed: {e}"), 1),
+    };
+
+    // The work item: --work-item, else the number in the branch name, then verified by a read.
+    let wanted = a
+        .work_item
+        .as_deref()
+        .map(str::trim)
+        .filter(|w| !w.is_empty())
+        .map_or_else(|| parse_work_item(source), str::to_string);
+    let mut linked: Vec<u64> = Vec::new();
+    let found = match wanted.parse::<u64>() {
+        Ok(id) => match client.work_item_exists(id) {
+            Ok(true) => Some(id),
+            Ok(false) => None,
+            Err(e) => return fail(&format!("ship-pr failed: {e}"), 1),
+        },
+        Err(_) => None,
+    };
+    if let Some(id) = found {
+        linked.push(id);
+        eprintln!(">> linking existing work item {id}");
+    } else if !a.no_create_work_item {
+        // Story 3.3 creates one; until then never open a PR without a work item silently.
+        return fail(
+            "ship pr: creating work items is not yet supported by the binary; pass --work-item <id> or --no-create-work-item, or use bun scripts/ship-pr.ts",
+            1,
+        );
+    } else if !wanted.is_empty() {
+        eprintln!(">> WARNING: work item {wanted} not found and --no-create-work-item set; PR will not link it");
+    }
+
+    // Back-fill the AB#<...> placeholder so the reference renders as a live link.
+    let mut body = body.to_string();
+    if !linked.is_empty() && AB_PLACEHOLDER.is_match(&body) {
+        let refs: Vec<String> = linked.iter().map(|id| format!("AB#{id}")).collect();
+        let refs = refs.join(" ");
+        body = AB_PLACEHOLDER.replace_all(&body, regex::NoExpand(&refs)).into_owned();
+        eprintln!(">> substituted AB# placeholder -> {refs}");
+    }
+
+    let payload = azure::create_payload(source, &a.target, title, &body, a.draft, &linked, tags);
+    let pr_id = match client.create_pr(&payload) {
+        Ok(id) => id,
+        Err(e) => return fail(&format!("ship-pr failed: {e}"), 1),
+    };
+    let mut out = Out::default();
+    out.line("platform=azure");
+    out.line(&format!("pr_id={pr_id}"));
+    out.line(&format!(
+        "pr_url={}/{}/_git/{}/pullrequest/{pr_id}",
+        parts.org_url,
+        http::encode_uri_component(&parts.project),
+        http::encode_uri_component(&parts.repo)
+    ));
+    if !linked.is_empty() {
+        let ids: Vec<String> = linked.iter().map(u64::to_string).collect();
+        out.line(&format!("work_items={}", ids.join(" ")));
+    }
+    for t in tags {
+        out.line(&format!("tag_added={t}"));
+    }
+    out.finish(Ok(0))
 }
 
 fn run_github(a: &Args, url: &str, title: &str, body: &str, source: &str, tags: &[String]) -> io::Result<u8> {

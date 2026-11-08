@@ -569,17 +569,6 @@ fn redirects_are_not_followed_so_the_token_stays_on_one_host() {
 }
 
 #[test]
-fn azure_remote_is_not_supported_yet_and_creates_nothing() {
-    let r = repo("azure", "feat/x", "https://dev.azure.com/org/proj/_git/repo");
-    let m = Mock::start(vec![]);
-    let run = run_ok(&r, &m, &["--title", "x"]);
-    assert_eq!(run.code(), 1);
-    assert_eq!(run.stdout(), "");
-    assert!(run.stderr().contains("not yet supported by the binary; use bun scripts/ship-pr.ts"));
-    assert!(m.requests().is_empty());
-}
-
-#[test]
 fn unknown_remote_exits_one_naming_the_override() {
     let r = repo("unknown", "feat/x", "https://example.com/x.git");
     let m = Mock::start(vec![]);
