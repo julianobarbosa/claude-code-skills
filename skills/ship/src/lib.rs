@@ -1,8 +1,10 @@
 //! Shared helpers for the `ship` binary. Pure functions live here so they can be
-//! tested without git; subprocess work is in [`git`], command output in [`detect`].
+//! tested without git; subprocess work is in [`git`], command output in [`detect`]
+//! and [`preflight`].
 
 pub mod detect;
 pub mod git;
+pub mod preflight;
 
 use regex::Regex;
 use std::sync::LazyLock;
@@ -133,6 +135,92 @@ pub fn github_owner_repo(url: &str) -> Option<(String, String)> {
     GH_OWNER_REPO
         .captures(url.trim())
         .map(|c| (c[2].to_string(), c[3].to_string()))
+}
+
+/// Paths from `git status --porcelain`, split by what they need to be delivered.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PorcelainStatus {
+    pub staged: Vec<String>,
+    pub unstaged: Vec<String>,
+    pub untracked: Vec<String>,
+}
+
+/// Parse `git status --porcelain` (v1) output. Each line is `XY <path>`: X is the
+/// index (staged) column, Y the worktree (unstaged) column. `??` is untracked,
+/// `!!` ignored (skipped). A rename or copy line is `old -> new`; the new path is
+/// recorded. A file changed in both columns shows in staged and unstaged.
+/// The input must not be trimmed: a leading space is the Y-only column.
+pub fn parse_porcelain_status(porcelain: &str) -> PorcelainStatus {
+    let mut st = PorcelainStatus::default();
+    for raw in porcelain.split('\n') {
+        if raw.trim().is_empty() {
+            continue;
+        }
+        let mut chars = raw.chars();
+        let x = chars.next();
+        let y = chars.next();
+        let mut path = raw
+            .char_indices()
+            .nth(3)
+            .map_or("", |(i, _)| &raw[i..]);
+        if x == Some('?') && y == Some('?') {
+            st.untracked.push(path.to_string());
+            continue;
+        }
+        if x == Some('!') && y == Some('!') {
+            continue; // ignored
+        }
+        // Rename/copy: "old -> new"; the new path is what changed.
+        if let Some(arrow) = path.find(" -> ") {
+            path = &path[arrow + 4..];
+        }
+        if x != Some(' ') && x != Some('?') {
+            st.staged.push(path.to_string());
+        }
+        if y != Some(' ') && y != Some('?') {
+            st.unstaged.push(path.to_string());
+        }
+    }
+    st
+}
+
+/// Result of [`scope_audit`]. `ok` is false when anything is unstaged or untracked.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScopeAudit {
+    pub status: PorcelainStatus,
+    pub ok: bool,
+    /// One human-readable line naming the at-risk files; `None` when `ok`.
+    /// The binary prints its own stderr lines (see [`preflight`]), not this.
+    pub warning: Option<String>,
+}
+
+/// Audit the working tree for scope creep before a ship commit: the PR #192 miss,
+/// a changed file left out of the PR because it was never staged.
+pub fn scope_audit(porcelain: &str) -> ScopeAudit {
+    let status = parse_porcelain_status(porcelain);
+    let ok = status.unstaged.is_empty() && status.untracked.is_empty();
+    let warning = (!ok).then(|| {
+        let mut parts: Vec<String> = Vec::new();
+        if !status.unstaged.is_empty() {
+            parts.push(format!(
+                "{} changed but not staged ({})",
+                status.unstaged.len(),
+                status.unstaged.join(", ")
+            ));
+        }
+        if !status.untracked.is_empty() {
+            parts.push(format!(
+                "{} untracked ({})",
+                status.untracked.len(),
+                status.untracked.join(", ")
+            ));
+        }
+        format!(
+            "scope check: {} \u{2014} confirm these don't belong in this PR before committing",
+            parts.join("; ")
+        )
+    });
+    ScopeAudit { status, ok, warning }
 }
 
 #[cfg(test)]
@@ -287,5 +375,107 @@ mod tests {
     #[test]
     fn gh_non_github_is_none() {
         assert_eq!(github_owner_repo("https://dev.azure.com/org/proj/_git/repo"), None);
+    }
+
+    // parsePorcelainStatus
+    fn v(items: &[&str]) -> Vec<String> {
+        items.iter().map(|s| s.to_string()).collect()
+    }
+    #[test]
+    fn porcelain_empty_tree() {
+        assert_eq!(parse_porcelain_status(""), PorcelainStatus::default());
+    }
+    #[test]
+    fn porcelain_staged_only() {
+        let s = parse_porcelain_status("M  src/a.ts\nA  src/b.ts");
+        assert_eq!(s.staged, v(&["src/a.ts", "src/b.ts"]));
+        assert!(s.unstaged.is_empty());
+        assert!(s.untracked.is_empty());
+    }
+    #[test]
+    fn porcelain_unstaged_only() {
+        let s = parse_porcelain_status(" M src/a.ts");
+        assert!(s.staged.is_empty());
+        assert_eq!(s.unstaged, v(&["src/a.ts"]));
+    }
+    #[test]
+    fn porcelain_untracked() {
+        let s = parse_porcelain_status("?? docs/index.md");
+        assert_eq!(s.untracked, v(&["docs/index.md"]));
+        assert!(s.staged.is_empty());
+        assert!(s.unstaged.is_empty());
+    }
+    #[test]
+    fn porcelain_ignored_entries_are_skipped() {
+        assert_eq!(parse_porcelain_status("!! node_modules/"), PorcelainStatus::default());
+    }
+    #[test]
+    fn porcelain_rename_records_new_path() {
+        let s = parse_porcelain_status("R  old.ts -> new.ts");
+        assert_eq!(s.staged, v(&["new.ts"]));
+    }
+    #[test]
+    fn porcelain_modified_in_both_shows_in_both() {
+        let s = parse_porcelain_status("MM src/a.ts");
+        assert_eq!(s.staged, v(&["src/a.ts"]));
+        assert_eq!(s.unstaged, v(&["src/a.ts"]));
+    }
+    #[test]
+    fn porcelain_mixed_tree() {
+        let s = parse_porcelain_status("M  staged.ts\n M unstaged.ts\n?? new.ts");
+        assert_eq!(s.staged, v(&["staged.ts"]));
+        assert_eq!(s.unstaged, v(&["unstaged.ts"]));
+        assert_eq!(s.untracked, v(&["new.ts"]));
+    }
+    // Intended difference from TS: the first line keeps its leading space, so a lone
+    // ` M b.txt` is unstaged (TS trims it to `M b.txt` and misreads it as staged).
+    #[test]
+    fn porcelain_unstaged_first_line_stays_unstaged() {
+        let s = parse_porcelain_status(" M b.txt\n");
+        assert!(s.staged.is_empty());
+        assert_eq!(s.unstaged, v(&["b.txt"]));
+    }
+
+    // scopeAudit
+    #[test]
+    fn audit_clean_when_only_staged() {
+        let a = scope_audit("M  staged.ts");
+        assert!(a.ok);
+        assert_eq!(a.warning, None);
+    }
+    #[test]
+    fn audit_clean_on_empty_tree() {
+        assert!(scope_audit("").ok);
+    }
+    #[test]
+    fn audit_not_ok_with_unstaged_warning_names_file() {
+        let a = scope_audit(" M docs/index.md");
+        assert!(!a.ok);
+        let w = a.warning.unwrap();
+        assert!(w.contains("docs/index.md"));
+        assert!(w.contains("not staged"));
+    }
+    #[test]
+    fn audit_not_ok_with_untracked_warning_names_file() {
+        let a = scope_audit("?? new.ts");
+        assert!(!a.ok);
+        let w = a.warning.unwrap();
+        assert!(w.contains("new.ts"));
+        assert!(w.contains("untracked"));
+    }
+    #[test]
+    fn audit_warning_covers_both_unstaged_and_untracked() {
+        let a = scope_audit(" M a.ts\n?? b.ts");
+        assert!(!a.ok);
+        let w = a.warning.unwrap();
+        assert!(w.contains("a.ts"));
+        assert!(w.contains("b.ts"));
+    }
+    #[test]
+    fn audit_warning_matches_ts_wording() {
+        assert_eq!(
+            scope_audit(" M a.ts\n?? b.ts").warning.unwrap(),
+            "scope check: 1 changed but not staged (a.ts); 1 untracked (b.ts) \u{2014} confirm these don't belong in this PR before committing"
+        );
     }
 }
