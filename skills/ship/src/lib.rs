@@ -4,6 +4,8 @@
 
 pub mod detect;
 pub mod git;
+pub mod github;
+pub mod pr;
 pub mod preflight;
 pub mod push;
 pub mod snapshot;
@@ -137,6 +139,79 @@ pub fn github_owner_repo(url: &str) -> Option<(String, String)> {
     GH_OWNER_REPO
         .captures(url.trim())
         .map(|c| (c[2].to_string(), c[3].to_string()))
+}
+
+static CC_TITLE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)^\s*([a-z]+)(?:\(([^)]+)\))?!?:").unwrap());
+
+/// Split CSV and repeated-flag values into clean, de-duplicated names, keeping
+/// first-seen order. Blank entries are dropped so they never reach a label API.
+pub fn parse_tags<S: AsRef<str>>(values: &[S]) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for v in values {
+        for part in v.as_ref().split(',') {
+            let name = part.trim();
+            if !name.is_empty() && !out.iter().any(|o| o == name) {
+                out.push(name.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// Default PR tags from a Conventional-Commit title: `docs(finops): x` gives
+/// `docs`, `finops`; `fix: x` gives `fix`; anything else gives `needs-review`.
+pub fn default_tags_from_title(title: &str) -> Vec<String> {
+    let Some(c) = CC_TITLE.captures(title) else {
+        return vec!["needs-review".to_string()];
+    };
+    let kind = c[1].to_lowercase();
+    match c.get(2).map(|m| m.as_str().trim().to_lowercase()) {
+        Some(scope) => parse_tags(&[format!("{kind},{scope}")]),
+        None => parse_tags(&[kind]),
+    }
+}
+
+/// Tag for a branch prefix (`fix/y` has prefix `fix`); `None` for an unmapped prefix.
+pub fn tag_from_branch_prefix(prefix: &str) -> Option<&'static str> {
+    Some(match prefix {
+        "feat" | "feature" => "feat",
+        "fix" | "hotfix" | "bugfix" => "fix",
+        "docs" | "doc" => "docs",
+        "chore" => "chore",
+        "refactor" => "refactor",
+        _ => return None,
+    })
+}
+
+/// Work-item ids for `--related`: comma-separated and repeatable, deduped, in order.
+/// Errors on anything that is not a positive integer (a leading `AB#` or `#` is stripped).
+pub fn parse_related_ids<S: AsRef<str>>(values: &[S]) -> Result<Vec<u64>, String> {
+    let mut out = Vec::new();
+    for raw in values.iter().flat_map(|v| v.as_ref().split(',')) {
+        let raw = raw.trim();
+        // TS: `raw.trim().replace(/^(AB)?#/i, "")` - the `#` is required to strip anything.
+        let after_ab = match raw.get(..2) {
+            Some(p) if p.eq_ignore_ascii_case("ab") => &raw[2..],
+            _ => raw,
+        };
+        let t = after_ab
+            .strip_prefix('#')
+            .or_else(|| raw.strip_prefix('#'))
+            .unwrap_or(raw);
+        if t.is_empty() {
+            continue;
+        }
+        match t.parse::<u64>() {
+            Ok(n) if !t.starts_with('0') && t.bytes().all(|b| b.is_ascii_digit()) => {
+                if !out.contains(&n) {
+                    out.push(n);
+                }
+            }
+            _ => return Err(format!("--related: '{raw}' is not a work-item id")),
+        }
+    }
+    Ok(out)
 }
 
 /// Paths from `git status --porcelain`, split by what they need to be delivered.
@@ -436,6 +511,50 @@ mod tests {
         let s = parse_porcelain_status(" M b.txt\n");
         assert!(s.staged.is_empty());
         assert_eq!(s.unstaged, v(&["b.txt"]));
+    }
+
+    // parseTags / defaultTagsFromTitle (ports of the ship-lib.test.ts groups)
+    #[test]
+    fn default_tags_type_and_scope() {
+        assert_eq!(default_tags_from_title("docs(finops): OpenCost vs Infracost"), v(&["docs", "finops"]));
+    }
+    #[test]
+    fn default_tags_type_only() {
+        assert_eq!(default_tags_from_title("fix: handle null token"), v(&["fix"]));
+    }
+    #[test]
+    fn default_tags_ignores_breaking_bang() {
+        assert_eq!(default_tags_from_title("feat!: drop v1 API"), v(&["feat"]));
+    }
+    #[test]
+    fn default_tags_fall_back_to_needs_review() {
+        assert_eq!(default_tags_from_title("just some title"), v(&["needs-review"]));
+    }
+    #[test]
+    fn default_tags_lowercase_and_dedupe() {
+        assert_eq!(default_tags_from_title("FIX(Fix): x"), v(&["fix"]));
+    }
+    #[test]
+    fn parse_tags_splits_trims_dedupes_drops_blanks() {
+        assert_eq!(parse_tags(&["hotfix, do-not-merge", " hotfix ", ""]), v(&["hotfix", "do-not-merge"]));
+    }
+    #[test]
+    fn branch_prefix_map() {
+        assert_eq!(tag_from_branch_prefix("hotfix"), Some("fix"));
+        assert_eq!(tag_from_branch_prefix("feature"), Some("feat"));
+        assert_eq!(tag_from_branch_prefix("doc"), Some("docs"));
+        assert_eq!(tag_from_branch_prefix("wip"), None);
+    }
+    #[test]
+    fn related_ids_parse_and_reject() {
+        assert_eq!(parse_related_ids(&["12, AB#34", "#12"]).unwrap(), vec![12, 34]);
+        assert!(parse_related_ids(&["x"]).is_err());
+        assert!(parse_related_ids(&["0"]).is_err());
+        assert!(parse_related_ids(&["AB34"]).is_err());
+        assert!(parse_related_ids(&["012"]).is_err());
+        assert!(parse_related_ids(&["AB"]).is_err());
+        assert_eq!(parse_related_ids(&["#", " , "]).unwrap(), Vec::<u64>::new());
+        assert_eq!(parse_related_ids(&["ab#7"]).unwrap(), vec![7]);
     }
 
     // scopeAudit

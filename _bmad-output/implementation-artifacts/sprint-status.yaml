@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-08-2026 18:31
-last_updated: 11-08-2026 22:16
+last_updated: 11-08-2026 23:14
 project: claude-code-skills
 project_key: NOKEY
 tracking_system: file-system
@@ -41,13 +41,13 @@ development_status:
   1-3-install-a-prebuilt-binary-without-bun: done
   epic-1-retrospective: optional
 
-  epic-2: in-progress
+  epic-2: done
   2-1-push-the-current-branch-with-ship-push: done
-  2-2-save-a-checkpoint-with-ship-snapshot: review
+  2-2-save-a-checkpoint-with-ship-snapshot: done
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-open-a-github-pr-with-labels-and-reviewers: backlog
+  epic-3: in-progress
+  3-1-open-a-github-pr-with-labels-and-reviewers: review
   3-2-open-an-azure-pr-linked-to-an-existing-work-item: backlog
   3-3-create-and-assign-work-items-when-none-exist: backlog
   3-4-add-optional-and-required-reviewers-on-azure: backlog

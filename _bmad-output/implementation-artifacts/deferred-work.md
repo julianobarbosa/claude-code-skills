@@ -27,3 +27,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-2-2-save-a-checkpoint-with-ship-snapshot.md`
   summary: A `ship snapshot -m` paragraph that starts with `#` (e.g. `#123 fixed`) is silently dropped from the tag message by git's default `--cleanup=strip`; pass `--cleanup=whitespace` (or `verbatim`) to keep it.
   evidence: Reproduced on git 2.53: `-m '#123 fixed' -m keep` produced a body with only the subject and `keep`. Same `git tag -a -m` call in `ship-snapshot.ts`, so fixing it changes tag bodies versus TS and needs the principal's decision (like the Story 1.2 trim fix).
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-1-open-a-github-pr-with-labels-and-reviewers.md`
+  summary: Default PR labels take any leading `Word:` in the title as a Conventional-Commit type, so `WIP: x` or `Re: y` creates and applies a `wip`/`re` label on the repo; restrict to a known type list before falling back to the branch prefix.
+  evidence: Same regex as TS `defaultTagsFromTitle` (ship-lib.ts), so parity holds today; fixing it changes labels relative to TS and wants a deliberate decision.
