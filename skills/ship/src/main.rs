@@ -32,6 +32,48 @@ enum Command {
         #[arg(short, long)]
         branch: Option<String>,
     },
+    /// Open a pull request (GitHub: create, then labels and reviewers)
+    Pr {
+        /// PR title (required)
+        #[arg(long, allow_hyphen_values = true)]
+        title: Option<String>,
+        /// PR body
+        #[arg(long, default_value = "", allow_hyphen_values = true)]
+        body: String,
+        /// Read the PR body from this file (wins over --body)
+        #[arg(long, value_name = "FILE")]
+        body_file: Option<String>,
+        /// Branch the PR merges into
+        #[arg(long, default_value = "main", allow_hyphen_values = true)]
+        target: String,
+        /// Branch the PR is opened from (default: the current branch)
+        #[arg(long, allow_hyphen_values = true)]
+        source: Option<String>,
+        /// Git remote the PR is opened against
+        #[arg(short, long, default_value = "origin", allow_hyphen_values = true)]
+        remote: String,
+        /// Open the PR as a draft
+        #[arg(long)]
+        draft: bool,
+        /// Label(s), comma-separated and repeatable (default: derived from the title or branch)
+        #[arg(long = "tag", value_name = "TAGS", allow_hyphen_values = true)]
+        tags: Vec<String>,
+        /// Add no labels
+        #[arg(long)]
+        no_tag: bool,
+        /// Reviewer(s), comma-separated and repeatable
+        #[arg(long = "reviewer", value_name = "LOGINS", allow_hyphen_values = true)]
+        reviewers: Vec<String>,
+        /// Required reviewer(s); GitHub has no per-PR required reviewer, so they are requested normally
+        #[arg(long = "required-reviewer", value_name = "LOGINS", allow_hyphen_values = true)]
+        required_reviewers: Vec<String>,
+        /// Request no reviewers (Azure only; accepted for parity)
+        #[arg(long)]
+        no_reviewer: bool,
+        /// Azure-only: work item(s) related to the PR; on GitHub this only prints a note
+        #[arg(long = "related", value_name = "IDS", allow_hyphen_values = true)]
+        related: Vec<String>,
+    },
     /// Save HEAD as an annotated, self-describing git tag (a checkpoint)
     Snapshot {
         /// Extra message paragraph (repeatable; each becomes its own paragraph)
@@ -55,6 +97,35 @@ fn main() -> ExitCode {
         Command::Detect { remote } => ship::detect::run(&remote).map(|()| 0),
         Command::Preflight { remote: _ } => ship::preflight::run().map(|()| 0),
         Command::Push { remote, branch } => ship::push::run(&remote, branch.as_deref()),
+        Command::Pr {
+            title,
+            body,
+            body_file,
+            target,
+            source,
+            remote,
+            draft,
+            tags,
+            no_tag,
+            reviewers,
+            required_reviewers,
+            no_reviewer,
+            related,
+        } => ship::pr::run(&ship::pr::Args {
+            title,
+            body,
+            body_file,
+            target,
+            source,
+            remote,
+            draft,
+            tags,
+            no_tag,
+            reviewers,
+            required_reviewers,
+            no_reviewer,
+            related,
+        }),
         Command::Snapshot { message, daily, name, push } => {
             ship::snapshot::run(&message, daily, name.as_deref(), push)
         }

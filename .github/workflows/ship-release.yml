@@ -33,6 +33,11 @@ jobs:
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal --target ${{ matrix.target }}
 
+      # `ring` (rustls) compiles C; cc-rs looks for `musl-gcc` on this target.
+      - name: Install musl C toolchain
+        if: matrix.target == 'x86_64-unknown-linux-musl'
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
       - name: Read crate version
         id: ver
         run: |

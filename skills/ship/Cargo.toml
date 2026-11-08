@@ -17,6 +17,8 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 regex = "1"
+serde_json = "1.0.154"
+ureq = { version = "3", features = ["platform-verifier"] }
 
 [profile.release]
 lto = true
