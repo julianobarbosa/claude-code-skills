@@ -32,6 +32,21 @@ enum Command {
         #[arg(short, long)]
         branch: Option<String>,
     },
+    /// Save HEAD as an annotated, self-describing git tag (a checkpoint)
+    Snapshot {
+        /// Extra message paragraph (repeatable; each becomes its own paragraph)
+        #[arg(short, long = "message", value_name = "PARA", allow_hyphen_values = true)]
+        message: Vec<String>,
+        /// Name the tag v<YYYY.MM.DD> instead of v<YYYY.MM.DD-HHMM>
+        #[arg(long)]
+        daily: bool,
+        /// Use this exact tag name, ignoring the date scheme
+        #[arg(long, value_name = "TAG", allow_hyphen_values = true)]
+        name: Option<String>,
+        /// Push the tag to origin after creating it (Azure: az Bearer token first)
+        #[arg(long)]
+        push: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -40,6 +55,9 @@ fn main() -> ExitCode {
         Command::Detect { remote } => ship::detect::run(&remote).map(|()| 0),
         Command::Preflight { remote: _ } => ship::preflight::run().map(|()| 0),
         Command::Push { remote, branch } => ship::push::run(&remote, branch.as_deref()),
+        Command::Snapshot { message, daily, name, push } => {
+            ship::snapshot::run(&message, daily, name.as_deref(), push)
+        }
     };
     match result {
         Ok(0) => ExitCode::SUCCESS,

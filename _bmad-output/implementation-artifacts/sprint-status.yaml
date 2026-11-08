@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-08-2026 18:31
-last_updated: 11-08-2026 21:55
+last_updated: 11-08-2026 22:16
 project: claude-code-skills
 project_key: NOKEY
 tracking_system: file-system
@@ -42,8 +42,8 @@ development_status:
   epic-1-retrospective: optional
 
   epic-2: in-progress
-  2-1-push-the-current-branch-with-ship-push: review
-  2-2-save-a-checkpoint-with-ship-snapshot: backlog
+  2-1-push-the-current-branch-with-ship-push: done
+  2-2-save-a-checkpoint-with-ship-snapshot: review
   epic-2-retrospective: optional
 
   epic-3: backlog

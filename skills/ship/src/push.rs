@@ -3,6 +3,12 @@
 use crate::{detect_kind, git};
 use std::io::{self, Write};
 
+/// A ref name git would read as an option (`-`), a force refspec (`+`) or a
+/// `src:dst` refspec (`:`). Shared with `snapshot`'s tag-name check.
+pub fn is_unsafe_ref(name: &str) -> bool {
+    name.starts_with(['-', '+']) || name.contains(':')
+}
+
 /// Reject input that git would read as an option or a refspec: a remote starting
 /// with `-`, a branch starting with `-` or `+` (force refspec) or containing `:`
 /// (`src:dst` refspec).
@@ -11,7 +17,7 @@ pub fn validate_target(remote: &str, branch: Option<&str>) -> Result<(), String>
         return Err(format!("invalid remote '{remote}': must not start with '-'"));
     }
     if let Some(b) = branch
-        && (b.starts_with(['-', '+']) || b.contains(':'))
+        && is_unsafe_ref(b)
     {
         return Err(format!(
             "invalid branch '{b}': must not start with '-' or '+' or contain ':'"
