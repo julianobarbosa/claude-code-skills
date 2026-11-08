@@ -5,6 +5,7 @@
 pub mod detect;
 pub mod git;
 pub mod preflight;
+pub mod push;
 
 use regex::Regex;
 use std::sync::LazyLock;
