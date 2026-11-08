@@ -19,7 +19,7 @@
 | Target | Why |
 |--------|-----|
 | `x86_64-unknown-linux-musl` | Static binary: runs on any WSL2 distro with no libc dependency. |
-| `aarch64-apple-darwin` | macOS arm64. Built on a GitHub-hosted `macos-14` runner; it cannot be built on the Linux/WSL2 workstation. |
+| `aarch64-apple-darwin` | macOS arm64. Built on a GitHub-hosted `macos-latest` (arm64) runner; it cannot be built on the Linux/WSL2 workstation. |
 
 ## Install
 
