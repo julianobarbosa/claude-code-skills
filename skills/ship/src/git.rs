@@ -46,8 +46,11 @@ pub fn log_ahead_of_upstream() -> String {
 /// `git status --porcelain`, deliberately untrimmed: trimming would eat the
 /// leading space of a first ` M path` line and misread it as staged (the TS
 /// `sh()` bug). Only trailing newlines are dropped. Empty when git fails.
+/// `--untracked-files=normal` is explicit so a `status.showUntrackedFiles=no`
+/// config cannot hide new files from the scope guard; on default config the
+/// output is identical to plain `git status --porcelain`.
 pub fn status_porcelain() -> String {
-    run_raw(&["status", "--porcelain"])
+    run_raw(&["status", "--porcelain", "--untracked-files=normal"])
         .map(|s| s.trim_end_matches('\n').to_string())
         .unwrap_or_default()
 }

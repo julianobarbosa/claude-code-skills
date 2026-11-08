@@ -25,6 +25,8 @@ context:
 
 **Decision (Barbosa, 2026-11-08): fix the TS trim bug in Rust.** `ship-lib.ts` `sh()` trims the whole porcelain output, so a leading-space first line (` M b.txt`) loses its first character and parses as staged. `ship preflight` parses untrimmed porcelain: one unstaged file reports `staged=0 unstaged=1 scope_clean=false`. This is the one intended difference from the TS output; every other case keeps byte parity. The TS fix ships separately.
 
+**Decision (Barbosa, 2026-11-08, after review): pass `--untracked-files=normal` explicitly.** A `status.showUntrackedFiles=no` config otherwise hides every untracked file and the guard reports clean (review triage row 4). Output on default config is unchanged, so parity holds on every matrix row.
+
 **Never:** No change to `ship detect` output. Do not modify `scripts/*.ts`, `package.json` or `SKILL.md`. No new dependencies. No network calls.
 
 ## I/O & Edge-Case Matrix
@@ -73,6 +75,7 @@ context:
 - New `src/preflight.rs` and `tests/preflight.rs`; `lib.rs` gains `parse_porcelain_status`/`scope_audit` (13 TS cases ported + first-line and wording tests); `git.rs` splits `run()` into a trimming wrapper over `run_raw()` so porcelain is read untrimmed (the approved fix).
 - Stderr warnings always print, even when a stdout write fails; BrokenPipe still exits 0. Test helpers in both integration files isolate git from global/system config and `GIT_DIR`-style env.
 - Parity evidence (bun reference from a scratchpad `bun install` copy): 9 matrix rows SAME in stdout, stderr and exit code; `unstaged-first-line` DIFF as decided; not-a-repo both exit 1 with empty stdout; `--help` exits 0 in both.
+- Triage row 4 resolved by the principal's follow-up decision: `status_porcelain()` passes `--untracked-files=normal`; `show_untracked_files_no_config_cannot_hide_new_files` fails without the flag and passes with it; parity unchanged (9 SAME, 1 intended DIFF). Collapsed untracked directories (`?? dir/`) stay as TS and remain deferred.
 - Verified after review patches: `cargo test` 40 unit + 7 detect + 13 preflight, green on 3 consecutive runs; `cargo clippy --all-targets -D warnings` clean; closed-pipe repro prints the untracked warning and exits 0.
 
 ## Spec Change Log

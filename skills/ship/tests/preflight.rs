@@ -91,6 +91,19 @@ fn stderr(o: &Output) -> String {
 }
 
 #[test]
+fn show_untracked_files_no_config_cannot_hide_new_files() {
+    let r = Scratch::repo("hide-untracked");
+    git(&r.0, &["config", "status.showUntrackedFiles", "no"]);
+    write(&r.0, "new.txt", "n\n");
+    let o = preflight(&r.0, &[]);
+    assert_eq!(o.status.code(), Some(0));
+    let out = stdout(&o);
+    assert!(out.contains("untracked=1\n"), "{out}");
+    assert!(out.contains("scope_clean=false\n"), "{out}");
+    assert!(stderr(&o).contains(">> WARNING: 1 untracked file(s): new.txt"));
+}
+
+#[test]
 fn clean_and_pushed_prints_zeros_and_no_warnings() {
     let (r, _bare) = Scratch::repo_with_upstream("clean");
     let o = preflight(&r.0, &[]);
