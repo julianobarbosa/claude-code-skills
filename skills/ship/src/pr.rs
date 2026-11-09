@@ -32,6 +32,35 @@ pub struct Args {
     pub work_item: Option<String>,
     /// Azure: never create a work item.
     pub no_create_work_item: bool,
+    /// Azure: titles of work items to create, one each.
+    pub tasks: Vec<String>,
+    /// Azure: file with one title per line, appended after `tasks`.
+    pub tasks_file: Option<String>,
+    /// Azure: assignee of created items; `None` falls back to the env var, then the TS default.
+    pub assignee: Option<String>,
+    /// Azure: type of created items (empty means `Task`).
+    pub work_item_type: String,
+}
+
+/// The task titles: every `--task`, then each trimmed non-blank line of `--tasks-file`.
+fn collect_tasks(tasks: &[String], file_text: Option<&str>) -> Vec<String> {
+    let mut out = tasks.to_vec();
+    if let Some(t) = file_text {
+        out.extend(t.lines().map(str::trim).filter(|l| !l.is_empty()).map(str::to_string));
+    }
+    out
+}
+
+/// `--assignee`, else `SHIP_ADO_ASSIGNEE`, else the TS default. An explicit empty value
+/// means unassigned.
+fn resolve_assignee(flag: Option<&str>) -> String {
+    match flag {
+        Some(v) => v.to_string(),
+        None => std::env::var("SHIP_ADO_ASSIGNEE")
+            .ok()
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| "you@example.com".to_string()),
+    }
 }
 
 /// The tags a PR gets when the caller named none, with the stderr line to print.
@@ -92,6 +121,15 @@ pub fn run(a: &Args) -> io::Result<u8> {
         None => a.body.clone(),
     };
 
+    let tasks_text = match a.tasks_file.as_deref().filter(|f| !f.is_empty()) {
+        Some(f) => match std::fs::read_to_string(f) {
+            Ok(s) => Some(s),
+            Err(e) => return fail(&format!("cannot read --tasks-file {f}: {e}"), 1),
+        },
+        None => None,
+    };
+    let tasks = collect_tasks(&a.tasks, tasks_text.as_deref());
+
     let mut tags = parse_tags(&a.tags);
     if tags.is_empty() && !a.no_tag {
         let (derived, line) = derive_tags(title, &source);
@@ -101,7 +139,7 @@ pub fn run(a: &Args) -> io::Result<u8> {
 
     match kind {
         Platform::Github => run_github(a, &url, title, &body, &source, &tags),
-        Platform::Azure => run_azure(a, &url, title, &body, &source, &tags),
+        Platform::Azure => run_azure(a, &url, title, &body, &source, &tags, &tasks),
         Platform::Unknown => fail(
             &format!(
                 "unknown platform for remote '{}' ({url}); set SHIP_PLATFORM=azure|github",
@@ -112,10 +150,19 @@ pub fn run(a: &Args) -> io::Result<u8> {
     }
 }
 
-/// Azure Repos: verify the work item, create the PR in one call that carries the link, the
-/// tags and `--draft`. Creating work items, reviewers, completion options and `--related`
-/// are later stories; their flags fail fast here rather than being silently dropped.
-fn run_azure(a: &Args, url: &str, title: &str, body: &str, source: &str, tags: &[String]) -> io::Result<u8> {
+/// Azure Repos: verify or create the work items, then create the PR in one call that carries
+/// the links, the tags and `--draft`. Reviewers, completion options and `--related` are later
+/// stories; their flags fail fast here rather than being silently dropped.
+#[allow(clippy::too_many_lines)]
+fn run_azure(
+    a: &Args,
+    url: &str,
+    title: &str,
+    body: &str,
+    source: &str,
+    tags: &[String],
+    tasks: &[String],
+) -> io::Result<u8> {
     let reviewers = parse_tags(&a.reviewers);
     let required = parse_tags(&a.required_reviewers);
     let related = parse_related_ids(&a.related).unwrap_or_default();
@@ -151,13 +198,17 @@ fn run_azure(a: &Args, url: &str, title: &str, body: &str, source: &str, tags: &
         Err(e) => return fail(&format!("ship-pr failed: {e}"), 1),
     };
 
-    // The work item: --work-item, else the number in the branch name, then verified by a read.
+    // The work item: --work-item, else the number in the branch name (skipped when tasks were
+    // given, so a number in the branch never preempts them), then verified by a read.
     let wanted = a
         .work_item
         .as_deref()
         .map(str::trim)
         .filter(|w| !w.is_empty())
-        .map_or_else(|| parse_work_item(source), str::to_string);
+        .map_or_else(
+            || if tasks.is_empty() { parse_work_item(source) } else { String::new() },
+            str::to_string,
+        );
     let mut linked: Vec<u64> = Vec::new();
     let found = match wanted.parse::<u64>() {
         Ok(id) => match client.work_item_exists(id) {
@@ -167,15 +218,29 @@ fn run_azure(a: &Args, url: &str, title: &str, body: &str, source: &str, tags: &
         },
         Err(_) => None,
     };
+    // Created ids print as they come, before `platform=azure`, so a later failure leaves them visible.
+    let mut out = Out::default();
     if let Some(id) = found {
         linked.push(id);
         eprintln!(">> linking existing work item {id}");
     } else if !a.no_create_work_item {
-        // Story 3.3 creates one; until then never open a PR without a work item silently.
-        return fail(
-            "ship pr: creating work items is not yet supported by the binary; pass --work-item <id> or --no-create-work-item, or use bun scripts/ship-pr.ts",
-            1,
-        );
+        let wi_type = if a.work_item_type.is_empty() { "Task" } else { a.work_item_type.as_str() };
+        let assignee = resolve_assignee(a.assignee.as_deref());
+        let titles: Vec<&str> = if tasks.is_empty() {
+            vec![title]
+        } else {
+            tasks.iter().map(String::as_str).collect()
+        };
+        for t in titles {
+            let id = match client.create_work_item(wi_type, t, &assignee) {
+                Ok(id) => id,
+                Err(e) => return out.finish(fail(&format!("ship-pr failed: {e}"), 1)),
+            };
+            let who = if assignee.is_empty() { "<unassigned>" } else { assignee.as_str() };
+            eprintln!(">> created {wi_type} #{id} assigned to {who}: {t}");
+            out.line(&format!("work_item_created={id}"));
+            linked.push(id);
+        }
     } else if !wanted.is_empty() {
         eprintln!(">> WARNING: work item {wanted} not found and --no-create-work-item set; PR will not link it");
     }
@@ -194,7 +259,6 @@ fn run_azure(a: &Args, url: &str, title: &str, body: &str, source: &str, tags: &
         Ok(id) => id,
         Err(e) => return fail(&format!("ship-pr failed: {e}"), 1),
     };
-    let mut out = Out::default();
     out.line("platform=azure");
     out.line(&format!("pr_id={pr_id}"));
     out.line(&format!(

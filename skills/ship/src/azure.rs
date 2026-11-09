@@ -80,6 +80,15 @@ pub fn create_payload(
     v
 }
 
+/// JSON-patch document for a work-item create: the title, plus the assignee when non-empty.
+pub fn work_item_patch(title: &str, assignee: &str) -> Value {
+    let mut ops = vec![json!({ "op": "add", "path": "/fields/System.Title", "value": title })];
+    if !assignee.is_empty() {
+        ops.push(json!({ "op": "add", "path": "/fields/System.AssignedTo", "value": assignee }));
+    }
+    Value::Array(ops)
+}
+
 pub struct Client {
     agent: ureq::Agent,
     /// Origin + org used for API calls (the test seam replaces `https://dev.azure.com`).
@@ -116,7 +125,7 @@ impl Client {
     /// anything else (including a credential every source of which was rejected).
     pub fn work_item_exists(&mut self, id: u64) -> Result<bool, String> {
         let url = format!("{}/_apis/wit/workitems/{id}?api-version={API_VERSION}", self.api_org);
-        let (status, v) = self.send(&url, None)?;
+        let (status, v) = self.send(&url, None, "")?;
         match status {
             200..=299 => Ok(v.get("id").is_some()),
             404 => Ok(false),
@@ -132,7 +141,7 @@ impl Client {
             http::enc(&self.project),
             http::enc(&self.repo)
         );
-        let (status, v) = self.send(&url, Some(payload))?;
+        let (status, v) = self.send(&url, Some(payload), "application/json")?;
         if !(200..300).contains(&status) {
             return Err(api_error(status, &v));
         }
@@ -141,13 +150,32 @@ impl Client {
             .ok_or_else(|| "unexpected response creating the pull request".to_string())
     }
 
+    /// Create a work item of `wi_type` titled `title`, assigned to `assignee` unless it is
+    /// empty; the `id` the API returned.
+    pub fn create_work_item(&mut self, wi_type: &str, title: &str, assignee: &str) -> Result<u64, String> {
+        let url = format!(
+            "{}/{}/_apis/wit/workitems/{}?api-version={API_VERSION}",
+            self.api_org,
+            http::enc(&self.project),
+            http::enc(&format!("${wi_type}"))
+        );
+        let doc = work_item_patch(title, assignee);
+        let (status, v) = self.send(&url, Some(&doc), "application/json-patch+json")?;
+        if !(200..300).contains(&status) {
+            return Err(api_error(status, &v));
+        }
+        v.get("id")
+            .and_then(Value::as_u64)
+            .ok_or_else(|| "unexpected response creating the work item".to_string())
+    }
+
     /// GET (no payload) or POST one request on the current credential. A 401/403, a 203
     /// (ADO's answer to a bad PAT is a sign-in page) or a redirect moves to the next
     /// credential once and prints the TS fallback line; later calls stay on it. With no
     /// credential left, the rejection comes back as an error.
-    fn send(&mut self, url: &str, payload: Option<&Value>) -> Result<(u16, Value), String> {
+    fn send(&mut self, url: &str, payload: Option<&Value>, content_type: &str) -> Result<(u16, Value), String> {
         loop {
-            let (status, v) = self.once(url, payload)?;
+            let (status, v) = self.once(url, payload, content_type)?;
             if !is_auth_failure(status) {
                 return Ok((status, v));
             }
@@ -163,7 +191,7 @@ impl Client {
         }
     }
 
-    fn once(&self, url: &str, payload: Option<&Value>) -> Result<(u16, Value), String> {
+    fn once(&self, url: &str, payload: Option<&Value>, content_type: &str) -> Result<(u16, Value), String> {
         let auth = self.creds[self.idx].header();
         let ua = concat!("ship/", env!("CARGO_PKG_VERSION"));
         let result = match payload {
@@ -180,7 +208,7 @@ impl Client {
                 .header("Authorization", &auth)
                 .header("Accept", "application/json")
                 .header("User-Agent", ua)
-                .content_type("application/json")
+                .content_type(content_type)
                 .send(p.to_string().as_bytes()),
         };
         let mut resp = match result {
@@ -270,6 +298,19 @@ mod tests {
         assert_eq!(p["isDraft"], true);
         assert_eq!(p["workItemRefs"], json!([{"id": "42"}, {"id": "7"}]));
         assert_eq!(p["labels"], json!([{"name": "a"}, {"name": "b"}]));
+    }
+
+    #[test]
+    fn work_item_patch_assigns_only_when_non_empty() {
+        let p = work_item_patch("t & u", "a@b");
+        assert_eq!(
+            p,
+            json!([
+                {"op": "add", "path": "/fields/System.Title", "value": "t & u"},
+                {"op": "add", "path": "/fields/System.AssignedTo", "value": "a@b"}
+            ])
+        );
+        assert_eq!(work_item_patch("t", "").as_array().unwrap().len(), 1);
     }
 
     #[test]

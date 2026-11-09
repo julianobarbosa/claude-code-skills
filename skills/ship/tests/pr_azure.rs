@@ -97,10 +97,12 @@ impl Mock {
         let reqs = Arc::new(Mutex::new(Vec::new()));
         let log = Arc::clone(&reqs);
         thread::spawn(move || {
+            // Work-item creates answer 501, 502, ... in order.
+            let next_id = AtomicUsize::new(501);
             for stream in listener.incoming() {
                 let Ok(stream) = stream else { break };
                 if let Some(req) = read_request(stream.try_clone().unwrap()) {
-                    let reply = handler(&req).unwrap_or_else(|| happy(&req));
+                    let reply = handler(&req).unwrap_or_else(|| happy(&req, &next_id));
                     log.lock().unwrap().push(req);
                     write_reply(stream, &reply);
                 }
@@ -118,10 +120,14 @@ impl Mock {
     }
 }
 
-/// Happy path: every work item exists, the PR create answers id 9.
-fn happy(req: &Req) -> Reply {
+/// Happy path: every work item exists, a work-item create answers the next id from 501,
+/// the PR create answers id 9.
+fn happy(req: &Req, next_id: &AtomicUsize) -> Reply {
     if req.method == "GET" && req.path.contains("/_apis/wit/workitems/") {
         let id = req.path.rsplit('/').next().unwrap().split('?').next().unwrap();
+        json_reply(200, &format!(r#"{{"id":{id}}}"#))
+    } else if req.method == "POST" && req.path.contains("/_apis/wit/workitems/") {
+        let id = next_id.fetch_add(1, Ordering::SeqCst);
         json_reply(200, &format!(r#"{{"id":{id}}}"#))
     } else if req.method == "POST" && req.path.contains("/pullrequests") {
         json_reply(201, r#"{"pullRequestId":9}"#)
@@ -223,6 +229,7 @@ fn ship_pr(dir: &Scratch, api: &str, az: &str, pat: &str, extra: &[(&str, &str)]
         .env_remove("AZURE_DEVOPS_EXT_PAT")
         .env_remove("AZURE_DEVOPS_PAT")
         .env_remove("SHIP_ADO_DEFAULT_REVIEWER")
+        .env_remove("SHIP_ADO_ASSIGNEE")
         .stdin(Stdio::null());
     if !pat.is_empty() {
         c.env("AZURE_DEVOPS_EXT_PAT", pat);
@@ -306,26 +313,179 @@ fn bogus_branch_number_warns_and_opens_unlinked_with_no_create() {
     assert_eq!(reqs[1].json()["workItemRefs"], serde_json::json!([]));
 }
 
-#[test]
-fn no_item_and_no_flag_means_creation_is_needed_so_nothing_is_created() {
-    let r = repo("needs-create", "feat/x");
-    let m = Mock::happy();
-    let run = run_ok(&r, &m, &["--title", "x", "--no-tag"]);
-    assert_eq!(run.code(), 1);
-    assert_eq!(run.stdout(), "");
-    assert!(run.stderr().contains("creating work items is not yet supported by the binary"), "{}", run.stderr());
-    assert!(run.stderr().contains("--work-item <id> or --no-create-work-item"), "{}", run.stderr());
-    assert!(m.requests().is_empty(), "{:?}", paths(&m));
+const WI_PATH: &str = "POST /acme/My%20Project/_apis/wit/workitems/%24Task?api-version=7.1";
+
+/// Env that pins the assignee so the tests do not depend on the host environment.
+const ASSIGNEE_ENV: [(&str, &str); 1] = [("SHIP_ADO_ASSIGNEE", "a@b")];
+
+fn run_assigned(dir: &Scratch, m: &Mock, args: &[&str]) -> Run {
+    ship_pr(dir, &m.base, TOKEN, "", &ASSIGNEE_ENV, args)
 }
 
 #[test]
-fn missing_item_with_creation_allowed_stops_before_creating_anything() {
+fn no_id_no_tasks_creates_one_item_from_the_title() {
+    let r = repo("create-title", "feat/x");
+    let m = Mock::happy();
+    let run = run_assigned(&r, &m, &["--title", "x & y", "--no-tag"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!("work_item_created=501\nplatform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=501\n")
+    );
+    assert!(run.stderr().contains(">> created Task #501 assigned to a@b: x & y"), "{}", run.stderr());
+    assert_eq!(paths(&m), [WI_PATH, PR_PATH]);
+    let reqs = m.requests();
+    assert_eq!(reqs[0].headers.get("content-type").map(String::as_str), Some("application/json-patch+json"));
+    assert_eq!(reqs[1].headers.get("content-type").map(String::as_str), Some("application/json"));
+    assert_eq!(
+        reqs[0].json(),
+        serde_json::json!([
+            {"op": "add", "path": "/fields/System.Title", "value": "x & y"},
+            {"op": "add", "path": "/fields/System.AssignedTo", "value": "a@b"}
+        ])
+    );
+    assert_eq!(reqs[1].json()["workItemRefs"], serde_json::json!([{"id": "501"}]));
+}
+
+#[test]
+fn two_tasks_create_two_items_in_order() {
+    let r = repo("two-tasks", "feat/x");
+    let m = Mock::happy();
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--task", "A", "--task", "B"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!(
+            "work_item_created=501\nwork_item_created=502\nplatform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=501 502\n"
+        )
+    );
+    assert_eq!(paths(&m), [WI_PATH, WI_PATH, PR_PATH]);
+    let reqs = m.requests();
+    assert_eq!(reqs[0].json()[0]["value"], "A");
+    assert_eq!(reqs[1].json()[0]["value"], "B");
+    assert_eq!(reqs[2].json()["workItemRefs"], serde_json::json!([{"id": "501"}, {"id": "502"}]));
+}
+
+#[test]
+fn tasks_file_is_trimmed_skips_blanks_and_follows_task_flags() {
+    let r = repo("tasks-file", "feat/x");
+    std::fs::write(r.0.join("tasks.txt"), "  A  \n\n   \nB\n").unwrap();
+    let m = Mock::happy();
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--tasks-file", "tasks.txt", "--task", "C"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    let titles: Vec<String> =
+        m.requests().iter().filter(|q| q.path.contains("workitems")).map(|q| q.json()[0]["value"].to_string()).collect();
+    assert_eq!(titles, ["\"C\"", "\"A\"", "\"B\""]);
+    assert!(run.stdout().contains("work_items=501 502 503\n"), "{}", run.stdout());
+}
+
+#[test]
+fn unreadable_tasks_file_fails_before_any_request() {
+    let r = repo("tasks-missing", "feat/x");
+    let m = Mock::happy();
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--tasks-file", "nope.txt"]);
+    assert_eq!(run.code(), 1);
+    assert_eq!(run.stdout(), "");
+    assert!(run.stderr().contains("cannot read --tasks-file nope.txt: "), "{}", run.stderr());
+    assert!(m.requests().is_empty());
+}
+
+#[test]
+fn tasks_skip_branch_inference() {
+    let r = repo("tasks-skip", "feature/42-x");
+    let m = Mock::happy();
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--task", "A"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(paths(&m), [WI_PATH, PR_PATH]);
+    assert_eq!(m.requests()[1].json()["workItemRefs"], serde_json::json!([{"id": "501"}]));
+}
+
+#[test]
+fn not_found_id_creates_one_item_from_the_title() {
     let r = repo("missing", "feat/x");
     let m = Mock::start(|q| (q.method == "GET").then(|| json_reply(404, r#"{"message":"gone"}"#)));
-    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "77"]);
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--work-item", "9999"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(paths(&m), ["GET /acme/_apis/wit/workitems/9999?api-version=7.1", WI_PATH, PR_PATH]);
+    assert!(run.stdout().starts_with("work_item_created=501\nplatform=azure\n"), "{}", run.stdout());
+}
+
+#[test]
+fn type_and_assignee_flags_reach_the_request() {
+    let r = repo("type", "feat/x");
+    let m = Mock::happy();
+    let run = run_assigned(
+        &r,
+        &m,
+        &["--title", "x", "--no-tag", "--work-item-type", "User Story", "--assignee", "c@d"],
+    );
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    let reqs = m.requests();
+    assert_eq!(reqs[0].path, "/acme/My%20Project/_apis/wit/workitems/%24User%20Story?api-version=7.1");
+    assert_eq!(reqs[0].json()[1]["value"], "c@d");
+    assert!(run.stderr().contains(">> created User Story #501 assigned to c@d: x"), "{}", run.stderr());
+}
+
+#[test]
+fn empty_assignee_means_unassigned() {
+    let r = repo("unassigned", "feat/x");
+    let m = Mock::happy();
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--assignee", ""]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(m.requests()[0].json().as_array().unwrap().len(), 1);
+    assert!(run.stderr().contains("assigned to <unassigned>: x"), "{}", run.stderr());
+}
+
+#[test]
+fn assignee_defaults_to_the_ts_default_without_env_or_flag() {
+    let r = repo("default-assignee", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(m.requests()[0].json()[1]["value"], "you@example.com");
+}
+
+#[test]
+fn no_create_work_item_never_creates() {
+    let r = repo("no-create", "feat/x");
+    let m = Mock::happy();
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--no-create-work-item", "--task", "A"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(paths(&m), [PR_PATH]);
+    assert_eq!(run.stdout(), format!("platform=azure\npr_id=9\npr_url={PR_URL}\n"));
+}
+
+#[test]
+fn second_create_failing_keeps_the_first_line_and_opens_no_pr() {
+    let r = repo("create-fails", "feat/x");
+    let seen = Arc::new(AtomicUsize::new(0));
+    let s = Arc::clone(&seen);
+    let m = Mock::start(move |q| {
+        (q.method == "POST" && q.path.contains("/workitems/") && s.fetch_add(1, Ordering::SeqCst) == 1)
+            .then(|| json_reply(400, r#"{"message":"TF401320: bad field"}"#))
+    });
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--task", "A", "--task", "B"]);
     assert_eq!(run.code(), 1);
-    assert!(run.stderr().contains("creating work items is not yet supported"), "{}", run.stderr());
-    assert_eq!(paths(&m), ["GET /acme/_apis/wit/workitems/77?api-version=7.1"]);
+    assert_eq!(run.stdout(), "work_item_created=501\n");
+    assert!(run.stderr().contains("ship-pr failed: HTTP 400: TF401320: bad field"), "{}", run.stderr());
+    assert_eq!(paths(&m), [WI_PATH, WI_PATH]);
+}
+
+#[test]
+fn bearer_401_on_the_create_falls_back_to_pat_for_the_rest() {
+    let r = repo("create-fallback", "feat/x");
+    let m = Mock::start(|q| q.auth().starts_with("Bearer ").then(|| json_reply(401, r#"{"message":"TF400813"}"#)));
+    let run = ship_pr(&r, &m.base, TOKEN, PAT, &ASSIGNEE_ENV, &["--title", "x", "--no-tag"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(run.stderr().matches(">> bearer auth failed (401/403); falling back to pat").count(), 1);
+    let reqs = m.requests();
+    let auths: Vec<&str> = reqs.iter().map(Req::auth).collect();
+    assert_eq!(auths, [bearer(), basic(), basic()]);
+    assert_eq!(reqs[1].path, WI_PATH.trim_start_matches("POST "));
+    for s in [TOKEN, PAT, PAT_B64] {
+        assert!(!run.stdout().contains(s) && !run.stderr().contains(s), "{s} leaked");
+        assert!(reqs.iter().all(|q| !q.path.contains(s) && !q.body.contains(s)), "{s} in url/body");
+    }
 }
 
 #[test]
