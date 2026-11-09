@@ -134,8 +134,24 @@ pub fn state_patch(state: &str) -> Value {
     json!([{ "op": "add", "path": "/fields/System.State", "value": state }])
 }
 
+/// JSON-patch document that adds a *Related* link to work item `rid`. `org_url` is the real
+/// org URL from the remote (never the test seam): the relation URL is stored on the item.
+pub fn relation_patch(org_url: &str, rid: u64, pr_id: u64) -> Value {
+    json!([{
+        "op": "add",
+        "path": "/relations/-",
+        "value": {
+            "rel": "System.LinkTypes.Related",
+            "url": format!("{}/_apis/wit/workItems/{rid}", org_url.trim_end_matches('/')),
+            "attributes": { "comment": format!("Related via PR {pr_id}") },
+        },
+    }])
+}
+
 pub struct Client {
     agent: ureq::Agent,
+    /// The real org URL from the remote (`https://dev.azure.com/<org>`), for relation URLs.
+    org_url: String,
     /// Origin + org used for API calls (the test seam replaces `https://dev.azure.com`).
     api_org: String,
     /// Origin + org of the identities API (`https://vssps.dev.azure.com/<org>`, or the seam).
@@ -160,6 +176,7 @@ impl Client {
         }
         Ok(Client {
             agent: http::agent(),
+            org_url: org_url.to_string(),
             api_org: api_org(org_url, seam.as_deref()),
             identity_org: identity_org(org_url, seam.as_deref()),
             project: project.to_string(),
@@ -276,6 +293,23 @@ impl Client {
         );
         let (status, v) =
             self.send_as(Method::Patch, &url, Some(&state_patch(state)), "application/json-patch+json")?;
+        if (200..300).contains(&status) {
+            Ok(())
+        } else {
+            Err(api_error(status, &v))
+        }
+    }
+
+    /// Link work item `own` *Related* to work item `rid` (comment `Related via PR <pr_id>`).
+    /// The PR itself never references `rid`, so completing it cannot close that item.
+    pub fn link_related(&mut self, own: u64, rid: u64, pr_id: u64) -> Result<(), String> {
+        let url = format!(
+            "{}/{}/_apis/wit/workitems/{own}?api-version={API_VERSION}",
+            self.api_org,
+            http::enc(&self.project)
+        );
+        let doc = relation_patch(&self.org_url, rid, pr_id);
+        let (status, v) = self.send_as(Method::Patch, &url, Some(&doc), "application/json-patch+json")?;
         if (200..300).contains(&status) {
             Ok(())
         } else {
@@ -505,6 +539,25 @@ mod tests {
         assert_eq!(
             state_patch("Resolved"),
             json!([{"op": "add", "path": "/fields/System.State", "value": "Resolved"}])
+        );
+    }
+
+    #[test]
+    fn relation_patch_links_related_on_the_real_org_url() {
+        assert_eq!(
+            relation_patch("https://dev.azure.com/acme", 7, 9),
+            json!([{
+                "op": "add", "path": "/relations/-",
+                "value": {
+                    "rel": "System.LinkTypes.Related",
+                    "url": "https://dev.azure.com/acme/_apis/wit/workItems/7",
+                    "attributes": {"comment": "Related via PR 9"}
+                }
+            }])
+        );
+        assert_eq!(
+            relation_patch("https://dev.azure.com/acme/", 8, 10)[0]["value"]["url"],
+            "https://dev.azure.com/acme/_apis/wit/workItems/8"
         );
     }
 

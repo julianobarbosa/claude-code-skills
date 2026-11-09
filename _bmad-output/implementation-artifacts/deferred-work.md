@@ -36,3 +36,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-5-transition-work-items-on-open-and-on-completion.md`
   summary: Repeated single-value `ship pr` flags (e.g. `--work-item`, `--assignee`, `--title`) exit 2 under clap, while TS takes the last value.
   evidence: Edge-case review of Story 3.5 confirmed it on the built binary for the new flags; those two now use `overrides_with`, but the older flags still differ from TS `argv[++i]` parsing.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-6-link-related-work-items-without-closing-them.md`
+  summary: The `--related` mention warning does not check the PR title for `#<id>`/`AB#<id>`, in TS or in the Rust port.
+  evidence: maybe-false, medium if true. It is unverified whether Azure Repos links a work item mentioned in a PR title. If it does, Complete would close that related epic with no warning. To settle it, open a test PR on a real org with `AB#<id>` only in the title and check the PR's linked work items.

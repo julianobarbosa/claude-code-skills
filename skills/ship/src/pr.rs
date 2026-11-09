@@ -3,7 +3,7 @@
 use crate::push::validate_target;
 use crate::{
     Platform, ado_parts, azure, default_tags_from_title, detect_kind, git, github, github_owner_repo, http,
-    parse_related_ids, parse_tags, parse_work_item, tag_from_branch_prefix,
+    mentions_work_item, parse_related_ids, parse_tags, parse_work_item, tag_from_branch_prefix,
 };
 use regex::Regex;
 use std::io::{self, Write};
@@ -109,8 +109,17 @@ pub fn run(a: &Args) -> io::Result<u8> {
     if let Err(msg) = validate_target(&a.remote, Some(&source)) {
         return fail(&format!("ship: {msg}"), 2);
     }
-    if let Err(msg) = parse_related_ids(&a.related) {
-        return fail(&msg, 2);
+    let related = match parse_related_ids(&a.related) {
+        Ok(r) => r,
+        Err(msg) => return fail(&msg, 2),
+    };
+    // A related id must never become the PR's own (closing) link, on any platform: refuse a
+    // --work-item that is also --related. (Branch inference is skipped too, in run_azure.)
+    if let Some(w) = a.work_item.as_deref().filter(|w| w.trim().parse::<u64>().is_ok_and(|n| related.contains(&n))) {
+        return fail(
+            &format!("work item {w} is both --work-item and --related; a related item is never linked to the PR"),
+            2,
+        );
     }
 
     let url = git::remote_url(&a.remote);
@@ -143,7 +152,7 @@ pub fn run(a: &Args) -> io::Result<u8> {
 
     match kind {
         Platform::Github => run_github(a, &url, title, &body, &source, &tags),
-        Platform::Azure => run_azure(a, &url, title, &body, &source, &tags, &tasks),
+        Platform::Azure => run_azure(a, &url, title, &body, &source, &tags, &tasks, &related),
         Platform::Unknown => fail(
             &format!(
                 "unknown platform for remote '{}' ({url}); set SHIP_PLATFORM=azure|github",
@@ -154,11 +163,13 @@ pub fn run(a: &Args) -> io::Result<u8> {
     }
 }
 
-/// Azure Repos: verify or create the work items, then create the PR in one call that carries
-/// the links, the tags, the resolved reviewers and `--draft`. Then, best-effort, a PATCH sets the
-/// PR's completion option and `--transition` moves each linked item (the create drops
-/// `completionOptions`). `--related` is a later story and fails fast rather than being dropped.
-#[allow(clippy::too_many_lines)]
+/// Azure Repos: verify the `--related` items (exit 2 before anything is written), warn about
+/// text that mentions one, verify or create the PR's own work items, then create the PR in one
+/// call that carries the links, the tags, the resolved reviewers and `--draft`. Then,
+/// best-effort: each own item is linked *Related* to each related item (never the PR, so
+/// Complete cannot close them), a PATCH sets the PR's completion option (the create drops
+/// `completionOptions`), and `--transition` moves each linked item.
+#[allow(clippy::too_many_lines, clippy::too_many_arguments)]
 fn run_azure(
     a: &Args,
     url: &str,
@@ -167,16 +178,10 @@ fn run_azure(
     source: &str,
     tags: &[String],
     tasks: &[String],
+    related: &[u64],
 ) -> io::Result<u8> {
     let mut reviewers = parse_tags(&a.reviewers);
     let required = parse_tags(&a.required_reviewers);
-    let related = parse_related_ids(&a.related).unwrap_or_default();
-    if !related.is_empty() {
-        return fail(
-            "ship pr: --related is not yet supported on Azure by the binary; use bun scripts/ship-pr.ts",
-            1,
-        );
-    }
     // A PR with no reviewer record leaves no trace that anyone was asked: with no reviewer
     // given, SHIP_ADO_DEFAULT_REVIEWER supplies an optional one.
     if reviewers.is_empty() && required.is_empty() && !a.no_reviewer {
@@ -201,15 +206,51 @@ fn run_azure(
         Err(e) => return fail(&format!("ship-pr failed: {e}"), 1),
     };
 
-    // The work item: --work-item, else the number in the branch name (skipped when tasks were
-    // given, so a number in the branch never preempts them), then verified by a read.
+    // --related ids are verified before anything is created, so a typo stops the run with
+    // nothing written. Every failure reads as not found, as in the TS.
+    for &rid in related {
+        if !matches!(client.work_item_exists(rid), Ok(true)) {
+            return fail(&format!("--related {rid}: work item not found"), 2);
+        }
+    }
+    // Azure Repos links a work item mentioned as #id / AB#id in the PR description or a commit
+    // message, and Complete then closes it like any other link. Warn, don't fail: the text is
+    // the author's to fix.
+    if !related.is_empty() {
+        let commits = git::commit_messages(&a.remote, &a.target, source);
+        for &rid in related {
+            let mut places = Vec::new();
+            if mentions_work_item(body, rid) {
+                places.push("the PR body");
+            }
+            if mentions_work_item(&commits, rid) {
+                places.push("a commit message");
+            }
+            if !places.is_empty() {
+                eprintln!(
+                    ">> WARNING: {} mention #{rid}; Azure Repos may link it to the PR, and Complete would then close it. Reword it (e.g. \"item {rid}\") before completing.",
+                    places.join(" and ")
+                );
+            }
+        }
+    }
+
+    // The work item: --work-item, else the number in the branch name, then verified by a read.
+    // Inference is skipped when tasks were given (a number in the branch never preempts them)
+    // and when --related was given (the branch often carries that very id).
     let wanted = a
         .work_item
         .as_deref()
         .map(str::trim)
         .filter(|w| !w.is_empty())
         .map_or_else(
-            || if tasks.is_empty() { parse_work_item(source) } else { String::new() },
+            || {
+                if tasks.is_empty() && related.is_empty() {
+                    parse_work_item(source)
+                } else {
+                    String::new()
+                }
+            },
             str::to_string,
         );
     let mut linked: Vec<u64> = Vec::new();
@@ -303,6 +344,19 @@ fn run_azure(
         out.line(&format!("work_items={}", ids.join(" ")));
     }
     // Best-effort from here: the PR exists, so a failed PATCH warns and the run goes on.
+    // --related: link each own item Related to each related item. ADO accepts a repeat of an
+    // existing relation and leaves it as is.
+    if !related.is_empty() && linked.is_empty() {
+        eprintln!(">> WARNING: --related given but the PR has no work item of its own to relate it to; nothing linked");
+    }
+    for &own in &linked {
+        for &rid in related {
+            match client.link_related(own, rid, pr_id) {
+                Ok(()) => out.line(&format!("related_linked={own}->{rid}")),
+                Err(e) => eprintln!(">> WARNING: could not link work item {own} Related to {rid}: {e}"),
+            }
+        }
+    }
     // completionOptions cannot ride in the create (ADO drops it). --no-complete-transition still
     // PATCHes an explicit false rather than skipping: left unset, the Complete dialog falls back
     // to the completer's last choice, which closed work item 1297 behind PR 1347 (TS history).

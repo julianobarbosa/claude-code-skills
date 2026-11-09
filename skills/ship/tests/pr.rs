@@ -638,6 +638,23 @@ fn related_prints_the_azure_only_note_and_still_opens_the_pr() {
 }
 
 #[test]
+fn the_same_id_as_work_item_and_related_exits_two_before_any_request() {
+    let r = repo("related-both", "feat/x", GH_URL);
+    let m = Mock::start(vec![]);
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "7", "--related", "AB#7"]);
+    assert_eq!(run.code(), 2, "{}", run.stderr());
+    assert_eq!(run.stdout(), "");
+    assert!(
+        run.stderr()
+            .contains("work item 7 is both --work-item and --related; a related item is never linked to the PR"),
+        "{}",
+        run.stderr()
+    );
+    assert!(!run.stderr().contains("Azure-only"), "{}", run.stderr());
+    assert!(m.requests().is_empty());
+}
+
+#[test]
 fn help_exits_zero() {
     let out = Command::new(env!("CARGO_BIN_EXE_ship")).args(["pr", "--help"]).output().unwrap();
     assert_eq!(out.status.code(), Some(0));
