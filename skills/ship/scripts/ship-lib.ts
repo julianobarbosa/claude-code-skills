@@ -29,6 +29,23 @@ export function sh(cmd: string, args: string[], opts: { allowFail?: boolean } = 
   }
 }
 
+/** How many commits `source` carries that `target` does not, compared on the remote-tracking
+ *  refs the push just updated (`<remote>/<branch>`), falling back to the local source branch.
+ *  Returns null when neither comparison can run (an unknown ref): the caller decides, never 0.
+ *  `run` is injectable for tests; it must behave like sh(..., { allowFail: true }). */
+export function commitsAhead(
+  remote: string,
+  target: string,
+  source: string,
+  run: (cmd: string, args: string[]) => string = (c, a) => sh(c, a, { allowFail: true }),
+): number | null {
+  for (const head of [`${remote}/${source}`, source]) {
+    const out = run("git", ["rev-list", "--count", `${remote}/${target}..${head}`]);
+    if (/^\d+$/.test(out)) return Number(out);
+  }
+  return null;
+}
+
 /** Current checked-out branch name. */
 export function currentBranch(): string {
   return sh("git", ["rev-parse", "--abbrev-ref", "HEAD"]);

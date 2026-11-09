@@ -14,7 +14,26 @@ import {
   parseWorkItem,
   detectKind,
   adoParts,
+  commitsAhead,
 } from "./ship-lib.ts";
+
+describe("commitsAhead (empty-PR guard)", () => {
+  // A fake `git rev-list --count` keyed by the range it is asked for.
+  const fake = (answers: Record<string, string>) => (_cmd: string, args: string[]) => answers[args[2]] ?? "";
+
+  test("0 when the pushed branch sits at the target's tip (failed commit)", () => {
+    expect(commitsAhead("origin", "main", "feat/x", fake({ "origin/main..origin/feat/x": "0" }))).toBe(0);
+  });
+  test("counts the commits the target lacks", () => {
+    expect(commitsAhead("origin", "main", "feat/x", fake({ "origin/main..origin/feat/x": "3" }))).toBe(3);
+  });
+  test("falls back to the local branch when the remote-tracking ref is unknown", () => {
+    expect(commitsAhead("origin", "main", "feat/x", fake({ "origin/main..feat/x": "1" }))).toBe(1);
+  });
+  test("null, never 0, when no comparison can run", () => {
+    expect(commitsAhead("origin", "main", "feat/x", fake({}))).toBeNull();
+  });
+});
 
 describe("parsePorcelainStatus", () => {
   test("empty tree", () => {

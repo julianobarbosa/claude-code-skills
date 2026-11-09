@@ -307,6 +307,11 @@ detected platform. The PR description starts from `assets/pr-template.md`.
 
 - Both PR-create paths (Octokit `pulls.create`, ADO `createPullRequest`) require the branch to be
   **pushed first** — keep step 3 before step 4.
+- **`ship-pr.ts` refuses a branch with 0 commits ahead of the target (exit 3).** A commit a
+  pre-commit hook rejected leaves the branch at the target's tip; the push still succeeds and the
+  platform would open an empty PR that reads as delivered (2026-11-09, ADO PR 1931, a hook failed
+  on a DNS timeout). On exit 3, read the commit's hook output, commit, and re-run; never open the
+  PR by hand around it. `commitsAhead()` in `ship-lib.ts` compares `<remote>/<target>..<remote>/<source>`.
 - `ship-detect.ts` returning `unknown` is almost always a custom SSH host alias — set `SHIP_PLATFORM`.
   (A `dev.azure.com-<alias>` SSH host is detected as azure but its org/project/repo won't parse —
   same limitation the shell version had; pass coordinates/`--work-item` explicitly if needed.)

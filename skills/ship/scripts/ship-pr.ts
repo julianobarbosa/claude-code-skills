@@ -73,7 +73,7 @@ import { Octokit } from "@octokit/rest";
 import {
   currentBranch, remoteUrl, detectKind, adoParts, adoCredentials, adoConnection, adoAuthHeader,
   isAuthError, parseWorkItem, parseTags, githubToken, defaultTagsFromTitle, githubOwnerRepo,
-  parseRelatedIds, mentionsWorkItem, sh,
+  parseRelatedIds, mentionsWorkItem, sh, commitsAhead,
 } from "./ship-lib.ts";
 
 function fail(msg: string, code = 1): never {
@@ -175,6 +175,16 @@ try { relatedIds = parseRelatedIds(relatedFlags); } catch (e: any) { fail(e.mess
 if (!workItem && tasks.length === 0 && relatedIds.length === 0) workItem = parseWorkItem(sourceBranch);
 if (workItem && relatedIds.includes(Number(workItem)))
   fail(`work item ${workItem} is both --work-item and --related; a related item is never linked to the PR`, 2);
+
+// Never open a PR with nothing in it. A commit a pre-commit hook rejected leaves the branch at the
+// target's tip; the push still "succeeds" and the platform opens an empty PR that reads as
+// delivered (2026-11-09, ADO PR 1931: a hook failed on a DNS timeout and the PR opened with 0
+// commits). Refuse before any work item, tag or reviewer is created.
+const ahead = commitsAhead(remote, target, sourceBranch);
+if (ahead === 0)
+  fail(`'${sourceBranch}' has no commits that '${remote}/${target}' lacks: nothing to deliver. Did the commit fail (a pre-commit hook)? Check \`git log ${remote}/${target}..${sourceBranch}\`, commit, then re-run.`, 3);
+if (ahead === null)
+  console.error(`>> WARNING: could not compare '${sourceBranch}' with '${remote}/${target}' (unknown ref); not checking for an empty PR`);
 
 const url = remoteUrl(remote);
 const kind = detectKind(url);
