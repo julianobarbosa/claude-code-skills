@@ -151,8 +151,8 @@ pub fn run(a: &Args) -> io::Result<u8> {
 }
 
 /// Azure Repos: verify or create the work items, then create the PR in one call that carries
-/// the links, the tags and `--draft`. Reviewers, completion options and `--related` are later
-/// stories; their flags fail fast here rather than being silently dropped.
+/// the links, the tags, the resolved reviewers and `--draft`. Completion options and `--related`
+/// are later stories; `--related` fails fast here rather than being silently dropped.
 #[allow(clippy::too_many_lines)]
 fn run_azure(
     a: &Args,
@@ -163,25 +163,23 @@ fn run_azure(
     tags: &[String],
     tasks: &[String],
 ) -> io::Result<u8> {
-    let reviewers = parse_tags(&a.reviewers);
+    let mut reviewers = parse_tags(&a.reviewers);
     let required = parse_tags(&a.required_reviewers);
     let related = parse_related_ids(&a.related).unwrap_or_default();
-    for (flag, given) in [
-        ("--reviewer", !reviewers.is_empty()),
-        ("--required-reviewer", !required.is_empty()),
-        ("--related", !related.is_empty()),
-    ] {
-        if given {
-            return fail(
-                &format!("ship pr: {flag} is not yet supported on Azure by the binary; use bun scripts/ship-pr.ts"),
-                1,
-            );
-        }
+    if !related.is_empty() {
+        return fail(
+            "ship pr: --related is not yet supported on Azure by the binary; use bun scripts/ship-pr.ts",
+            1,
+        );
     }
+    // A PR with no reviewer record leaves no trace that anyone was asked: with no reviewer
+    // given, SHIP_ADO_DEFAULT_REVIEWER supplies an optional one.
     if reviewers.is_empty() && required.is_empty() && !a.no_reviewer {
         let fallback = std::env::var("SHIP_ADO_DEFAULT_REVIEWER").unwrap_or_default();
-        if !fallback.trim().is_empty() {
-            eprintln!(">> NOTE: SHIP_ADO_DEFAULT_REVIEWER is not applied yet (Story 3.4)");
+        let fallback = fallback.trim();
+        if !fallback.is_empty() {
+            reviewers.extend(parse_tags(&[fallback.to_string()]));
+            eprintln!(">> NOTE: no reviewer given; using SHIP_ADO_DEFAULT_REVIEWER ({fallback})");
         }
     }
 
@@ -254,7 +252,35 @@ fn run_azure(
         eprintln!(">> substituted AB# placeholder -> {refs}");
     }
 
-    let payload = azure::create_payload(source, &a.target, title, &body, a.draft, &linked, tags);
+    // Resolve reviewers (optional first, then required) so they ride in the create call.
+    // Best-effort: an unresolved name is warned about and skipped, never blocking the PR.
+    let mut resolved: Vec<(String, azure::Reviewer)> = Vec::new();
+    // Each UPN is looked up once; one identity appears once, required if either list says so.
+    let mut seen: std::collections::HashMap<String, Option<String>> = std::collections::HashMap::new();
+    for (list, is_required) in [(&reviewers, false), (&required, true)] {
+        for upn in list {
+            if !seen.contains_key(upn) {
+                let id = match client.resolve_identity(upn) {
+                    Ok(id) => Some(id),
+                    Err(why) => {
+                        eprintln!(">> WARNING: could not resolve reviewer '{upn}' ({why}); skipping");
+                        out.line(&format!("reviewer_skipped={upn}"));
+                        None
+                    }
+                };
+                seen.insert(upn.clone(), id);
+            }
+            let Some(id) = seen[upn].clone() else { continue };
+            if let Some((_, r)) = resolved.iter_mut().find(|(_, r)| r.id.eq_ignore_ascii_case(&id)) {
+                r.is_required |= is_required;
+            } else {
+                resolved.push((upn.clone(), azure::Reviewer { id, is_required }));
+            }
+        }
+    }
+    let refs: Vec<azure::Reviewer> = resolved.iter().map(|(_, r)| r.clone()).collect();
+
+    let payload = azure::create_payload(source, &a.target, title, &body, a.draft, &linked, tags, &refs);
     let pr_id = match client.create_pr(&payload) {
         Ok(id) => id,
         Err(e) => return fail(&format!("ship-pr failed: {e}"), 1),
@@ -273,6 +299,9 @@ fn run_azure(
     }
     for t in tags {
         out.line(&format!("tag_added={t}"));
+    }
+    for (upn, r) in &resolved {
+        out.line(&format!("reviewer_added={upn} required={}", r.is_required));
     }
     out.finish(Ok(0))
 }

@@ -123,7 +123,11 @@ impl Mock {
 /// Happy path: every work item exists, a work-item create answers the next id from 501,
 /// the PR create answers id 9.
 fn happy(req: &Req, next_id: &AtomicUsize) -> Reply {
-    if req.method == "GET" && req.path.contains("/_apis/wit/workitems/") {
+    if req.method == "GET" && req.path.contains("/_apis/identities?") {
+        // Identity id = "ID-" + the raw (still percent-encoded) filterValue.
+        let fv = req.path.split("filterValue=").nth(1).unwrap().split('&').next().unwrap();
+        json_reply(200, &format!(r#"{{"value":[{{"id":"ID-{fv}"}}]}}"#))
+    } else if req.method == "GET" && req.path.contains("/_apis/wit/workitems/") {
         let id = req.path.rsplit('/').next().unwrap().split('?').next().unwrap();
         json_reply(200, &format!(r#"{{"id":{id}}}"#))
     } else if req.method == "POST" && req.path.contains("/_apis/wit/workitems/") {
@@ -616,42 +620,286 @@ fn a_redirect_is_an_auth_failure_and_is_not_followed() {
 }
 
 #[test]
-fn reviewer_and_related_flags_fail_fast_without_calling_the_api() {
-    for flag in [["--reviewer", "a@b.c"], ["--required-reviewer", "a@b.c"], ["--related", "5"]] {
-        let r = repo("unsupported", "feat/x");
-        let m = Mock::happy();
-        let mut args = vec!["--title", "x", "--no-tag", "--work-item", "42"];
-        args.extend(flag);
-        let run = run_ok(&r, &m, &args);
-        assert_eq!(run.code(), 1, "{flag:?}");
-        assert!(
-            run.stderr().contains(&format!("{} is not yet supported on Azure by the binary", flag[0])),
-            "{}",
-            run.stderr()
-        );
-        assert!(m.requests().is_empty(), "{flag:?}");
+fn related_flag_fails_fast_without_calling_the_api() {
+    let r = repo("unsupported", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "5"]);
+    assert_eq!(run.code(), 1);
+    assert!(run.stderr().contains("--related is not yet supported on Azure by the binary"), "{}", run.stderr());
+    assert!(m.requests().is_empty());
+}
+
+const IDENT: &str = "GET /acme/_apis/identities?searchFilter=General&filterValue=";
+const BASE_ARGS: [&str; 5] = ["--title", "x", "--no-tag", "--work-item", "42"];
+
+fn with(extra: &[&'static str]) -> Vec<&'static str> {
+    let mut v = vec!["--title", "x", "--no-tag", "--work-item", "42"];
+    v.extend(extra);
+    v
+}
+
+#[test]
+fn optional_and_required_reviewers_are_resolved_and_ride_in_the_create() {
+    let r = repo("rev-both", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &with(&["--reviewer", "a@x,b@x", "--required-reviewer", "c@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!(
+            "platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n\
+             reviewer_added=a@x required=false\nreviewer_added=b@x required=false\nreviewer_added=c@x required=true\n"
+        )
+    );
+    let ps = paths(&m);
+    assert_eq!(ps.len(), 5, "{ps:?}");
+    assert!(ps[0].starts_with("GET /acme/_apis/wit/workitems/42"));
+    for (i, who) in ["a%40x", "b%40x", "c%40x"].iter().enumerate() {
+        assert_eq!(ps[i + 1], format!("{IDENT}{who}&api-version=7.1"));
+    }
+    assert_eq!(ps[4], PR_PATH);
+    assert_eq!(
+        m.requests()[4].json()["reviewers"],
+        serde_json::json!([
+            {"id": "ID-a%40x", "isRequired": false},
+            {"id": "ID-b%40x", "isRequired": false},
+            {"id": "ID-c%40x", "isRequired": true}
+        ])
+    );
+}
+
+#[test]
+fn repeated_flags_are_split_and_deduped_per_list() {
+    let r = repo("rev-dedupe", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &with(&["--reviewer", "a@x,a@x", "--reviewer", "b@x,a@x", "--required-reviewer", "a@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout().lines().filter(|l| l.starts_with("reviewer_added=")).collect::<Vec<_>>(),
+        ["reviewer_added=a@x required=true", "reviewer_added=b@x required=false"]
+    );
+    let reqs = m.requests();
+    assert_eq!(reqs.iter().filter(|q| q.path.contains("/identities")).count(), 2, "a@x looked up once");
+    assert_eq!(
+        reqs.last().unwrap().json()["reviewers"],
+        serde_json::json!([{"id": "ID-a%40x", "isRequired": true}, {"id": "ID-b%40x", "isRequired": false}])
+    );
+}
+
+#[test]
+fn an_empty_identity_id_is_no_match() {
+    let r = repo("rev-empty-id", "feat/x");
+    let m = Mock::start(|q| q.path.contains("/identities").then(|| json_reply(200, r#"{"value":[{"id":""}]}"#)));
+    let run = run_ok(&r, &m, &with(&["--reviewer", "a@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stderr().contains("(no matching identity); skipping"), "{}", run.stderr());
+    assert!(m.requests().last().unwrap().json().get("reviewers").is_none());
+}
+
+#[test]
+fn a_203_on_the_bearer_lookup_resolves_on_the_pat() {
+    let r = repo("rev-203", "feat/x");
+    let m = Mock::start(|q| {
+        (q.path.contains("/identities") && q.auth().starts_with("Bearer "))
+            .then(|| (203, vec![], "<html>sign in</html>".into()))
+    });
+    let run = ship_pr(&r, &m.base, TOKEN, PAT, &[], &with(&["--reviewer", "a@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(run.stderr().matches(">> identity lookup got HTTP 203; retrying with the next credential").count(), 1);
+    assert!(run.stdout().contains("reviewer_added=a@x required=false\n"), "{}", run.stdout());
+}
+
+#[test]
+fn a_guid_passes_through_without_a_lookup() {
+    let g = "1F0E2D3C-4B5A-6978-8A9B-0C1D2E3F4A5B";
+    let r = repo("rev-guid", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &with(&["--reviewer", g]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(paths(&m).len(), 2, "no identities lookup");
+    assert_eq!(m.requests()[1].json()["reviewers"], serde_json::json!([{"id": g, "isRequired": false}]));
+    assert!(run.stdout().ends_with(&format!("reviewer_added={g} required=false\n")), "{}", run.stdout());
+}
+
+#[test]
+fn an_unresolvable_reviewer_is_skipped_before_platform_and_the_pr_opens() {
+    let r = repo("rev-empty", "feat/x");
+    let m = Mock::start(|q| {
+        (q.path.contains("filterValue=ghost")).then(|| json_reply(200, r#"{"count":0,"value":[]}"#))
+    });
+    let run = run_ok(&r, &m, &with(&["--reviewer", "ghost@x,a@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!(
+            "reviewer_skipped=ghost@x\nplatform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n\
+             reviewer_added=a@x required=false\n"
+        )
+    );
+    assert!(
+        run.stderr().contains(">> WARNING: could not resolve reviewer 'ghost@x' (no matching identity); skipping"),
+        "{}",
+        run.stderr()
+    );
+    assert_eq!(run.stdout().matches("reviewer_skipped=").count(), 1);
+    assert_eq!(m.requests().last().unwrap().json()["reviewers"], serde_json::json!([{"id": "ID-a%40x", "isRequired": false}]));
+}
+
+#[test]
+fn only_unresolvable_reviewers_leave_the_reviewers_field_out() {
+    let r = repo("rev-none", "feat/x");
+    let m = Mock::start(|q| q.path.contains("/identities").then(|| json_reply(200, r#"{"value":[]}"#)));
+    let run = run_ok(&r, &m, &with(&["--required-reviewer", "ghost@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(m.requests().last().unwrap().json().get("reviewers").is_none());
+    assert!(!run.stdout().contains("reviewer_added"), "{}", run.stdout());
+}
+
+#[test]
+fn a_lookup_http_error_is_a_warning_not_a_failure() {
+    let r = repo("rev-500", "feat/x");
+    let m = Mock::start(|q| q.path.contains("/identities").then(|| json_reply(500, r#"{"message":"boom"}"#)));
+    let run = run_ok(&r, &m, &with(&["--reviewer", "a@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stderr().contains(">> WARNING: could not resolve reviewer 'a@x' (HTTP 500); skipping"), "{}", run.stderr());
+    assert!(run.stdout().starts_with("reviewer_skipped=a@x\nplatform=azure\n"), "{}", run.stdout());
+}
+
+#[test]
+fn a_transport_error_is_a_warning_not_a_failure() {
+    // The identities host answers nothing: the connection is dropped.
+    let r = repo("rev-transport", "feat/x");
+    let m = Mock::start(|q| q.path.contains("/identities").then(|| (0, vec![], String::new())));
+    let run = run_ok(&r, &m, &with(&["--reviewer", "a@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stderr().contains("could not resolve reviewer 'a@x' ("), "{}", run.stderr());
+    assert!(run.stdout().contains("reviewer_skipped=a@x\n"), "{}", run.stdout());
+}
+
+#[test]
+fn a_rejected_bearer_on_the_lookup_falls_back_to_the_pat() {
+    let r = repo("rev-fallback", "feat/x");
+    let m = Mock::start(|q| {
+        (q.path.contains("/identities") && q.auth().starts_with("Bearer ")).then(|| json_reply(401, r#"{"message":"no"}"#))
+    });
+    let run = ship_pr(&r, &m.base, TOKEN, PAT, &[], &with(&["--reviewer", "a@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(run.stderr().matches(">> identity lookup got HTTP 401; retrying with the next credential").count(), 1);
+    assert!(run.stdout().contains("reviewer_added=a@x required=false\n"), "{}", run.stdout());
+    let reqs = m.requests();
+    let idents: Vec<&str> = reqs.iter().filter(|q| q.path.contains("/identities")).map(Req::auth).collect();
+    assert_eq!(idents, [bearer(), basic()]);
+    for s in [TOKEN, PAT, PAT_B64] {
+        assert!(!run.stdout().contains(s) && !run.stderr().contains(s), "{s} leaked");
+        assert!(reqs.iter().all(|q| !q.path.contains(s) && !q.body.contains(s)), "{s} in url/body");
     }
 }
 
 #[test]
-fn default_reviewer_env_prints_a_note_and_does_not_block() {
+fn a_lookup_rejected_by_every_credential_is_skipped() {
+    let r = repo("rev-all-401", "feat/x");
+    let m = Mock::start(|q| q.path.contains("/identities").then(|| json_reply(403, r#"{"message":"no"}"#)));
+    let run = ship_pr(&r, &m.base, TOKEN, PAT, &[], &with(&["--reviewer", "a@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stderr().contains("(HTTP 403); skipping"), "{}", run.stderr());
+    assert_eq!(m.requests().iter().filter(|q| q.path.contains("/identities")).count(), 2);
+}
+
+#[test]
+fn the_lookup_starts_on_the_credential_the_earlier_calls_ended_on() {
+    // The work-item read already fell back to the PAT; the lookup must not retry the bearer.
+    let r = repo("rev-sticky", "feat/x");
+    let m = Mock::start(|q| q.auth().starts_with("Bearer ").then(|| json_reply(401, r#"{"message":"no"}"#)));
+    let run = ship_pr(&r, &m.base, TOKEN, PAT, &[], &with(&["--reviewer", "a@x"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(!run.stderr().contains("identity lookup"), "{}", run.stderr());
+    let reqs = m.requests();
+    let ident = reqs.iter().find(|q| q.path.contains("/identities")).unwrap();
+    assert_eq!(ident.auth(), basic());
+}
+
+#[test]
+fn default_reviewer_env_is_added_as_optional_with_a_note() {
     let r = repo("defrev", "feat/x");
     let m = Mock::happy();
-    let env = [("SHIP_ADO_DEFAULT_REVIEWER", "boss@acme.com")];
-    let run = ship_pr(&r, &m.base, TOKEN, "", &env, &["--title", "x", "--no-tag", "--work-item", "42"]);
+    let env = [("SHIP_ADO_DEFAULT_REVIEWER", "  boss@acme.com  ")];
+    let run = ship_pr(&r, &m.base, TOKEN, "", &env, &BASE_ARGS);
     assert_eq!(run.code(), 0, "{}", run.stderr());
     assert!(
-        run.stderr().contains(">> NOTE: SHIP_ADO_DEFAULT_REVIEWER is not applied yet (Story 3.4)"),
+        run.stderr().contains(">> NOTE: no reviewer given; using SHIP_ADO_DEFAULT_REVIEWER (boss@acme.com)"),
         "{}",
         run.stderr()
     );
-    assert!(m.requests()[1].json().get("reviewers").is_none());
+    assert!(!run.stderr().contains("not applied yet"), "{}", run.stderr());
+    assert_eq!(
+        m.requests()[2].json()["reviewers"],
+        serde_json::json!([{"id": "ID-boss%40acme.com", "isRequired": false}])
+    );
+    assert!(run.stdout().ends_with("reviewer_added=boss@acme.com required=false\n"), "{}", run.stdout());
+}
 
-    // --no-reviewer silences it
-    let r = repo("defrev2", "feat/x");
-    let run = ship_pr(&r, &m.base, TOKEN, "", &env, &["--title", "x", "--no-tag", "--work-item", "42", "--no-reviewer"]);
+#[test]
+fn an_explicit_reviewer_overrides_the_default() {
+    let r = repo("defrev-explicit", "feat/x");
+    let m = Mock::happy();
+    let env = [("SHIP_ADO_DEFAULT_REVIEWER", "boss@acme.com")];
+    let run = ship_pr(&r, &m.base, TOKEN, "", &env, &with(&["--required-reviewer", "c@x"]));
     assert_eq!(run.code(), 0, "{}", run.stderr());
     assert!(!run.stderr().contains("SHIP_ADO_DEFAULT_REVIEWER"), "{}", run.stderr());
+    assert_eq!(paths(&m).iter().filter(|p| p.contains("/identities")).count(), 1);
+}
+
+#[test]
+fn no_reviewer_adds_none_and_does_no_lookup() {
+    let r = repo("defrev-off", "feat/x");
+    let m = Mock::happy();
+    let env = [("SHIP_ADO_DEFAULT_REVIEWER", "boss@acme.com")];
+    let run = ship_pr(&r, &m.base, TOKEN, "", &env, &with(&["--no-reviewer"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(!run.stderr().contains("SHIP_ADO_DEFAULT_REVIEWER"), "{}", run.stderr());
+    assert_eq!(paths(&m).len(), 2, "{:?}", paths(&m));
+    assert!(m.requests()[1].json().get("reviewers").is_none());
+}
+
+#[test]
+fn a_blank_default_reviewer_is_ignored() {
+    let r = repo("defrev-blank", "feat/x");
+    let m = Mock::happy();
+    let run = ship_pr(&r, &m.base, TOKEN, "", &[("SHIP_ADO_DEFAULT_REVIEWER", "   ")], &BASE_ARGS);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(!run.stderr().contains("SHIP_ADO_DEFAULT_REVIEWER"), "{}", run.stderr());
+    assert_eq!(paths(&m).len(), 2);
+}
+
+#[test]
+fn the_upn_is_encoded_like_encode_uri_component() {
+    let r = repo("rev-encode", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &with(&["--reviewer", "o'b+x@y.com"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(paths(&m)[1], format!("{IDENT}o'b%2Bx%40y.com&api-version=7.1"));
+    assert!(run.stdout().contains("reviewer_added=o'b+x@y.com required=false\n"), "{}", run.stdout());
+}
+
+#[test]
+fn reviewers_resolve_after_created_work_items_and_before_the_pr() {
+    let r = repo("rev-order", "feat/x");
+    let m = Mock::happy();
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--reviewer", "a@x"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    let ps = paths(&m);
+    assert_eq!(ps[0], WI_PATH);
+    assert!(ps[1].starts_with(IDENT), "{ps:?}");
+    assert_eq!(ps[2], PR_PATH);
+    assert!(run.stdout().starts_with("work_item_created=501\nplatform=azure\n"), "{}", run.stdout());
+}
+
+#[test]
+fn a_cleartext_seam_also_guards_the_identities_origin() {
+    let r = repo("rev-cleartext", "feat/x");
+    let run = ship_pr(&r, "http://example.com", TOKEN, "", &[], &with(&["--reviewer", "a@x"]));
+    assert_eq!(run.code(), 1);
+    assert!(run.stderr().contains("refusing SHIP_ADO_API_URL"), "{}", run.stderr());
 }
 
 #[test]
