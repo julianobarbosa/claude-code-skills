@@ -93,6 +93,12 @@ enum Command {
         /// Azure-only: type of created work items
         #[arg(long, default_value = "Task", allow_hyphen_values = true)]
         work_item_type: String,
+        /// Azure-only: state to move each linked work item to after the PR opens (e.g. Resolved)
+        #[arg(long, value_name = "STATE", allow_hyphen_values = true, overrides_with = "transition")]
+        transition: Option<String>,
+        /// Azure-only: leave "complete linked work items after merging" unticked on the PR
+        #[arg(long, overrides_with = "no_complete_transition")]
+        no_complete_transition: bool,
     },
     /// Save HEAD as an annotated, self-describing git tag (a checkpoint)
     Snapshot {
@@ -137,6 +143,8 @@ fn main() -> ExitCode {
             tasks_file,
             assignee,
             work_item_type,
+            transition,
+            no_complete_transition,
         } => ship::pr::run(&ship::pr::Args {
             title,
             body,
@@ -157,6 +165,8 @@ fn main() -> ExitCode {
             tasks_file,
             assignee,
             work_item_type,
+            transition,
+            no_complete_transition,
         }),
         Command::Snapshot { message, daily, name, push } => {
             ship::snapshot::run(&message, daily, name.as_deref(), push)

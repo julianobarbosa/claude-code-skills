@@ -40,6 +40,10 @@ pub struct Args {
     pub assignee: Option<String>,
     /// Azure: type of created items (empty means `Task`).
     pub work_item_type: String,
+    /// Azure: state to move each linked work item to after the PR opens.
+    pub transition: Option<String>,
+    /// Azure: set "complete linked work items after merging" to false instead of true.
+    pub no_complete_transition: bool,
 }
 
 /// The task titles: every `--task`, then each trimmed non-blank line of `--tasks-file`.
@@ -151,8 +155,9 @@ pub fn run(a: &Args) -> io::Result<u8> {
 }
 
 /// Azure Repos: verify or create the work items, then create the PR in one call that carries
-/// the links, the tags, the resolved reviewers and `--draft`. Completion options and `--related`
-/// are later stories; `--related` fails fast here rather than being silently dropped.
+/// the links, the tags, the resolved reviewers and `--draft`. Then, best-effort, a PATCH sets the
+/// PR's completion option and `--transition` moves each linked item (the create drops
+/// `completionOptions`). `--related` is a later story and fails fast rather than being dropped.
 #[allow(clippy::too_many_lines)]
 fn run_azure(
     a: &Args,
@@ -296,6 +301,30 @@ fn run_azure(
     if !linked.is_empty() {
         let ids: Vec<String> = linked.iter().map(u64::to_string).collect();
         out.line(&format!("work_items={}", ids.join(" ")));
+    }
+    // Best-effort from here: the PR exists, so a failed PATCH warns and the run goes on.
+    // completionOptions cannot ride in the create (ADO drops it). --no-complete-transition still
+    // PATCHes an explicit false rather than skipping: left unset, the Complete dialog falls back
+    // to the completer's last choice, which closed work item 1297 behind PR 1347 (TS history).
+    let want = !a.no_complete_transition;
+    match client.set_complete_transition(pr_id, want) {
+        Ok(got) => out.line(&format!(
+            "complete_transitions_work_items={}",
+            got.map_or("unset".to_string(), |b| b.to_string())
+        )),
+        Err(e) => {
+            eprintln!(">> WARNING: could not set \"complete linked work items\" to {want} on PR {pr_id}: {e}");
+            out.line("complete_transitions_work_items=unset");
+        }
+    }
+    if let Some(state) = a.transition.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        for id in &linked {
+            eprintln!(">> transitioning work item {id} -> {state}");
+            match client.transition_work_item(*id, state) {
+                Ok(()) => out.line(&format!("work_item={id} state={state}")),
+                Err(e) => eprintln!(">> WARNING: could not transition work item {id} -> {state}: {e}"),
+            }
+        }
     }
     for t in tags {
         out.line(&format!("tag_added={t}"));
