@@ -135,6 +135,13 @@ fn happy(req: &Req, next_id: &AtomicUsize) -> Reply {
         json_reply(200, &format!(r#"{{"id":{id}}}"#))
     } else if req.method == "POST" && req.path.contains("/pullrequests") {
         json_reply(201, r#"{"pullRequestId":9}"#)
+    } else if req.method == "PATCH" && req.path.contains("/pullrequests/") {
+        // Echo the requested completionOptions, as ADO does when it accepts them.
+        let want = req.json()["completionOptions"].clone();
+        json_reply(200, &format!(r#"{{"pullRequestId":9,"completionOptions":{want}}}"#))
+    } else if req.method == "PATCH" && req.path.contains("/_apis/wit/workitems/") {
+        let id = req.path.rsplit('/').next().unwrap().split('?').next().unwrap();
+        json_reply(200, &format!(r#"{{"id":{id}}}"#))
     } else {
         json_reply(404, r#"{"message":"unexpected"}"#)
     }
@@ -259,6 +266,15 @@ fn basic() -> String {
 }
 
 const PR_PATH: &str = "POST /acme/My%20Project/_apis/git/repositories/widgets/pullrequests?api-version=7.1";
+/// The completion PATCH that follows every PR create.
+const COMPLETE_PATH: &str = "PATCH /acme/My%20Project/_apis/git/repositories/widgets/pullrequests/9?api-version=7.1";
+/// Its stdout line on the happy path.
+const COMPLETE: &str = "complete_transitions_work_items=true\n";
+
+/// The PR create request (the last request is now the completion PATCH).
+fn pr_create(m: &Mock) -> Req {
+    m.requests().into_iter().find(|q| q.method == "POST" && q.path.contains("/pullrequests")).unwrap()
+}
 
 #[test]
 fn existing_item_is_read_then_linked_in_one_create() {
@@ -268,10 +284,10 @@ fn existing_item_is_read_then_linked_in_one_create() {
     assert_eq!(run.code(), 0, "{}", run.stderr());
     assert_eq!(
         run.stdout(),
-        format!("platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\ntag_added=docs\ntag_added=finops\n")
+        format!("platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n{COMPLETE}tag_added=docs\ntag_added=finops\n")
     );
     assert!(run.stderr().contains(">> linking existing work item 42"), "{}", run.stderr());
-    assert_eq!(paths(&m), ["GET /acme/_apis/wit/workitems/42?api-version=7.1", PR_PATH]);
+    assert_eq!(paths(&m), ["GET /acme/_apis/wit/workitems/42?api-version=7.1", PR_PATH, COMPLETE_PATH]);
     let reqs = m.requests();
     assert_eq!(
         reqs[1].json(),
@@ -291,7 +307,7 @@ fn work_item_is_inferred_from_the_branch_and_verified() {
     let m = Mock::happy();
     let run = run_ok(&r, &m, &["--title", "x", "--no-tag"]);
     assert_eq!(run.code(), 0, "{}", run.stderr());
-    assert_eq!(run.stdout(), format!("platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n"));
+    assert_eq!(run.stdout(), format!("platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n{COMPLETE}"));
     assert_eq!(paths(&m)[0], "GET /acme/_apis/wit/workitems/42?api-version=7.1");
     assert_eq!(m.requests()[1].json()["workItemRefs"], serde_json::json!([{"id": "42"}]));
 }
@@ -304,7 +320,7 @@ fn bogus_branch_number_warns_and_opens_unlinked_with_no_create() {
     });
     let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--no-create-work-item"]);
     assert_eq!(run.code(), 0, "{}", run.stderr());
-    assert_eq!(run.stdout(), format!("platform=azure\npr_id=9\npr_url={PR_URL}\n"));
+    assert_eq!(run.stdout(), format!("platform=azure\npr_id=9\npr_url={PR_URL}\n{COMPLETE}"));
     assert!(
         run.stderr().contains(
             ">> WARNING: work item 9999 not found and --no-create-work-item set; PR will not link it"
@@ -313,7 +329,7 @@ fn bogus_branch_number_warns_and_opens_unlinked_with_no_create() {
         run.stderr()
     );
     let reqs = m.requests();
-    assert_eq!(reqs.len(), 2);
+    assert_eq!(reqs.len(), 3);
     assert_eq!(reqs[1].json()["workItemRefs"], serde_json::json!([]));
 }
 
@@ -334,10 +350,10 @@ fn no_id_no_tasks_creates_one_item_from_the_title() {
     assert_eq!(run.code(), 0, "{}", run.stderr());
     assert_eq!(
         run.stdout(),
-        format!("work_item_created=501\nplatform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=501\n")
+        format!("work_item_created=501\nplatform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=501\n{COMPLETE}")
     );
     assert!(run.stderr().contains(">> created Task #501 assigned to a@b: x & y"), "{}", run.stderr());
-    assert_eq!(paths(&m), [WI_PATH, PR_PATH]);
+    assert_eq!(paths(&m), [WI_PATH, PR_PATH, COMPLETE_PATH]);
     let reqs = m.requests();
     assert_eq!(reqs[0].headers.get("content-type").map(String::as_str), Some("application/json-patch+json"));
     assert_eq!(reqs[1].headers.get("content-type").map(String::as_str), Some("application/json"));
@@ -360,10 +376,10 @@ fn two_tasks_create_two_items_in_order() {
     assert_eq!(
         run.stdout(),
         format!(
-            "work_item_created=501\nwork_item_created=502\nplatform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=501 502\n"
+            "work_item_created=501\nwork_item_created=502\nplatform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=501 502\n{COMPLETE}"
         )
     );
-    assert_eq!(paths(&m), [WI_PATH, WI_PATH, PR_PATH]);
+    assert_eq!(paths(&m), [WI_PATH, WI_PATH, PR_PATH, COMPLETE_PATH]);
     let reqs = m.requests();
     assert_eq!(reqs[0].json()[0]["value"], "A");
     assert_eq!(reqs[1].json()[0]["value"], "B");
@@ -400,7 +416,7 @@ fn tasks_skip_branch_inference() {
     let m = Mock::happy();
     let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--task", "A"]);
     assert_eq!(run.code(), 0, "{}", run.stderr());
-    assert_eq!(paths(&m), [WI_PATH, PR_PATH]);
+    assert_eq!(paths(&m), [WI_PATH, PR_PATH, COMPLETE_PATH]);
     assert_eq!(m.requests()[1].json()["workItemRefs"], serde_json::json!([{"id": "501"}]));
 }
 
@@ -410,7 +426,7 @@ fn not_found_id_creates_one_item_from_the_title() {
     let m = Mock::start(|q| (q.method == "GET").then(|| json_reply(404, r#"{"message":"gone"}"#)));
     let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--work-item", "9999"]);
     assert_eq!(run.code(), 0, "{}", run.stderr());
-    assert_eq!(paths(&m), ["GET /acme/_apis/wit/workitems/9999?api-version=7.1", WI_PATH, PR_PATH]);
+    assert_eq!(paths(&m), ["GET /acme/_apis/wit/workitems/9999?api-version=7.1", WI_PATH, PR_PATH, COMPLETE_PATH]);
     assert!(run.stdout().starts_with("work_item_created=501\nplatform=azure\n"), "{}", run.stdout());
 }
 
@@ -455,8 +471,8 @@ fn no_create_work_item_never_creates() {
     let m = Mock::happy();
     let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--no-create-work-item", "--task", "A"]);
     assert_eq!(run.code(), 0, "{}", run.stderr());
-    assert_eq!(paths(&m), [PR_PATH]);
-    assert_eq!(run.stdout(), format!("platform=azure\npr_id=9\npr_url={PR_URL}\n"));
+    assert_eq!(paths(&m), [PR_PATH, COMPLETE_PATH]);
+    assert_eq!(run.stdout(), format!("platform=azure\npr_id=9\npr_url={PR_URL}\n{COMPLETE}"));
 }
 
 #[test]
@@ -484,7 +500,7 @@ fn bearer_401_on_the_create_falls_back_to_pat_for_the_rest() {
     assert_eq!(run.stderr().matches(">> bearer auth failed (401/403); falling back to pat").count(), 1);
     let reqs = m.requests();
     let auths: Vec<&str> = reqs.iter().map(Req::auth).collect();
-    assert_eq!(auths, [bearer(), basic(), basic()]);
+    assert_eq!(auths, [bearer(), basic(), basic(), basic()]);
     assert_eq!(reqs[1].path, WI_PATH.trim_start_matches("POST "));
     for s in [TOKEN, PAT, PAT_B64] {
         assert!(!run.stdout().contains(s) && !run.stderr().contains(s), "{s} leaked");
@@ -499,7 +515,7 @@ fn no_id_at_all_with_no_create_opens_unlinked_silently() {
     let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--no-create-work-item"]);
     assert_eq!(run.code(), 0, "{}", run.stderr());
     assert!(!run.stderr().contains("WARNING"), "{}", run.stderr());
-    assert_eq!(paths(&m), [PR_PATH]);
+    assert_eq!(paths(&m), [PR_PATH, COMPLETE_PATH]);
 }
 
 #[test]
@@ -515,7 +531,7 @@ fn tags_draft_literal_title_and_placeholder() {
     assert_eq!(run.code(), 0, "{}", run.stderr());
     assert_eq!(
         run.stdout(),
-        format!("platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\ntag_added=a\ntag_added=b\n")
+        format!("platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n{COMPLETE}tag_added=a\ntag_added=b\n")
     );
     assert!(run.stderr().contains(">> substituted AB# placeholder -> AB#42"), "{}", run.stderr());
     let body = m.requests()[1].json();
@@ -535,7 +551,7 @@ fn bearer_401_falls_back_to_pat_for_the_read_and_the_create() {
     assert_eq!(run.stderr().matches(">> bearer auth failed (401/403); falling back to pat").count(), 1);
     let reqs = m.requests();
     let auths: Vec<&str> = reqs.iter().map(Req::auth).collect();
-    assert_eq!(auths, [bearer(), basic(), basic()]);
+    assert_eq!(auths, [bearer(), basic(), basic(), basic()]);
 }
 
 #[test]
@@ -647,12 +663,12 @@ fn optional_and_required_reviewers_are_resolved_and_ride_in_the_create() {
     assert_eq!(
         run.stdout(),
         format!(
-            "platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n\
+            "platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n{COMPLETE}\
              reviewer_added=a@x required=false\nreviewer_added=b@x required=false\nreviewer_added=c@x required=true\n"
         )
     );
     let ps = paths(&m);
-    assert_eq!(ps.len(), 5, "{ps:?}");
+    assert_eq!(ps.len(), 6, "{ps:?}");
     assert!(ps[0].starts_with("GET /acme/_apis/wit/workitems/42"));
     for (i, who) in ["a%40x", "b%40x", "c%40x"].iter().enumerate() {
         assert_eq!(ps[i + 1], format!("{IDENT}{who}&api-version=7.1"));
@@ -681,7 +697,7 @@ fn repeated_flags_are_split_and_deduped_per_list() {
     let reqs = m.requests();
     assert_eq!(reqs.iter().filter(|q| q.path.contains("/identities")).count(), 2, "a@x looked up once");
     assert_eq!(
-        reqs.last().unwrap().json()["reviewers"],
+        pr_create(&m).json()["reviewers"],
         serde_json::json!([{"id": "ID-a%40x", "isRequired": true}, {"id": "ID-b%40x", "isRequired": false}])
     );
 }
@@ -693,7 +709,7 @@ fn an_empty_identity_id_is_no_match() {
     let run = run_ok(&r, &m, &with(&["--reviewer", "a@x"]));
     assert_eq!(run.code(), 0, "{}", run.stderr());
     assert!(run.stderr().contains("(no matching identity); skipping"), "{}", run.stderr());
-    assert!(m.requests().last().unwrap().json().get("reviewers").is_none());
+    assert!(pr_create(&m).json().get("reviewers").is_none());
 }
 
 #[test]
@@ -716,7 +732,7 @@ fn a_guid_passes_through_without_a_lookup() {
     let m = Mock::happy();
     let run = run_ok(&r, &m, &with(&["--reviewer", g]));
     assert_eq!(run.code(), 0, "{}", run.stderr());
-    assert_eq!(paths(&m).len(), 2, "no identities lookup");
+    assert_eq!(paths(&m).len(), 3, "no identities lookup");
     assert_eq!(m.requests()[1].json()["reviewers"], serde_json::json!([{"id": g, "isRequired": false}]));
     assert!(run.stdout().ends_with(&format!("reviewer_added={g} required=false\n")), "{}", run.stdout());
 }
@@ -732,7 +748,7 @@ fn an_unresolvable_reviewer_is_skipped_before_platform_and_the_pr_opens() {
     assert_eq!(
         run.stdout(),
         format!(
-            "reviewer_skipped=ghost@x\nplatform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n\
+            "reviewer_skipped=ghost@x\nplatform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n{COMPLETE}\
              reviewer_added=a@x required=false\n"
         )
     );
@@ -742,7 +758,7 @@ fn an_unresolvable_reviewer_is_skipped_before_platform_and_the_pr_opens() {
         run.stderr()
     );
     assert_eq!(run.stdout().matches("reviewer_skipped=").count(), 1);
-    assert_eq!(m.requests().last().unwrap().json()["reviewers"], serde_json::json!([{"id": "ID-a%40x", "isRequired": false}]));
+    assert_eq!(pr_create(&m).json()["reviewers"], serde_json::json!([{"id": "ID-a%40x", "isRequired": false}]));
 }
 
 #[test]
@@ -751,7 +767,7 @@ fn only_unresolvable_reviewers_leave_the_reviewers_field_out() {
     let m = Mock::start(|q| q.path.contains("/identities").then(|| json_reply(200, r#"{"value":[]}"#)));
     let run = run_ok(&r, &m, &with(&["--required-reviewer", "ghost@x"]));
     assert_eq!(run.code(), 0, "{}", run.stderr());
-    assert!(m.requests().last().unwrap().json().get("reviewers").is_none());
+    assert!(pr_create(&m).json().get("reviewers").is_none());
     assert!(!run.stdout().contains("reviewer_added"), "{}", run.stdout());
 }
 
@@ -857,7 +873,7 @@ fn no_reviewer_adds_none_and_does_no_lookup() {
     let run = ship_pr(&r, &m.base, TOKEN, "", &env, &with(&["--no-reviewer"]));
     assert_eq!(run.code(), 0, "{}", run.stderr());
     assert!(!run.stderr().contains("SHIP_ADO_DEFAULT_REVIEWER"), "{}", run.stderr());
-    assert_eq!(paths(&m).len(), 2, "{:?}", paths(&m));
+    assert_eq!(paths(&m).len(), 3, "{:?}", paths(&m));
     assert!(m.requests()[1].json().get("reviewers").is_none());
 }
 
@@ -868,7 +884,7 @@ fn a_blank_default_reviewer_is_ignored() {
     let run = ship_pr(&r, &m.base, TOKEN, "", &[("SHIP_ADO_DEFAULT_REVIEWER", "   ")], &BASE_ARGS);
     assert_eq!(run.code(), 0, "{}", run.stderr());
     assert!(!run.stderr().contains("SHIP_ADO_DEFAULT_REVIEWER"), "{}", run.stderr());
-    assert_eq!(paths(&m).len(), 2);
+    assert_eq!(paths(&m).len(), 3);
 }
 
 #[test]
@@ -939,4 +955,227 @@ fn cleartext_api_seam_is_refused() {
     let run = ship_pr(&r, "http://example.com", TOKEN, "", &[], &["--title", "x", "--no-tag", "--work-item", "42"]);
     assert_eq!(run.code(), 1);
     assert!(run.stderr().contains("refusing SHIP_ADO_API_URL"), "{}", run.stderr());
+}
+
+// --- Story 3.5: completion options and --transition ---
+
+/// The work-item state PATCH for `id`.
+fn state_path(id: u64) -> String {
+    format!("PATCH /acme/My%20Project/_apis/wit/workitems/{id}?api-version=7.1")
+}
+
+#[test]
+fn transition_and_completion_follow_work_items_in_ts_order() {
+    let r = repo("tr-ac", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--tag", "feat", "--work-item", "42", "--transition", "Resolved"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!(
+            "platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n\
+             complete_transitions_work_items=true\nwork_item=42 state=Resolved\ntag_added=feat\n"
+        )
+    );
+    assert!(run.stderr().contains(">> transitioning work item 42 -> Resolved"), "{}", run.stderr());
+    let ps = paths(&m);
+    assert_eq!(ps[1..], [PR_PATH.to_string(), COMPLETE_PATH.to_string(), state_path(42)]);
+    let reqs = m.requests();
+    assert_eq!(reqs[2].headers.get("content-type").map(String::as_str), Some("application/json"));
+    assert_eq!(reqs[2].json(), serde_json::json!({"completionOptions": {"transitionWorkItems": true}}));
+    assert_eq!(reqs[3].headers.get("content-type").map(String::as_str), Some("application/json-patch+json"));
+    assert_eq!(reqs[3].json(), serde_json::json!([{"op": "add", "path": "/fields/System.State", "value": "Resolved"}]));
+    assert!(pr_create(&m).json().get("completionOptions").is_none(), "never in the create payload");
+}
+
+#[test]
+fn no_complete_transition_patches_an_explicit_false() {
+    let r = repo("tr-off", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &with(&["--no-complete-transition"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stdout().contains("\ncomplete_transitions_work_items=false\n"), "{}", run.stdout());
+    let patch = m.requests().into_iter().find(|q| q.method == "PATCH").unwrap();
+    assert_eq!(patch.json(), serde_json::json!({"completionOptions": {"transitionWorkItems": false}}));
+}
+
+#[test]
+fn the_printed_value_is_read_back_not_echoed() {
+    let r = repo("tr-readback", "feat/x");
+    let m = Mock::start(|q| {
+        (q.method == "PATCH").then(|| json_reply(200, r#"{"completionOptions":{"transitionWorkItems":false}}"#))
+    });
+    let run = run_ok(&r, &m, &BASE_ARGS);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stdout().contains("\ncomplete_transitions_work_items=false\n"), "{}", run.stdout());
+}
+
+#[test]
+fn null_completion_options_print_unset() {
+    let r = repo("tr-null", "feat/x");
+    let m = Mock::start(|q| (q.method == "PATCH").then(|| json_reply(200, r#"{"completionOptions":null}"#)));
+    let run = run_ok(&r, &m, &BASE_ARGS);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stdout().contains("\ncomplete_transitions_work_items=unset\n"), "{}", run.stdout());
+}
+
+#[test]
+fn a_failed_completion_patch_warns_and_tags_and_reviewers_still_print() {
+    let r = repo("tr-500", "feat/x");
+    let m = Mock::start(|q| (q.method == "PATCH").then(|| json_reply(500, r#"{"message":"boom"}"#)));
+    let run = run_ok(&r, &m, &["--title", "x", "--tag", "feat", "--work-item", "42", "--reviewer", "a@x"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!(
+            "platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\ncomplete_transitions_work_items=unset\n\
+             tag_added=feat\nreviewer_added=a@x required=false\n"
+        )
+    );
+    assert!(
+        run.stderr()
+            .contains(">> WARNING: could not set \"complete linked work items\" to true on PR 9: HTTP 500: boom"),
+        "{}",
+        run.stderr()
+    );
+}
+
+#[test]
+fn created_items_transition_in_order() {
+    let r = repo("tr-two", "feat/x");
+    let m = Mock::happy();
+    let run =
+        run_assigned(&r, &m, &["--title", "x", "--no-tag", "--task", "A", "--task", "B", "--transition", "Resolved"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(
+        run.stdout().ends_with(
+            "work_items=501 502\ncomplete_transitions_work_items=true\n\
+             work_item=501 state=Resolved\nwork_item=502 state=Resolved\n"
+        ),
+        "{}",
+        run.stdout()
+    );
+    let ps = paths(&m);
+    assert_eq!(ps[ps.len() - 2..], [state_path(501), state_path(502)]);
+}
+
+#[test]
+fn a_rejected_state_warns_and_the_next_item_still_transitions() {
+    let r = repo("tr-bad", "feat/x");
+    let m = Mock::start(|q| {
+        (q.method == "PATCH" && q.path.contains("/workitems/501"))
+            .then(|| json_reply(400, r#"{"message":"TF401320: invalid state"}"#))
+    });
+    let run =
+        run_assigned(&r, &m, &["--title", "x", "--no-tag", "--task", "A", "--task", "B", "--transition", "Bogus"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(!run.stdout().contains("work_item=501 "), "{}", run.stdout());
+    assert!(run.stdout().ends_with("work_item=502 state=Bogus\n"), "{}", run.stdout());
+    assert!(
+        run.stderr()
+            .contains(">> WARNING: could not transition work item 501 -> Bogus: HTTP 400: TF401320: invalid state"),
+        "{}",
+        run.stderr()
+    );
+}
+
+#[test]
+fn transition_with_no_linked_item_sends_nothing_but_completion_still_runs() {
+    let r = repo("tr-none", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--no-create-work-item", "--transition", "Resolved"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(paths(&m), [PR_PATH, COMPLETE_PATH]);
+    assert_eq!(run.stdout(), format!("platform=azure\npr_id=9\npr_url={PR_URL}\n{COMPLETE}"));
+    assert!(!run.stderr().contains("transitioning"), "{}", run.stderr());
+}
+
+#[test]
+fn an_empty_transition_is_ignored() {
+    let r = repo("tr-empty", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &with(&["--transition", ""]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(!paths(&m).iter().any(|p| p.contains("/wit/workitems/") && p.starts_with("PATCH")));
+    assert!(!run.stdout().contains("work_item="), "{}", run.stdout());
+}
+
+#[test]
+fn bearer_401_on_a_patch_falls_back_to_pat_and_secrets_stay_in_headers() {
+    let r = repo("tr-auth", "feat/x");
+    let bearer_auth = bearer();
+    let m = Mock::start(move |q| {
+        (q.method == "PATCH" && q.auth() == bearer_auth).then(|| json_reply(401, r#"{"message":"nope"}"#))
+    });
+    let run = ship_pr(&r, &m.base, TOKEN, PAT, &[], &with(&["--transition", "Resolved"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(run.stderr().matches(">> bearer auth failed (401/403); falling back to pat").count(), 1);
+    assert!(
+        run.stdout().contains("complete_transitions_work_items=true\nwork_item=42 state=Resolved\n"),
+        "{}",
+        run.stdout()
+    );
+    let reqs = m.requests();
+    let auths: Vec<&str> = reqs.iter().map(Req::auth).collect();
+    // read + create on bearer, the completion PATCH rejected then retried on the PAT, which stays.
+    assert_eq!(auths, [bearer(), bearer(), bearer(), basic(), basic()]);
+    for s in [TOKEN, PAT, PAT_B64] {
+        assert!(!run.stdout().contains(s) && !run.stderr().contains(s), "{s} leaked");
+    }
+    for q in &reqs {
+        for s in [TOKEN, PAT, PAT_B64] {
+            assert!(!q.path.contains(s) && !q.body.contains(s), "{s} in url/body");
+        }
+    }
+}
+
+#[test]
+fn every_credential_rejected_on_the_patches_only_warns() {
+    let r = repo("tr-allauth", "feat/x");
+    let m = Mock::start(|q| (q.method == "PATCH").then(|| json_reply(401, r#"{"message":"nope"}"#)));
+    let run = ship_pr(&r, &m.base, TOKEN, PAT, &[], &with(&["--transition", "Resolved"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stdout().ends_with("work_items=42\ncomplete_transitions_work_items=unset\n"), "{}", run.stdout());
+    assert!(
+        run.stderr().contains(">> WARNING: could not set \"complete linked work items\" to true on PR 9"),
+        "{}",
+        run.stderr()
+    );
+    assert!(run.stderr().contains(">> WARNING: could not transition work item 42 -> Resolved"), "{}", run.stderr());
+}
+
+#[test]
+fn the_state_is_trimmed_and_blank_means_none() {
+    let r = repo("tr-trim", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &with(&["--transition", " Resolved "]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stdout().contains("work_item=42 state=Resolved\n"), "{}", run.stdout());
+    let patch = m.requests().into_iter().find(|q| q.path.starts_with("/acme/My%20Project/_apis/wit/")).unwrap();
+    assert_eq!(patch.json()[0]["value"], "Resolved");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &with(&["--transition", "   "]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(!run.stdout().contains("work_item="), "{}", run.stdout());
+}
+
+#[test]
+fn repeated_transition_flags_take_the_last_value() {
+    let r = repo("tr-repeat", "feat/x");
+    let m = Mock::happy();
+    let args = with(&[
+        "--transition",
+        "Active",
+        "--transition",
+        "Resolved",
+        "--no-complete-transition",
+        "--no-complete-transition",
+    ]);
+    let run = run_ok(&r, &m, &args);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(
+        run.stdout().contains("complete_transitions_work_items=false\nwork_item=42 state=Resolved\n"),
+        "{}",
+        run.stdout()
+    );
 }

@@ -116,6 +116,24 @@ pub fn work_item_patch(title: &str, assignee: &str) -> Value {
     Value::Array(ops)
 }
 
+/// The verb of a call that carries a body (a call without one is a GET).
+#[derive(Debug, Clone, Copy)]
+enum Method {
+    Post,
+    Patch,
+}
+
+/// The read-back of the completion PATCH: the response's `completionOptions.transitionWorkItems`
+/// when it is a boolean, else `None` (absent, null or any other type).
+pub fn read_back_transition(v: &Value) -> Option<bool> {
+    v.get("completionOptions")?.get("transitionWorkItems")?.as_bool()
+}
+
+/// JSON-patch document that sets a work item's state.
+pub fn state_patch(state: &str) -> Value {
+    json!([{ "op": "add", "path": "/fields/System.State", "value": state }])
+}
+
 pub struct Client {
     agent: ureq::Agent,
     /// Origin + org used for API calls (the test seam replaces `https://dev.azure.com`).
@@ -194,7 +212,7 @@ impl Client {
         );
         let mut i = self.idx;
         let (status, v) = loop {
-            let (status, v) = self.once(&self.creds[i].header(), &url, None, "")?;
+            let (status, v) = self.once(Method::Post, &self.creds[i].header(), &url, None, "")?;
             if !is_auth_failure(status) || i + 1 >= self.creds.len() {
                 break (status, v);
             }
@@ -232,13 +250,57 @@ impl Client {
             .ok_or_else(|| "unexpected response creating the work item".to_string())
     }
 
-    /// GET (no payload) or POST one request on the current credential. A 401/403, a 203
-    /// (ADO's answer to a bad PAT is a sign-in page) or a redirect moves to the next
-    /// credential once and prints the TS fallback line; later calls stay on it. With no
-    /// credential left, the rejection comes back as an error.
+    /// Set the PR's "complete linked work items after merging" option to `want`; returns the
+    /// value the response carries (`None` = unset), never the requested one.
+    pub fn set_complete_transition(&mut self, pr_id: u64, want: bool) -> Result<Option<bool>, String> {
+        let url = format!(
+            "{}/{}/_apis/git/repositories/{}/pullrequests/{pr_id}?api-version={API_VERSION}",
+            self.api_org,
+            http::enc(&self.project),
+            http::enc(&self.repo)
+        );
+        let body = json!({ "completionOptions": { "transitionWorkItems": want } });
+        let (status, v) = self.send_as(Method::Patch, &url, Some(&body), "application/json")?;
+        if !(200..300).contains(&status) {
+            return Err(api_error(status, &v));
+        }
+        Ok(read_back_transition(&v))
+    }
+
+    /// Set work item `id`'s `System.State` to `state`.
+    pub fn transition_work_item(&mut self, id: u64, state: &str) -> Result<(), String> {
+        let url = format!(
+            "{}/{}/_apis/wit/workitems/{id}?api-version={API_VERSION}",
+            self.api_org,
+            http::enc(&self.project)
+        );
+        let (status, v) =
+            self.send_as(Method::Patch, &url, Some(&state_patch(state)), "application/json-patch+json")?;
+        if (200..300).contains(&status) {
+            Ok(())
+        } else {
+            Err(api_error(status, &v))
+        }
+    }
+
+    /// GET (no payload) or POST, through [`send_as`](Self::send_as).
     fn send(&mut self, url: &str, payload: Option<&Value>, content_type: &str) -> Result<(u16, Value), String> {
+        self.send_as(Method::Post, url, payload, content_type)
+    }
+
+    /// One request on the current credential: a GET when there is no payload, else `method`.
+    /// A 401/403, a 203 (ADO's answer to a bad PAT is a sign-in page) or a redirect moves to the
+    /// next credential once and prints the TS fallback line; later calls stay on it. With no
+    /// credential left, the rejection comes back as an error.
+    fn send_as(
+        &mut self,
+        method: Method,
+        url: &str,
+        payload: Option<&Value>,
+        content_type: &str,
+    ) -> Result<(u16, Value), String> {
         loop {
-            let (status, v) = self.once(&self.creds[self.idx].header(), url, payload, content_type)?;
+            let (status, v) = self.once(method, &self.creds[self.idx].header(), url, payload, content_type)?;
             if !is_auth_failure(status) {
                 return Ok((status, v));
             }
@@ -254,7 +316,14 @@ impl Client {
         }
     }
 
-    fn once(&self, auth: &str, url: &str, payload: Option<&Value>, content_type: &str) -> Result<(u16, Value), String> {
+    fn once(
+        &self,
+        method: Method,
+        auth: &str,
+        url: &str,
+        payload: Option<&Value>,
+        content_type: &str,
+    ) -> Result<(u16, Value), String> {
         let ua = concat!("ship/", env!("CARGO_PKG_VERSION"));
         let result = match payload {
             None => self
@@ -264,14 +333,17 @@ impl Client {
                 .header("Accept", "application/json")
                 .header("User-Agent", ua)
                 .call(),
-            Some(p) => self
-                .agent
-                .post(url)
-                .header("Authorization", auth)
-                .header("Accept", "application/json")
-                .header("User-Agent", ua)
-                .content_type(content_type)
-                .send(p.to_string().as_bytes()),
+            Some(p) => {
+                let req = match method {
+                    Method::Patch => self.agent.patch(url),
+                    Method::Post => self.agent.post(url),
+                };
+                req.header("Authorization", auth)
+                    .header("Accept", "application/json")
+                    .header("User-Agent", ua)
+                    .content_type(content_type)
+                    .send(p.to_string().as_bytes())
+            }
         };
         let mut resp = match result {
             Ok(r) => r,
@@ -410,6 +482,30 @@ mod tests {
             ])
         );
         assert_eq!(work_item_patch("t", "").as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn read_back_maps_booleans_and_everything_else_to_unset() {
+        assert_eq!(read_back_transition(&json!({"completionOptions": {"transitionWorkItems": true}})), Some(true));
+        assert_eq!(read_back_transition(&json!({"completionOptions": {"transitionWorkItems": false}})), Some(false));
+        for v in [
+            json!({}),
+            json!({"completionOptions": null}),
+            json!({"completionOptions": {}}),
+            json!({"completionOptions": {"transitionWorkItems": null}}),
+            json!({"completionOptions": {"transitionWorkItems": "true"}}),
+            Value::Null,
+        ] {
+            assert_eq!(read_back_transition(&v), None, "{v}");
+        }
+    }
+
+    #[test]
+    fn state_patch_sets_system_state() {
+        assert_eq!(
+            state_patch("Resolved"),
+            json!([{"op": "add", "path": "/fields/System.State", "value": "Resolved"}])
+        );
     }
 
     #[test]

@@ -705,3 +705,33 @@ fn closed_stdout_still_applies_labels_and_reviewers() {
         ]
     );
 }
+
+#[test]
+fn transition_flags_are_ignored_on_github() {
+    let r = repo("transition", "feat/x", GH_URL);
+    let plain = Mock::start(vec![]);
+    let base = run_ok(&r, &plain, &["--title", "x", "--tag", "a"]);
+    let flagged = Mock::start(vec![]);
+    let with = run_ok(
+        &r,
+        &flagged,
+        &[
+            "--title",
+            "x",
+            "--tag",
+            "a",
+            "--transition",
+            "Resolved",
+            "--no-complete-transition",
+        ],
+    );
+    assert_eq!(with.code(), 0, "{}", with.stderr());
+    assert_eq!(with.stdout(), base.stdout());
+    assert_eq!(with.stderr(), base.stderr());
+    assert_eq!(paths(&flagged), paths(&plain));
+    assert!(
+        !with.stdout().contains("complete_transitions_work_items"),
+        "{}",
+        with.stdout()
+    );
+}

@@ -33,3 +33,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-4-add-optional-and-required-reviewers-on-azure.md`
   summary: Azure reviewer lookup uses `searchFilter=General` and takes `value[0]`, so a name matching several identities could add the wrong person; consider `MailAddress`/`AccountName` filtering or requiring exactly one match whose mail equals the UPN.
   evidence: Same filter and pick as TS `resolveAzureIdentity`; unverified whether General returns more than one identity for a full UPN — settle against a real Azure DevOps org.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-5-transition-work-items-on-open-and-on-completion.md`
+  summary: Repeated single-value `ship pr` flags (e.g. `--work-item`, `--assignee`, `--title`) exit 2 under clap, while TS takes the last value.
+  evidence: Edge-case review of Story 3.5 confirmed it on the built binary for the new flags; those two now use `overrides_with`, but the older flags still differ from TS `argv[++i]` parsing.
