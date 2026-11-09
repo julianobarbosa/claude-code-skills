@@ -116,17 +116,33 @@ pub fn work_item_patch(title: &str, assignee: &str) -> Value {
     Value::Array(ops)
 }
 
-/// The verb of a call that carries a body (a call without one is a GET).
+/// The verb of a call. `Post` and `Patch` carry a body; `Get` and `Delete` do not.
 #[derive(Debug, Clone, Copy)]
 enum Method {
+    Get,
     Post,
     Patch,
+    Delete,
 }
 
 /// The read-back of the completion PATCH: the response's `completionOptions.transitionWorkItems`
 /// when it is a boolean, else `None` (absent, null or any other type).
 pub fn read_back_transition(v: &Value) -> Option<bool> {
     v.get("completionOptions")?.get("transitionWorkItems")?.as_bool()
+}
+
+/// The non-empty `name`s in a label list response's `value` array.
+pub fn label_names(v: &Value) -> Vec<String> {
+    v.get("value")
+        .and_then(Value::as_array)
+        .map(|a| {
+            a.iter()
+                .filter_map(|l| l.get("name").and_then(Value::as_str))
+                .filter(|n| !n.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// JSON-patch document that sets a work item's state.
@@ -229,7 +245,7 @@ impl Client {
         );
         let mut i = self.idx;
         let (status, v) = loop {
-            let (status, v) = self.once(Method::Post, &self.creds[i].header(), &url, None, "")?;
+            let (status, v) = self.once(Method::Get, &self.creds[i].header(), &url, None, "")?;
             if !is_auth_failure(status) || i + 1 >= self.creds.len() {
                 break (status, v);
             }
@@ -317,12 +333,56 @@ impl Client {
         }
     }
 
-    /// GET (no payload) or POST, through [`send_as`](Self::send_as).
-    fn send(&mut self, url: &str, payload: Option<&Value>, content_type: &str) -> Result<(u16, Value), String> {
-        self.send_as(Method::Post, url, payload, content_type)
+    fn labels_url(&self, pr_id: u64, tail: &str) -> String {
+        format!(
+            "{}/{}/_apis/git/repositories/{}/pullRequests/{pr_id}/labels{tail}?api-version={API_VERSION}",
+            self.api_org,
+            http::enc(&self.project),
+            http::enc(&self.repo)
+        )
     }
 
-    /// One request on the current credential: a GET when there is no payload, else `method`.
+    /// Add tag `name` to PR `pr_id`. Azure creates the tag definition if it is new; a tag the
+    /// PR already has is not an error. A 404 is an error here (approved deviation from the TS).
+    pub fn add_pr_label(&mut self, pr_id: u64, name: &str) -> Result<(), String> {
+        let url = self.labels_url(pr_id, "");
+        let (status, v) = self.send_as(Method::Post, &url, Some(&json!({ "name": name })), "application/json")?;
+        if (200..300).contains(&status) {
+            Ok(())
+        } else {
+            Err(api_error(status, &v))
+        }
+    }
+
+    /// Remove tag `name` from PR `pr_id`; a tag the PR does not have (404) is an error.
+    pub fn remove_pr_label(&mut self, pr_id: u64, name: &str) -> Result<(), String> {
+        let url = self.labels_url(pr_id, &format!("/{}", http::enc(name)));
+        let (status, v) = self.send_as(Method::Delete, &url, None, "")?;
+        if (200..300).contains(&status) {
+            Ok(())
+        } else {
+            Err(api_error(status, &v))
+        }
+    }
+
+    /// The names of PR `pr_id`'s tags (`value[].name`; entries without a name are skipped).
+    pub fn list_pr_labels(&mut self, pr_id: u64) -> Result<Vec<String>, String> {
+        let url = self.labels_url(pr_id, "");
+        let (status, v) = self.send_as(Method::Get, &url, None, "")?;
+        if !(200..300).contains(&status) {
+            return Err(api_error(status, &v));
+        }
+        Ok(label_names(&v))
+    }
+
+    /// GET (no payload) or POST, through [`send_as`](Self::send_as).
+    fn send(&mut self, url: &str, payload: Option<&Value>, content_type: &str) -> Result<(u16, Value), String> {
+        let method = if payload.is_some() { Method::Post } else { Method::Get };
+        self.send_as(method, url, payload, content_type)
+    }
+
+    /// One request on the current credential with `method` (`payload` only goes out on a
+    /// `Post` or `Patch`).
     /// A 401/403, a 203 (ADO's answer to a bad PAT is a sign-in page) or a redirect moves to the
     /// next credential once and prints the TS fallback line; later calls stay on it. With no
     /// credential left, the rejection comes back as an error.
@@ -359,25 +419,24 @@ impl Client {
         content_type: &str,
     ) -> Result<(u16, Value), String> {
         let ua = concat!("ship/", env!("CARGO_PKG_VERSION"));
-        let result = match payload {
-            None => self
-                .agent
-                .get(url)
-                .header("Authorization", auth)
+        let bodyless = |b: ureq::RequestBuilder<ureq::typestate::WithoutBody>| {
+            b.header("Authorization", auth)
                 .header("Accept", "application/json")
                 .header("User-Agent", ua)
-                .call(),
-            Some(p) => {
-                let req = match method {
-                    Method::Patch => self.agent.patch(url),
-                    Method::Post => self.agent.post(url),
-                };
-                req.header("Authorization", auth)
-                    .header("Accept", "application/json")
-                    .header("User-Agent", ua)
-                    .content_type(content_type)
-                    .send(p.to_string().as_bytes())
-            }
+                .call()
+        };
+        let with_body = |b: ureq::RequestBuilder<ureq::typestate::WithBody>| {
+            b.header("Authorization", auth)
+                .header("Accept", "application/json")
+                .header("User-Agent", ua)
+                .content_type(content_type)
+                .send(payload.map_or_else(String::new, Value::to_string).as_bytes())
+        };
+        let result = match method {
+            Method::Get => bodyless(self.agent.get(url)),
+            Method::Delete => bodyless(self.agent.delete(url)),
+            Method::Post => with_body(self.agent.post(url)),
+            Method::Patch => with_body(self.agent.patch(url)),
         };
         let mut resp = match result {
             Ok(r) => r,
@@ -532,6 +591,16 @@ mod tests {
         ] {
             assert_eq!(read_back_transition(&v), None, "{v}");
         }
+    }
+
+    #[test]
+    fn label_names_reads_value_and_skips_blank_names() {
+        assert_eq!(
+            label_names(&json!({"value": [{"name": "a"}, {"id": "x"}, {"name": ""}, {"name": "b"}]})),
+            ["a", "b"]
+        );
+        assert!(label_names(&json!({})).is_empty());
+        assert!(label_names(&Value::Null).is_empty());
     }
 
     #[test]

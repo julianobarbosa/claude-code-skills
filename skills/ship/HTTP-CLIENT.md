@@ -47,6 +47,9 @@ Only `ureq` and `serde_json` were added to the crate (alongside `clap` and `rege
 | Completion option (Story 3.5) | `PATCH {org}/{project}/_apis/git/repositories/{repo}/pullrequests/{id}?api-version=7.1`, `Content-Type: application/json`, body `{"completionOptions":{"transitionWorkItems":<bool>}}` (the create call drops `completionOptions`) |
 | Work-item state (Story 3.5) | `PATCH {org}/{project}/_apis/wit/workitems/{id}?api-version=7.1`, `Content-Type: application/json-patch+json`, body `[{"op":"add","path":"/fields/System.State","value":<state>}]` |
 | Related link (Story 3.6) | `PATCH {org}/{project}/_apis/wit/workitems/{own}?api-version=7.1`, `Content-Type: application/json-patch+json`, body `[{"op":"add","path":"/relations/-","value":{"rel":"System.LinkTypes.Related","url":"<real org URL>/_apis/wit/workItems/<rid>","attributes":{"comment":"Related via PR <prId>"}}}]`. The relation URL is the real org URL from the remote, never the `SHIP_ADO_API_URL` seam. |
+| PR label add (Story 3.7) | `POST {org}/{project}/_apis/git/repositories/{repo}/pullRequests/{id}/labels?api-version=7.1`, body `{"name":<tag>}`; one call per tag |
+| PR label remove (Story 3.7) | `DELETE …/pullRequests/{id}/labels/<enc(name)>?api-version=7.1` (no body) |
+| PR label list (Story 3.7) | `GET …/pullRequests/{id}/labels?api-version=7.1`; the names are `value[].name` |
 
 `{org}` is `https://dev.azure.com/<org>`; project and repo are percent-encoded in the path. The identities API lives on a different origin, `https://vssps.dev.azure.com/{org}` (org = the org segment of the org URL).
 
@@ -63,6 +66,20 @@ Only `ureq` and `serde_json` were added to the crate (alongside `clap` and `rege
 **The 203 rule.** Azure DevOps answers a bad PAT with `203` (an HTML sign-in page) or a redirect to one. A 203 or any 3xx is therefore treated like a 401/403: it triggers the fallback, or fails the run when no credential is left. Redirects are never followed, so a credential cannot reach another host.
 
 **Test seam.** `SHIP_ADO_API_URL` replaces the `https://dev.azure.com` origin of API calls and also the `https://vssps.dev.azure.com` origin of identity lookups (same https-or-loopback guard as `SHIP_GITHUB_API_URL`). The printed `pr_url` still uses the real org URL.
+
+## Tags on an existing PR (Story 3.7)
+
+`ship tag` reuses the credential order, fallback line and 203/3xx rule above. On Azure the three label calls in the table run in the order adds, removes, list. On GitHub (issues API; a PR is an issue):
+
+| Call | Request |
+|---|---|
+| Label add | `POST /repos/{o}/{r}/issues/{n}/labels`, body `{"labels":[<every tag>]}`; GitHub creates a missing label |
+| Label remove | `DELETE /repos/{o}/{r}/issues/{n}/labels/<enc(name)>` |
+| Label list | `GET /repos/{o}/{r}/issues/{n}/labels` (first page only, as the TS) |
+
+An add failure is fatal (`ship-tag failed: <err>`, exit 1); a remove failure prints `>> could not remove '<name>': <err>` and the run exits 0.
+
+**Approved deviation (Barbosa, 2026-11-09):** on Azure the TS reports a 404 as success (its `typed-rest-client` resolves it), so a missing PR looks like a clean add or an empty list. The Rust port treats a 404 like any other error: `ship-tag failed: HTTP 404…` on an add or the list, the could-not-remove warning on a remove. The TS bug is logged in `deferred-work.md`.
 
 ## musl note
 

@@ -58,6 +58,14 @@ pub fn create_payload(title: &str, head: &str, base: &str, draft: bool, body: &s
     v
 }
 
+/// The verb of a call; only `Post` carries a body.
+#[derive(Debug, Clone, Copy)]
+enum Method {
+    Get,
+    Post,
+    Delete,
+}
+
 pub struct Client {
     agent: ureq::Agent,
     base: String,
@@ -88,20 +96,37 @@ impl Client {
         format!("{}/repos/{}/{}/{tail}", self.base, http::enc(&self.owner), http::enc(&self.repo))
     }
 
-    /// POST `payload`; `Ok(parsed body)` on 2xx, else `Err("HTTP <status>: <message>")`.
-    /// Error text is built from the response status, message and `errors[]` details, never the token.
     fn post(&self, url: &str, payload: &Value) -> Result<Value, String> {
-        let body = payload.to_string();
-        let mut resp = self
-            .agent
-            .post(url)
-            .header("Authorization", format!("Bearer {}", self.token))
-            .header("Accept", "application/vnd.github+json")
-            .header("X-GitHub-Api-Version", API_VERSION)
-            .header("User-Agent", concat!("ship/", env!("CARGO_PKG_VERSION")))
-            .content_type("application/json")
-            .send(body.as_bytes())
-            .map_err(|e| format!("request failed: {e}"))?;
+        self.send(Method::Post, url, Some(payload))
+    }
+
+    /// One request; `Ok(parsed body)` on 2xx, else `Err("HTTP <status>: <message>")`.
+    /// `payload` only goes out on a `Post`. Error text is built from the response status,
+    /// message and `errors[]` details, never the token.
+    fn send(&self, method: Method, url: &str, payload: Option<&Value>) -> Result<Value, String> {
+        let auth = format!("Bearer {}", self.token);
+        let ua = concat!("ship/", env!("CARGO_PKG_VERSION"));
+        let bodyless = |b: ureq::RequestBuilder<ureq::typestate::WithoutBody>| {
+            b.header("Authorization", &auth)
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", API_VERSION)
+                .header("User-Agent", ua)
+                .call()
+        };
+        let result = match method {
+            Method::Get => bodyless(self.agent.get(url)),
+            Method::Delete => bodyless(self.agent.delete(url)),
+            Method::Post => self
+                .agent
+                .post(url)
+                .header("Authorization", &auth)
+                .header("Accept", "application/vnd.github+json")
+                .header("X-GitHub-Api-Version", API_VERSION)
+                .header("User-Agent", ua)
+                .content_type("application/json")
+                .send(payload.map_or_else(String::new, Value::to_string).as_bytes()),
+        };
+        let mut resp = result.map_err(|e| format!("request failed: {e}"))?;
         let status = resp.status().as_u16();
         let text = resp.body_mut().read_to_string().unwrap_or_default();
         let parsed: Value = serde_json::from_str(&text).unwrap_or(Value::Null);
@@ -141,6 +166,23 @@ impl Client {
     pub fn add_labels(&self, number: u64, labels: &[String]) -> Result<(), String> {
         self.post(&self.repo_url(&format!("issues/{number}/labels")), &json!({ "labels": labels }))
             .map(|_| ())
+    }
+
+    /// Remove label `name` from PR/issue `number`; a label the PR does not carry (404) is an error.
+    pub fn remove_label(&self, number: u64, name: &str) -> Result<(), String> {
+        let url = self.repo_url(&format!("issues/{number}/labels/{}", http::enc(name)));
+        self.send(Method::Delete, &url, None).map(|_| ())
+    }
+
+    /// The label names on PR/issue `number`: the first page only, as the TS.
+    pub fn list_labels(&self, number: u64) -> Result<Vec<String>, String> {
+        let v = self.send(Method::Get, &self.repo_url(&format!("issues/{number}/labels")), None)?;
+        let arr = v.as_array().ok_or_else(|| "unexpected response listing the labels".to_string())?;
+        Ok(arr
+            .iter()
+            .filter_map(|l| l.get("name").and_then(Value::as_str))
+            .map(str::to_string)
+            .collect())
     }
 
     pub fn request_reviewers(&self, number: u64, reviewers: &[String]) -> Result<(), String> {
