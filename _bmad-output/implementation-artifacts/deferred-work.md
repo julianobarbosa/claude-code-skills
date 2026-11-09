@@ -40,3 +40,15 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-6-link-related-work-items-without-closing-them.md`
   summary: The `--related` mention warning does not check the PR title for `#<id>`/`AB#<id>`, in TS or in the Rust port.
   evidence: maybe-false, medium if true. It is unverified whether Azure Repos links a work item mentioned in a PR title. If it does, Complete would close that related epic with no warning. To settle it, open a test PR on a real org with `AB#<id>` only in the title and check the PR's linked work items.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-manage-tags-on-an-existing-pr-with-ship-tag.md`
+  summary: `ship-tag.ts` reports an Azure 404 as success: `typed-rest-client` resolves a 404 instead of throwing, so `createPullRequestLabel` on a missing PR prints `tag_added=<tag>` and `getPullRequestLabels` prints `platform=azure` with no tags. The Rust `ship tag` treats a 404 as an error (approved deviation, Barbosa 2026-11-09, option B); the TS script is unchanged.
+  evidence: The TS wraps the SDK calls with no status check, and `deletePullRequestLabels` relies on the same SDK for its "404 is non-fatal" comment. Fixing the TS needs a status check on each SDK result; `scripts/*.ts` stay frozen until Epic 5 replaces them.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-manage-tags-on-an-existing-pr-with-ship-tag.md`
+  summary: `ship tag --add` with a tag already on an Azure PR is assumed to succeed, but this is unverified against a real org.
+  evidence: maybe-false, medium if true. The tests use a mock that answers 200 to every label POST. If Azure DevOps answers 409 for a duplicate label, re-adding fails with exit 1 and AC "re-adding succeeds" breaks. To settle it, run `ship tag <id> --add x` twice on a real PR.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-7-manage-tags-on-an-existing-pr-with-ship-tag.md`
+  summary: `ship tag --list` on GitHub reads only the first page of labels (30), in TS and in the Rust port.
+  evidence: low. `issues/{n}/labels` is called without `per_page`, so a PR with more than 30 labels lists a truncated set with no warning. The fix is `?per_page=100` plus pagination, kept out of this story for TS parity.

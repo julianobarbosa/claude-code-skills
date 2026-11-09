@@ -11,6 +11,7 @@ pub mod pr;
 pub mod preflight;
 pub mod push;
 pub mod snapshot;
+pub mod tag;
 
 use regex::Regex;
 use std::sync::LazyLock;

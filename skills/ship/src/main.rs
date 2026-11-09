@@ -100,6 +100,27 @@ enum Command {
         #[arg(long, overrides_with = "no_complete_transition")]
         no_complete_transition: bool,
     },
+    /// Add, remove or list the tags of an existing pull request (Azure tags, GitHub labels)
+    Tag {
+        /// Pull request id (Azure `pr_id`, GitHub `pr_number`); digits only
+        #[arg(value_name = "ID")]
+        id: Option<String>,
+        /// Pull request id, as a flag
+        #[arg(long = "pr", value_name = "ID", allow_hyphen_values = true, overrides_with = "pr")]
+        pr: Option<String>,
+        /// Tag(s) to add, comma-separated and repeatable
+        #[arg(long = "add", value_name = "TAGS", allow_hyphen_values = true)]
+        add: Vec<String>,
+        /// Tag(s) to remove, comma-separated and repeatable
+        #[arg(long = "remove", value_name = "TAGS", allow_hyphen_values = true)]
+        remove: Vec<String>,
+        /// Print the current tags (the default when nothing is added or removed)
+        #[arg(long, overrides_with = "list")]
+        list: bool,
+        /// Git remote the PR belongs to
+        #[arg(short, long, default_value = "origin", allow_hyphen_values = true, overrides_with = "remote")]
+        remote: String,
+    },
     /// Save HEAD as an annotated, self-describing git tag (a checkpoint)
     Snapshot {
         /// Extra message paragraph (repeatable; each becomes its own paragraph)
@@ -168,6 +189,9 @@ fn main() -> ExitCode {
             transition,
             no_complete_transition,
         }),
+        Command::Tag { id, pr, add, remove, list, remote } => {
+            ship::tag::run(&ship::tag::Args { id, pr, add, remove, list, remote })
+        }
         Command::Snapshot { message, daily, name, push } => {
             ship::snapshot::run(&message, daily, name.as_deref(), push)
         }
