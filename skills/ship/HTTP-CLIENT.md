@@ -45,13 +45,19 @@ Only `ureq` and `serde_json` were added to the crate (alongside `clap` and `rege
 
 | Work-item create (Story 3.3) | `POST {org}/{project}/_apis/wit/workitems/${type}?api-version=7.1`, `Content-Type: application/json-patch+json`, body `[{"op":"add","path":"/fields/System.Title","value":<title>}]` plus an `/fields/System.AssignedTo` op when the assignee is non-empty. The `$type` segment is percent-encoded (`User Story` becomes `%24User%20Story`); the printed id is the response's `id`. |
 
-`{org}` is `https://dev.azure.com/<org>`; project and repo are percent-encoded in the path.
+| Identity lookup (Story 3.4) | `GET https://vssps.dev.azure.com/{org}/_apis/identities?searchFilter=General&filterValue=<encodeURIComponent(upn)>&api-version=7.1`; the identity is `value[0].id` |
+
+`{org}` is `https://dev.azure.com/<org>`; project and repo are percent-encoded in the path. The identities API lives on a different origin, `https://vssps.dev.azure.com/{org}` (org = the org segment of the org URL).
+
+**Reviewers (Story 3.4).** Each `--reviewer` (optional) and `--required-reviewer` UPN is resolved after work-item handling and before the PR create, optional first. A GUID passes through with no lookup. The lookup starts on the credential the client is on and moves to the next after a 401/403/203/3xx, printing `>> identity lookup got HTTP <status>; retrying with the next credential`. A name that cannot be resolved prints `>> WARNING: could not resolve reviewer '<upn>' (<why>); skipping` and `reviewer_skipped=<upn>` (printed at that point, before `platform=azure`) and never blocks the PR. Each UPN is looked up once, and one resolved identity appears once in `reviewers` and in the `reviewer_added=` lines (first UPN spelling, `required=true` if either list named it, so a UPN plus its GUID, or the same person in both flags, is not sent twice). An empty `id` counts as `no matching identity`.
+
+`SHIP_ADO_DEFAULT_REVIEWER`: trimmed; used only when neither `--reviewer` nor `--required-reviewer` is given; ignored with `--no-reviewer`; always added as an optional reviewer, with `>> NOTE: no reviewer given; using SHIP_ADO_DEFAULT_REVIEWER (<value>)`. Resolved reviewers go into the create body as `reviewers: [{id, isRequired}]` (omitted when none resolved); `reviewer_added=<upn> required=<bool>` lines follow `tag_added=`.
 
 **Auth order (NFR5).** The `az` token (`git::try_ado_token`) is sent as `Authorization: Bearer`. A PAT (`AZURE_DEVOPS_EXT_PAT`, else `AZURE_DEVOPS_PAT`) is sent as `Authorization: Basic base64(":" + pat)`. With neither, the run exits 1 before any request. A 401 or 403 moves to the next credential once, prints `>> bearer auth failed (401/403); falling back to pat`, and later calls stay on it. With no credential left, the rejection is `ship-pr failed: HTTP <status>: <message>`.
 
 **The 203 rule.** Azure DevOps answers a bad PAT with `203` (an HTML sign-in page) or a redirect to one. A 203 or any 3xx is therefore treated like a 401/403: it triggers the fallback, or fails the run when no credential is left. Redirects are never followed, so a credential cannot reach another host.
 
-**Test seam.** `SHIP_ADO_API_URL` replaces the `https://dev.azure.com` origin of API calls (same https-or-loopback guard as `SHIP_GITHUB_API_URL`). The printed `pr_url` still uses the real org URL.
+**Test seam.** `SHIP_ADO_API_URL` replaces the `https://dev.azure.com` origin of API calls and also the `https://vssps.dev.azure.com` origin of identity lookups (same https-or-loopback guard as `SHIP_GITHUB_API_URL`). The printed `pr_url` still uses the real org URL.
 
 ## musl note
 

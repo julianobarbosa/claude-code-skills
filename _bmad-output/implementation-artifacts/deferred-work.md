@@ -30,3 +30,6 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-1-open-a-github-pr-with-labels-and-reviewers.md`
   summary: Default PR labels take any leading `Word:` in the title as a Conventional-Commit type, so `WIP: x` or `Re: y` creates and applies a `wip`/`re` label on the repo; restrict to a known type list before falling back to the branch prefix.
   evidence: Same regex as TS `defaultTagsFromTitle` (ship-lib.ts), so parity holds today; fixing it changes labels relative to TS and wants a deliberate decision.
+- source_spec: `_bmad-output/implementation-artifacts/spec-3-4-add-optional-and-required-reviewers-on-azure.md`
+  summary: Azure reviewer lookup uses `searchFilter=General` and takes `value[0]`, so a name matching several identities could add the wrong person; consider `MailAddress`/`AccountName` filtering or requiring exactly one match whose mail equals the UPN.
+  evidence: Same filter and pick as TS `resolveAzureIdentity`; unverified whether General returns more than one identity for a full UPN — settle against a real Azure DevOps org.
