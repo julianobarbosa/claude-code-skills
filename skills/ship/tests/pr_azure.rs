@@ -635,16 +635,6 @@ fn a_redirect_is_an_auth_failure_and_is_not_followed() {
     assert!(sink.requests().is_empty(), "the credential must not follow a redirect");
 }
 
-#[test]
-fn related_flag_fails_fast_without_calling_the_api() {
-    let r = repo("unsupported", "feat/x");
-    let m = Mock::happy();
-    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "5"]);
-    assert_eq!(run.code(), 1);
-    assert!(run.stderr().contains("--related is not yet supported on Azure by the binary"), "{}", run.stderr());
-    assert!(m.requests().is_empty());
-}
-
 const IDENT: &str = "GET /acme/_apis/identities?searchFilter=General&filterValue=";
 const BASE_ARGS: [&str; 5] = ["--title", "x", "--no-tag", "--work-item", "42"];
 
@@ -1178,4 +1168,343 @@ fn repeated_transition_flags_take_the_last_value() {
         "{}",
         run.stdout()
     );
+}
+
+// --- Story 3.6: --related links the PR's own items Related, never the PR ---
+
+/// The work-item read for `id` (org-level path).
+fn read_path(id: u64) -> String {
+    format!("GET /acme/_apis/wit/workitems/{id}?api-version=7.1")
+}
+
+/// The relation PATCH body that relates an own item to `rid` through PR 9.
+fn relation_body(rid: u64) -> serde_json::Value {
+    serde_json::json!([{
+        "op": "add", "path": "/relations/-",
+        "value": {
+            "rel": "System.LinkTypes.Related",
+            "url": format!("https://dev.azure.com/acme/_apis/wit/workItems/{rid}"),
+            "attributes": {"comment": "Related via PR 9"}
+        }
+    }])
+}
+
+/// The work-item PATCHes (relation and state), in order.
+fn wi_patches(m: &Mock) -> Vec<Req> {
+    m.requests().into_iter().filter(|q| q.method == "PATCH" && q.path.contains("/_apis/wit/workitems/")).collect()
+}
+
+const MENTION_WARNING: &str = "mention #7; Azure Repos may link it to the PR, and Complete would then close it. \
+                               Reword it (e.g. \"item 7\") before completing.";
+
+#[test]
+fn related_ids_are_verified_then_linked_from_the_own_item_only() {
+    let r = repo("rel-happy", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "7,AB#8"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!(
+            "platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\n\
+             related_linked=42->7\nrelated_linked=42->8\n{COMPLETE}"
+        )
+    );
+    assert_eq!(
+        paths(&m),
+        [
+            read_path(7),
+            read_path(8),
+            read_path(42),
+            PR_PATH.to_string(),
+            state_path(42),
+            state_path(42),
+            COMPLETE_PATH.to_string()
+        ]
+    );
+    // The PR references only its own item; the related ids are nowhere in the create.
+    let create = pr_create(&m);
+    assert_eq!(create.json()["workItemRefs"], serde_json::json!([{"id": "42"}]));
+    assert!(!create.body.contains("\"7\"") && !create.body.contains("\"8\""), "{}", create.body);
+    let patches = wi_patches(&m);
+    assert_eq!(patches.len(), 2);
+    for (q, rid) in patches.iter().zip([7, 8]) {
+        assert_eq!(q.headers.get("content-type").map(String::as_str), Some("application/json-patch+json"));
+        assert_eq!(q.json(), relation_body(rid));
+        assert_eq!(q.auth(), bearer());
+    }
+}
+
+#[test]
+fn the_acceptance_run_prints_exactly_and_the_relation_uses_the_real_org_url() {
+    let r = repo("rel-ac", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--work-item", "42", "--related", "7", "--no-tag"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!("platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\nrelated_linked=42->7\n{COMPLETE}")
+    );
+    let patch = &wi_patches(&m)[0];
+    let url = patch.json()[0]["value"]["url"].as_str().unwrap().to_string();
+    assert!(url.starts_with("https://dev.azure.com/acme"), "{url}");
+    assert!(!patch.body.contains(&m.base) && !patch.body.contains("127.0.0.1"), "{}", patch.body);
+}
+
+#[test]
+fn created_own_items_are_each_related() {
+    let r = repo("rel-created", "feat/x");
+    let m = Mock::happy();
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--task", "a", "--task", "b", "--related", "7"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!(
+            "work_item_created=501\nwork_item_created=502\nplatform=azure\npr_id=9\npr_url={PR_URL}\n\
+             work_items=501 502\nrelated_linked=501->7\nrelated_linked=502->7\n{COMPLETE}"
+        )
+    );
+    assert_eq!(paths(&m)[0], read_path(7));
+    let ps: Vec<String> = wi_patches(&m).iter().map(|q| q.path.clone()).collect();
+    assert_eq!(
+        ps,
+        [
+            "/acme/My%20Project/_apis/wit/workitems/501?api-version=7.1",
+            "/acme/My%20Project/_apis/wit/workitems/502?api-version=7.1"
+        ]
+    );
+    assert!(wi_patches(&m).iter().all(|q| q.json() == relation_body(7)));
+}
+
+#[test]
+fn a_missing_related_item_exits_two_with_nothing_written() {
+    let r = repo("rel-missing", "feat/x");
+    let m = Mock::start(|q| {
+        (q.method == "GET" && q.path.contains("/workitems/7?"))
+            .then(|| json_reply(404, r#"{"message":"TF401232: Work item 7 does not exist"}"#))
+    });
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "7,8"]);
+    assert_eq!(run.code(), 2);
+    assert_eq!(run.stdout(), "");
+    assert!(run.stderr().contains("--related 7: work item not found"), "{}", run.stderr());
+    // Verification stops at the first missing id, before the own item and before any write.
+    assert_eq!(paths(&m), [read_path(7)]);
+}
+
+#[test]
+fn any_related_read_error_is_reported_as_not_found() {
+    let r = repo("rel-500", "feat/x");
+    let m = Mock::start(|q| {
+        (q.method == "GET" && q.path.contains("/workitems/8?")).then(|| json_reply(500, r#"{"message":"boom"}"#))
+    });
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "7,8"]);
+    assert_eq!(run.code(), 2);
+    assert!(run.stderr().contains("--related 8: work item not found"), "{}", run.stderr());
+    assert!(m.requests().iter().all(|q| q.method == "GET"), "{:?}", paths(&m));
+    // Every credential rejected on the read is "not found" too.
+    let m = Mock::start(|q| (q.method == "GET").then(|| json_reply(401, r#"{"message":"nope"}"#)));
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "7"]);
+    assert_eq!(run.code(), 2);
+    assert!(run.stderr().contains("--related 7: work item not found"), "{}", run.stderr());
+    assert_eq!(paths(&m), [read_path(7)]);
+}
+
+#[test]
+fn related_skips_branch_inference_and_creates_from_the_title() {
+    // A two-digit id: branch inference needs 2-7 digits, so `feat/7-x` would not infer anyway.
+    let r = repo("rel-branch", "feat/77-x");
+    let m = Mock::happy();
+    let run = run_assigned(&r, &m, &["--title", "x", "--no-tag", "--related", "77"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!(
+            "work_item_created=501\nplatform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=501\n\
+             related_linked=501->77\n{COMPLETE}"
+        )
+    );
+    assert_eq!(
+        paths(&m),
+        [
+            read_path(77),
+            WI_PATH.to_string(),
+            PR_PATH.to_string(),
+            state_path(501),
+            COMPLETE_PATH.to_string()
+        ]
+    );
+    assert_eq!(pr_create(&m).json()["workItemRefs"], serde_json::json!([{"id": "501"}]));
+}
+
+#[test]
+fn the_same_id_as_work_item_and_related_exits_two_before_any_request() {
+    let r = repo("rel-both", "feat/x");
+    let m = Mock::happy();
+    for related in ["7", "AB#7", "3,#7"] {
+        let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "7", "--related", related]);
+        assert_eq!(run.code(), 2, "{related}: {}", run.stderr());
+        assert_eq!(run.stdout(), "");
+        assert!(
+            run.stderr().contains(
+                "work item 7 is both --work-item and --related; a related item is never linked to the PR"
+            ),
+            "{}",
+            run.stderr()
+        );
+    }
+    assert!(m.requests().is_empty());
+}
+
+/// Make `refs/remotes/origin/main` the current commit, then commit `msg` on the branch.
+fn commit_on_branch(r: &Scratch, msg: &str) {
+    git(&r.0, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    std::fs::write(r.0.join("g.txt"), "y\n").unwrap();
+    git(&r.0, &["add", "g.txt"]);
+    git(&r.0, &["-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", msg]);
+}
+
+#[test]
+fn a_mention_in_the_body_and_a_commit_warns_and_the_pr_still_opens() {
+    let r = repo("rel-mention", "feat/x");
+    commit_on_branch(&r, "fixes #7");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "7", "--body", "see AB#7"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    let err = run.stderr();
+    let warning = format!(">> WARNING: the PR body and a commit message {MENTION_WARNING}");
+    assert!(err.contains(&warning), "{err}");
+    // TS order: verify, warn, then resolve the own item.
+    assert!(err.find(&warning).unwrap() < err.find(">> linking existing work item 42").unwrap(), "{err}");
+    assert!(run.stdout().contains("\nrelated_linked=42->7\n"), "{}", run.stdout());
+    // The body is sent as written; the warning never rewrites it.
+    assert_eq!(pr_create(&m).json()["description"], "see AB#7");
+}
+
+#[test]
+fn a_mention_in_only_one_place_names_that_place() {
+    let r = repo("rel-body-only", "feat/x");
+    commit_on_branch(&r, "unrelated change");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "7", "--body", "ab#7"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stderr().contains(&format!(">> WARNING: the PR body {MENTION_WARNING}")), "{}", run.stderr());
+
+    let r = repo("rel-commit-only", "feat/x");
+    commit_on_branch(&r, "subject\n\nRefs #7 for context");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "7", "--body", "item 7"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stderr().contains(&format!(">> WARNING: a commit message {MENTION_WARNING}")), "{}", run.stderr());
+}
+
+#[test]
+fn no_mention_or_an_unknown_range_gives_no_warning() {
+    // `#70` and `x#7` are not mentions of 7; commits before origin/main are outside the range.
+    let r = repo("rel-no-mention", "feat/x");
+    commit_on_branch(&r, "touches #70");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "7", "--body", "x#7"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(!run.stderr().contains("mention #"), "{}", run.stderr());
+    // No origin/main ref: git log fails, which counts as no commit text.
+    let r = repo("rel-no-range", "feat/x");
+    let m = Mock::happy();
+    let run = run_ok(&r, &m, &["--title", "x", "--no-tag", "--work-item", "42", "--related", "7"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(!run.stderr().contains("mention #"), "{}", run.stderr());
+    assert!(run.stdout().contains("\nrelated_linked=42->7\n"), "{}", run.stdout());
+}
+
+#[test]
+fn no_own_item_warns_nothing_linked_and_exits_zero() {
+    let r = repo("rel-no-own", "feat/x");
+    let m = Mock::start(|q| {
+        (q.method == "GET" && q.path.contains("/workitems/42?")).then(|| json_reply(404, r#"{"message":"gone"}"#))
+    });
+    let run =
+        run_ok(&r, &m, &["--title", "x", "--no-tag", "--no-create-work-item", "--work-item", "42", "--related", "7"]);
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(run.stdout(), format!("platform=azure\npr_id=9\npr_url={PR_URL}\n{COMPLETE}"));
+    assert!(
+        run.stderr().contains(
+            ">> WARNING: --related given but the PR has no work item of its own to relate it to; nothing linked"
+        ),
+        "{}",
+        run.stderr()
+    );
+    assert_eq!(paths(&m), [read_path(7), read_path(42), PR_PATH.to_string(), COMPLETE_PATH.to_string()]);
+    assert_eq!(pr_create(&m).json()["workItemRefs"], serde_json::json!([]));
+}
+
+#[test]
+fn a_failed_link_warns_and_the_next_pair_and_later_steps_still_run() {
+    let r = repo("rel-fail", "feat/x");
+    let m = Mock::start(|q| {
+        (q.method == "PATCH" && q.body.contains("workItems/7\""))
+            .then(|| json_reply(400, r#"{"message":"TF401035: bad relation"}"#))
+    });
+    let run = run_ok(
+        &r,
+        &m,
+        &["--title", "x", "--tag", "feat", "--work-item", "42", "--related", "7,8", "--transition", "Resolved"],
+    );
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(
+        run.stdout(),
+        format!(
+            "platform=azure\npr_id=9\npr_url={PR_URL}\nwork_items=42\nrelated_linked=42->8\n\
+             {COMPLETE}work_item=42 state=Resolved\ntag_added=feat\n"
+        )
+    );
+    assert!(
+        run.stderr().contains(">> WARNING: could not link work item 42 Related to 7: HTTP 400: TF401035: bad relation"),
+        "{}",
+        run.stderr()
+    );
+}
+
+#[test]
+fn a_rejected_bearer_on_the_relation_falls_back_to_pat_and_secrets_stay_in_headers() {
+    let r = repo("rel-auth", "feat/x");
+    let bearer_auth = bearer();
+    let m = Mock::start(move |q| {
+        (q.method == "PATCH" && q.auth() == bearer_auth).then(|| json_reply(401, r#"{"message":"nope"}"#))
+    });
+    let run = ship_pr(&r, &m.base, TOKEN, PAT, &[], &with(&["--related", "7"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert_eq!(run.stderr().matches(">> bearer auth failed (401/403); falling back to pat").count(), 1);
+    assert!(run.stdout().contains("\nrelated_linked=42->7\ncomplete_transitions_work_items=true\n"), "{}", run.stdout());
+    let reqs = m.requests();
+    let auths: Vec<&str> = reqs.iter().map(Req::auth).collect();
+    // reads + create on bearer, the relation PATCH rejected then retried on the PAT, which stays.
+    assert_eq!(auths, [bearer(), bearer(), bearer(), bearer(), basic(), basic()]);
+    assert_eq!(reqs[4].json(), relation_body(7));
+    for s in [TOKEN, PAT, PAT_B64] {
+        assert!(!run.stdout().contains(s) && !run.stderr().contains(s), "{s} leaked");
+    }
+    for q in &reqs {
+        for s in [TOKEN, PAT, PAT_B64] {
+            assert!(!q.path.contains(s) && !q.body.contains(s), "{s} in url/body");
+        }
+        for (k, v) in &q.headers {
+            if k != "authorization" {
+                assert!(!v.contains(TOKEN) && !v.contains(PAT_B64), "secret in header {k}");
+            }
+        }
+    }
+}
+
+#[test]
+fn every_credential_rejected_on_the_relation_only_warns() {
+    let r = repo("rel-allauth", "feat/x");
+    let m = Mock::start(|q| {
+        (q.method == "PATCH" && q.body.contains("/relations/-")).then(|| json_reply(401, r#"{"message":"nope"}"#))
+    });
+    let run = ship_pr(&r, &m.base, TOKEN, PAT, &[], &with(&["--related", "7"]));
+    assert_eq!(run.code(), 0, "{}", run.stderr());
+    assert!(run.stdout().ends_with(&format!("work_items=42\n{COMPLETE}")), "{}", run.stdout());
+    assert!(run.stderr().contains(">> WARNING: could not link work item 42 Related to 7: HTTP 401"), "{}", run.stderr());
+    for s in [TOKEN, PAT, PAT_B64] {
+        assert!(!run.stderr().contains(s), "{s} leaked");
+    }
 }

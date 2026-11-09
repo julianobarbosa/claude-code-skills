@@ -216,6 +216,16 @@ pub fn parse_related_ids<S: AsRef<str>>(values: &[S]) -> Result<Vec<u64>, String
     Ok(out)
 }
 
+/// True when `text` mentions work item `id` the way Azure Repos turns into a link on a PR
+/// description or a commit message: `#id` or `AB#id`, not as part of a longer number or word.
+/// TS: `/(^|[^\w#])(AB)?#<id>(?!\d)/i`. Rust `regex` has no lookahead, so the trailing
+/// non-digit is consumed instead (same truth value). The classes are ASCII, as JS `\w` and `\d`
+/// are, and only `AB` folds case, so a non-ASCII letter before the `#` counts as a boundary.
+pub fn mentions_work_item(text: &str, id: u64) -> bool {
+    // `id` is a u64, so the pattern holds only digits from it and always compiles.
+    Regex::new(&format!(r"(?:^|[^0-9A-Za-z_#])(?i:AB)?#{id}(?:[^0-9]|$)")).is_ok_and(|re| re.is_match(text))
+}
+
 /// Paths from `git status --porcelain`, split by what they need to be delivered.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PorcelainStatus {
@@ -557,6 +567,51 @@ mod tests {
         assert!(parse_related_ids(&["AB"]).is_err());
         assert_eq!(parse_related_ids(&["#", " , "]).unwrap(), Vec::<u64>::new());
         assert_eq!(parse_related_ids(&["ab#7"]).unwrap(), vec![7]);
+    }
+    // parseRelatedIds (ship-lib.test.ts)
+    #[test]
+    fn related_ids_csv_and_repeated_flags_deduped_with_prefixes() {
+        assert_eq!(parse_related_ids(&["4242,1717", "AB#4242", " #77 "]).unwrap(), vec![4242, 1717, 77]);
+        assert_eq!(parse_related_ids::<&str>(&[]).unwrap(), Vec::<u64>::new());
+    }
+    #[test]
+    fn related_ids_non_numeric_errors_instead_of_becoming_a_link() {
+        assert!(parse_related_ids(&["23a"]).unwrap_err().contains("is not a work-item id"));
+        assert!(parse_related_ids(&["0"]).is_err());
+    }
+
+    // mentionsWorkItem (ship-lib.test.ts)
+    #[test]
+    fn mentions_hash_and_ab_hash() {
+        assert!(mentions_work_item("pending (AB#4242): x", 4242));
+        assert!(mentions_work_item("see #4242.", 4242));
+        assert!(mentions_work_item("#4242", 4242));
+    }
+    #[test]
+    fn mentions_not_a_longer_number_a_bare_number_or_a_word_attached_hash() {
+        assert!(!mentions_work_item("#42420", 4242));
+        assert!(!mentions_work_item("issue 4242", 4242));
+        assert!(!mentions_work_item("x#4242", 4242));
+    }
+    #[test]
+    fn mentions_edges_match_the_ts_regex() {
+        // `i` flag: any case of AB.
+        assert!(mentions_work_item("ab#7", 7));
+        assert!(mentions_work_item("Ab#7 and more", 7));
+        // Multi-line text (commit messages): a mention at a line start, and at the end.
+        assert!(mentions_work_item("subject\n\nfixes #7", 7));
+        assert!(mentions_work_item("subject\n#7\n", 7));
+        // `_` is a word char; `#` before the hash is excluded; a longer id or a prefix is not it.
+        assert!(!mentions_work_item("_#7", 7));
+        assert!(!mentions_work_item("##7", 7));
+        assert!(!mentions_work_item("#17", 7));
+        assert!(!mentions_work_item("XAB#7", 7));
+        assert!(!mentions_work_item("item 7", 7));
+        assert!(!mentions_work_item("", 7));
+        // JS `\w` is ASCII: a non-ASCII letter (even the Kelvin sign, which folds to `k`)
+        // is a boundary, not part of a word.
+        assert!(mentions_work_item("é#7", 7));
+        assert!(mentions_work_item("\u{212A}#7", 7));
     }
 
     // scopeAudit

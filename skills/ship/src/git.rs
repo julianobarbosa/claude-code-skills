@@ -44,6 +44,14 @@ pub fn log_ahead_of_upstream() -> String {
     run(&["log", "--oneline", "@{u}.."]).unwrap_or_default()
 }
 
+/// `git log --format=%B <remote>/<target>..<source>`: the full messages of the commits the PR
+/// carries. Best-effort, like the TS `allowFail`: empty when the range is unknown (no
+/// remote-tracking ref yet) or git fails; git's own stderr still shows.
+pub fn commit_messages(remote: &str, target: &str, source: &str) -> String {
+    let range = format!("{remote}/{target}..{source}");
+    run(&["log", "--format=%B", &range]).unwrap_or_default()
+}
+
 /// `git status --porcelain`, deliberately untrimmed: trimming would eat the
 /// leading space of a first ` M path` line and misread it as staged (the TS
 /// `sh()` bug). Only trailing newlines are dropped. Empty when git fails.
