@@ -136,6 +136,26 @@ enum Command {
         #[arg(long)]
         push: bool,
     },
+    /// Resolve an email to the browser profile it is signed in under (launching is not built yet)
+    Open {
+        /// URL to open
+        url: Option<String>,
+        /// Open as this account
+        #[arg(long, value_name = "EMAIL", allow_hyphen_values = true, overrides_with = "profile")]
+        profile: Option<String>,
+        /// Force a browser: edge or chrome
+        #[arg(long, value_name = "BROWSER", allow_hyphen_values = true, overrides_with = "browser")]
+        browser: Option<String>,
+        /// Print the discovered email -> profile map and exit
+        #[arg(long, overrides_with = "list_profiles")]
+        list_profiles: bool,
+        /// Remember this email (and --browser) as the default and exit
+        #[arg(long, value_name = "EMAIL", allow_hyphen_values = true, overrides_with = "set_default")]
+        set_default: Option<String>,
+        /// Resolve and print the profile without launching a browser
+        #[arg(long, overrides_with = "dry_run")]
+        dry_run: bool,
+    },
 }
 
 fn main() -> ExitCode {
@@ -194,6 +214,9 @@ fn main() -> ExitCode {
         }
         Command::Snapshot { message, daily, name, push } => {
             ship::snapshot::run(&message, daily, name.as_deref(), push)
+        }
+        Command::Open { url, profile, browser, list_profiles, set_default, dry_run } => {
+            ship::open::run(&ship::open::Args { url, profile, browser, list_profiles, set_default, dry_run })
         }
     };
     match result {

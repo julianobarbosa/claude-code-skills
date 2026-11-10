@@ -7,6 +7,7 @@ pub mod detect;
 pub mod git;
 pub mod github;
 pub mod http;
+pub mod open;
 pub mod pr;
 pub mod preflight;
 pub mod push;
