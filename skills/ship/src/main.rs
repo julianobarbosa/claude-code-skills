@@ -136,7 +136,7 @@ enum Command {
         #[arg(long)]
         push: bool,
     },
-    /// Resolve an email to the browser profile it is signed in under (launching is not built yet)
+    /// Open a URL in the browser profile signed in with a chosen email
     Open {
         /// URL to open
         url: Option<String>,
