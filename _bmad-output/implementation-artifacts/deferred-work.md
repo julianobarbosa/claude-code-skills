@@ -52,3 +52,7 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-3-7-manage-tags-on-an-existing-pr-with-ship-tag.md`
   summary: `ship tag --list` on GitHub reads only the first page of labels (30), in TS and in the Rust port.
   evidence: low. `issues/{n}/labels` is called without `per_page`, so a PR with more than 30 labels lists a truncated set with no warning. The fix is `?per_page=100` plus pagination, kept out of this story for TS parity.
+
+- source_spec: `_bmad-output/implementation-artifacts/spec-4-1-resolve-an-email-to-a-browser-profile.md`
+  summary: On WSL, `ship open` (and `ship-open.ts`) builds the `Local State` path from `%USERNAME%` and a hard-coded `/mnt/c`, which misses renamed or domain-suffixed profile folders (`C:\Users\<name>.<DOMAIN>`) and custom WSL automount roots.
+  evidence: maybe-false, medium if true. This is pre-existing TS behavior that the port keeps for parity, and it works on the principal's host (`/mnt/c/Users/juliano.barbosa/...`). To settle it, check on a domain-joined machine whose profile folder differs from `%USERNAME%`. The likely fix is `cmd.exe /c echo %LOCALAPPDATA%` plus `wslpath -u`, in both the TS and the Rust.
