@@ -1,6 +1,6 @@
-//! `ship open`: resolve an email to the browser profile it is signed in under.
-//! Story 4.1 covers `--list-profiles`, `--set-default` and `<url> --dry-run`;
-//! launching a window is Story 4.2.
+//! `ship open`: open a URL in the browser profile signed in with a chosen email.
+//! Supports `--list-profiles`, `--set-default`, `<url> --dry-run`, and launching
+//! the chosen profile on WSL, macOS, and Linux.
 
 use serde_json::{Map, Value};
 use std::io::{self, Write};
@@ -26,6 +26,27 @@ impl Browser {
             "edge" => Some(Browser::Edge),
             "chrome" => Some(Browser::Chrome),
             _ => None,
+        }
+    }
+
+    pub fn win_exe(self) -> &'static str {
+        match self {
+            Browser::Edge => "msedge.exe",
+            Browser::Chrome => "chrome.exe",
+        }
+    }
+
+    pub fn mac_app(self) -> &'static str {
+        match self {
+            Browser::Edge => "Microsoft Edge",
+            Browser::Chrome => "Google Chrome",
+        }
+    }
+
+    pub fn linux_bins(self) -> &'static [&'static str] {
+        match self {
+            Browser::Edge => &["microsoft-edge", "microsoft-edge-stable"],
+            Browser::Chrome => &["google-chrome", "google-chrome-stable", "chromium"],
         }
     }
 }
@@ -65,16 +86,17 @@ pub struct Args {
 
 /// `Local State` path for a browser on an OS. `win_user` matters only on WSL.
 pub fn local_state_path(browser: Browser, os: Os, home: &str, win_user: &str) -> PathBuf {
+    let mnt_c = std::env::var("SHIP_OPEN_MNT_C").unwrap_or_else(|_| "/mnt/c".to_string());
     let p = match (browser, os) {
         (Browser::Edge, Os::Wsl) => {
-            format!("/mnt/c/Users/{win_user}/AppData/Local/Microsoft/Edge/User Data/Local State")
+            format!("{mnt_c}/Users/{win_user}/AppData/Local/Microsoft/Edge/User Data/Local State")
         }
         (Browser::Edge, Os::Macos) => {
             format!("{home}/Library/Application Support/Microsoft Edge/Local State")
         }
         (Browser::Edge, Os::Linux) => format!("{home}/.config/microsoft-edge/Local State"),
         (Browser::Chrome, Os::Wsl) => {
-            format!("/mnt/c/Users/{win_user}/AppData/Local/Google/Chrome/User Data/Local State")
+            format!("{mnt_c}/Users/{win_user}/AppData/Local/Google/Chrome/User Data/Local State")
         }
         (Browser::Chrome, Os::Macos) => {
             format!("{home}/Library/Application Support/Google/Chrome/Local State")
@@ -237,6 +259,132 @@ fn win_user() -> String {
         .unwrap_or_default()
 }
 
+/// Single-quote a string for PowerShell, doubling internal single quotes.
+pub fn ps_quote(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "''"))
+}
+
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct LaunchPlan {
+    pub program: String,
+    pub args: Vec<String>,
+}
+
+/// Locate an executable from a candidate list along PATH.
+pub fn find_binary_on_path(candidates: &[&str], path_var: Option<&str>) -> Option<PathBuf> {
+    let path = path_var?;
+    for bin in candidates {
+        for dir in std::env::split_paths(path) {
+            let candidate = dir.join(bin);
+            if candidate.is_file() {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    if candidate
+                        .metadata()
+                        .is_ok_and(|meta| meta.permissions().mode() & 0o111 != 0)
+                    {
+                        return Some(candidate);
+                    }
+                }
+                #[cfg(not(unix))]
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+/// Pure plan builder for browser launch per OS.
+pub fn launch_plan(
+    os: Os,
+    browser: Browser,
+    profile_dir: &str,
+    url: &str,
+    path_var: Option<&str>,
+) -> Result<LaunchPlan, String> {
+    match os {
+        Os::Wsl => {
+            let arg1 = format!("--profile-directory=\"{}\"", profile_dir);
+            let arg_list = format!("{},{}", ps_quote(&arg1), ps_quote(url));
+            let command_str = format!(
+                "Start-Process {} -ArgumentList {}",
+                browser.win_exe(),
+                arg_list
+            );
+            Ok(LaunchPlan {
+                program: "powershell.exe".into(),
+                args: vec!["-NoProfile".into(), "-Command".into(), command_str],
+            })
+        }
+        Os::Macos => Ok(LaunchPlan {
+            program: "open".into(),
+            args: vec![
+                "-na".into(),
+                browser.mac_app().into(),
+                "--args".into(),
+                format!("--profile-directory={}", profile_dir),
+                url.into(),
+            ],
+        }),
+        Os::Linux => {
+            let candidates = browser.linux_bins();
+            let bin = find_binary_on_path(candidates, path_var).ok_or_else(|| {
+                format!(
+                    "no {} binary found on PATH (tried {})",
+                    browser.as_str(),
+                    candidates.join(", ")
+                )
+            })?;
+            Ok(LaunchPlan {
+                program: bin.to_string_lossy().into_owned(),
+                args: vec![format!("--profile-directory={}", profile_dir), url.into()],
+            })
+        }
+    }
+}
+
+fn launch(plan: &LaunchPlan, os: Os) -> io::Result<()> {
+    if let Ok(log_path) = std::env::var("SHIP_OPEN_LAUNCH_LOG") {
+        let mut f = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log_path)?;
+        writeln!(f, "{}", plan.program)?;
+        for a in &plan.args {
+            writeln!(f, "{}", a)?;
+        }
+        return Ok(());
+    }
+
+    let mut cmd = Command::new(&plan.program);
+    cmd.args(&plan.args)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+
+    match os {
+        Os::Wsl | Os::Macos => {
+            let status = cmd.status()?;
+            if !status.success() {
+                return Err(io::Error::other(format!(
+                    "exited with status {}",
+                    status.code().unwrap_or(1)
+                )));
+            }
+            Ok(())
+        }
+        Os::Linux => {
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::CommandExt;
+                cmd.process_group(0);
+            }
+            cmd.spawn().map(|_| ())
+        }
+    }
+}
+
 /// A failure that prints its bare message to stderr and exits 2, or a real I/O error.
 enum Fail {
     Msg(String),
@@ -358,7 +506,7 @@ fn run_inner(args: &Args) -> Result<u8, Fail> {
         return Ok(0);
     }
 
-    let Some(url) = args.url.as_deref() else {
+    let Some(url) = args.url.as_deref().filter(|u| !u.is_empty()) else {
         return fail("need a <url> to open (or use --list-profiles / --set-default)");
     };
 
@@ -381,19 +529,25 @@ fn run_inner(args: &Args) -> Result<u8, Fail> {
         return fail(format!("no {name} profiles found in {}", ls_path.display()));
     };
 
-    if !args.dry_run {
-        eprintln!(">> launching a browser is not implemented yet (Story 4.2); use --dry-run");
-        return Ok(2);
-    }
     let who = if chosen.email.is_empty() {
         String::new()
     } else {
         format!(" ({})", chosen.email)
     };
-    eprintln!(
-        ">> dry run — would open {name} profile \"{}\"{who}",
-        chosen.dir
-    );
+
+    if args.dry_run {
+        eprintln!(
+            ">> dry run — would open {name} profile \"{}\"{who}",
+            chosen.dir
+        );
+    } else {
+        eprintln!(">> opening in {name} profile \"{}\"{who}", chosen.dir);
+        let path_var = std::env::var("PATH").ok();
+        let plan =
+            launch_plan(os, browser, &chosen.dir, url, path_var.as_deref()).map_err(Fail::Msg)?;
+        launch(&plan, os)
+            .map_err(|e| Fail::Msg(format!("failed to launch {}: {e}", plan.program)))?;
+    }
 
     writeln!(out, "opened_url={url}")?;
     writeln!(out, "browser={name}")?;
@@ -481,11 +635,9 @@ mod tests {
         assert_eq!(pick_browser(None, Some(Edge), &[Chrome]), Ok(Chrome));
         assert_eq!(pick_browser(None, None, &[Chrome, Edge]), Ok(Chrome));
         assert_eq!(pick_browser(None, Some(Edge), &[]), Ok(Edge));
-        assert!(
-            pick_browser(None, None, &[])
-                .unwrap_err()
-                .starts_with("no supported browser")
-        );
+        assert!(pick_browser(None, None, &[])
+            .unwrap_err()
+            .starts_with("no supported browser"));
     }
 
     #[test]
@@ -525,5 +677,92 @@ mod tests {
             serde_json::from_str(r#"{"browser":"firefox","defaultProfileEmail":5}"#).unwrap();
         assert_eq!(stored_browser(&cfg), None);
         assert_eq!(stored_email(&cfg), "");
+    }
+
+    #[test]
+    fn ps_quote_doubles_single_quotes() {
+        assert_eq!(ps_quote("abc"), "'abc'");
+        assert_eq!(ps_quote("it's cool"), "'it''s cool'");
+        assert_eq!(
+            ps_quote(r#"--profile-directory="Profile 2""#),
+            r#"'--profile-directory="Profile 2"'"#
+        );
+    }
+
+    #[test]
+    fn wsl_launch_plan_quotes_args_and_preserves_url_and_spaces() {
+        let plan = launch_plan(
+            Os::Wsl,
+            Browser::Edge,
+            "Profile 2",
+            "https://example.com/?a=1&b=2'test",
+            None,
+        )
+        .unwrap();
+        assert_eq!(plan.program, "powershell.exe");
+        assert_eq!(plan.args[0], "-NoProfile");
+        assert_eq!(plan.args[1], "-Command");
+        assert_eq!(
+            plan.args[2],
+            "Start-Process msedge.exe -ArgumentList '--profile-directory=\"Profile 2\"','https://example.com/?a=1&b=2''test'"
+        );
+    }
+
+    #[test]
+    fn macos_launch_plan_constructs_open_args() {
+        let plan = launch_plan(
+            Os::Macos,
+            Browser::Chrome,
+            "Default",
+            "https://example.com/pr/42",
+            None,
+        )
+        .unwrap();
+        assert_eq!(
+            plan,
+            LaunchPlan {
+                program: "open".into(),
+                args: vec![
+                    "-na".into(),
+                    "Google Chrome".into(),
+                    "--args".into(),
+                    "--profile-directory=Default".into(),
+                    "https://example.com/pr/42".into(),
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn linux_launch_plan_finds_bin_or_fails() {
+        // When not on path:
+        let err = launch_plan(
+            Os::Linux,
+            Browser::Chrome,
+            "Default",
+            "https://example.com",
+            Some("/nonexistent"),
+        )
+        .unwrap_err();
+        assert_eq!(
+            err,
+            "no chrome binary found on PATH (tried google-chrome, google-chrome-stable, chromium)"
+        );
+    }
+
+    #[test]
+    fn linux_launch_plan_edge_candidates() {
+        let err = launch_plan(
+            Os::Linux,
+            Browser::Edge,
+            "Default",
+            "https://example.com",
+            Some("/nonexistent"),
+        )
+        .unwrap_err();
+        assert_eq!(
+            err,
+            "no edge binary found on PATH (tried microsoft-edge, microsoft-edge-stable)"
+        );
     }
 }
