@@ -56,3 +56,43 @@
 - source_spec: `_bmad-output/implementation-artifacts/spec-4-1-resolve-an-email-to-a-browser-profile.md`
   summary: On WSL, `ship open` (and `ship-open.ts`) builds the `Local State` path from `%USERNAME%` and a hard-coded `/mnt/c`, which misses renamed or domain-suffixed profile folders (`C:\Users\<name>.<DOMAIN>`) and custom WSL automount roots.
   evidence: maybe-false, medium if true. This is pre-existing TS behavior that the port keeps for parity, and it works on the principal's host (`/mnt/c/Users/juliano.barbosa/...`). To settle it, check on a domain-joined machine whose profile folder differs from `%USERNAME%`. The likely fix is `cmd.exe /c echo %LOCALAPPDATA%` plus `wslpath -u`, in both the TS and the Rust.
+
+### DW-1: An interrupted run (Ctrl-C, SIGKILL) skips cleanup, so the scratch dir and, under --live, real draft PRs, branches and labels can be left behind.
+origin: spec-deferred 4e7103ccd95c
+location: skills/ship/examples/parity.rs (execute, ScratchRoot)
+source_spec: `spec-5-1-prove-parity-and-startup-speed-against-the-ts-scripts.md`
+severity: medium
+reason: Cleanup runs only on normal return or early error return; ScratchRoot::drop does not run on a signal, and nothing traps SIGINT. Verified by reading execute() and ScratchRoot.
+status: open
+
+### DW-2: The push-to-sink guard (assert_pushes_to_sink / pushInsteadOf reroute) has no automated test.
+origin: spec-deferred 65eaa15fe63e
+location: skills/ship/examples/parity.rs (Scratch::assert_pushes_to_sink, make_scratch)
+source_spec: `spec-5-1-prove-parity-and-startup-speed-against-the-ts-scripts.md`
+severity: medium
+reason: Only exercised by real harness runs (2026-11-12, both platforms). A test needs local git, which the spec's pure-logic test rule excludes; a regression could push hermetic branches to the real remote.
+status: open
+
+### DW-3: fingerprint() (source-clone-unchanged check) has no test proving a new tag, branch or config key changes it.
+origin: spec-deferred 248636d75417
+location: skills/ship/examples/parity.rs (fingerprint)
+source_spec: `spec-5-1-prove-parity-and-startup-speed-against-the-ts-scripts.md`
+severity: low
+reason: Only errors_and_hygiene_failures_fail_the_run checks a hand-set flag; needs local git like the item above.
+status: open
+
+### DW-4: check_source/validate branches (not a repo, no origin, wrong platform, binary or scripts missing) are untested.
+origin: spec-deferred cb5c9b97005e
+location: skills/ship/examples/parity.rs (validate, check_source)
+source_spec: `spec-5-1-prove-parity-and-startup-speed-against-the-ts-scripts.md`
+severity: low
+reason: missing_inputs_are_usage_errors covers parse_args only; the rest spawns git and bun.
+status: open
+
+### DW-5: Story 5.2 must decide the harness's fate once scripts/*.ts are deleted (delete examples/parity.rs or keep as frozen evidence).
+origin: spec-deferred f978b6b91da5
+location: skills/ship/examples/parity.rs, skills/ship/PARITY.md
+source_spec: `spec-5-1-prove-parity-and-startup-speed-against-the-ts-scripts.md`
+severity: low
+reason: After cutover the --scripts default disappears and validate always fails; the example stays compiled in CI.
+status: open

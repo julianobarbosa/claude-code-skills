@@ -62,7 +62,7 @@ development_status:
   epic-4-retrospective: done
 
   epic-5: backlog
-  5-1-prove-parity-and-startup-speed-against-the-ts-scripts: backlog
+  5-1-prove-parity-and-startup-speed-against-the-ts-scripts: awaiting-operator
   5-2-switch-the-skill-to-the-binary-and-retire-the-ts-scripts: backlog
   epic-5-retrospective: optional
 action_items:
