@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-08-2026 18:31
-last_updated: 11-11-2026 17:39
+last_updated: 11-12-2026 07:47
 project: claude-code-skills
 project_key: NOKEY
 tracking_system: file-system
@@ -56,9 +56,9 @@ development_status:
   3-7-manage-tags-on-an-existing-pr-with-ship-tag: done
   epic-3-retrospective: optional
 
-  epic-4: in-progress
+  epic-4: done
   4-1-resolve-an-email-to-a-browser-profile: done
-  4-2-launch-the-pr-in-the-chosen-profile: review
+  4-2-launch-the-pr-in-the-chosen-profile: done
   epic-4-retrospective: optional
 
   epic-5: backlog
