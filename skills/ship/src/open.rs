@@ -71,6 +71,8 @@ pub enum Note {
     None,
     /// The wanted email matched no profile.
     Miss,
+    /// No email matched, and this many signed-in profiles share the wanted name.
+    Ambiguous(usize),
     /// The stored default matched (no `--profile` given).
     StoredDefault,
 }
@@ -152,8 +154,10 @@ pub fn pick_browser(
     })
 }
 
-/// Match `wanted` (already trimmed, case-insensitive) against the profiles; on a miss or
-/// empty `wanted`, fall back to `Default`, else the first profile. `None` = no profiles.
+/// Match `wanted` (already trimmed, case-insensitive) against the profiles' signed-in
+/// emails, then against the names of signed-in profiles (an account signed in under
+/// another alias), but only when exactly one name matches. On a miss, an ambiguous name
+/// or empty `wanted`, fall back to `Default`, else the first profile. `None` = no profiles.
 pub fn resolve<'a>(
     profiles: &'a [Profile],
     wanted: &str,
@@ -164,21 +168,26 @@ pub fn resolve<'a>(
         let lw = wanted.to_lowercase();
         // An account signed in under a different alias (UPN vs primary SMTP) keeps that
         // alias as its email, so also accept a signed-in profile the user NAMED after it.
+        // Only a unique name match counts: a duplicate name would make the pick arbitrary.
+        let by_name: Vec<&Profile> = profiles
+            .iter()
+            .filter(|p| !p.email.is_empty() && p.name.trim().to_lowercase() == lw)
+            .collect();
         let hit = profiles
             .iter()
             .find(|p| p.email.to_lowercase() == lw)
-            .or_else(|| {
-                profiles
-                    .iter()
-                    .find(|p| !p.email.is_empty() && p.name.trim().to_lowercase() == lw)
-            });
+            .or(if by_name.len() == 1 { Some(by_name[0]) } else { None });
         if let Some(p) = hit {
             if !from_flag {
                 note = Note::StoredDefault;
             }
             return (Some(p), note);
         }
-        note = Note::Miss;
+        note = if by_name.len() > 1 {
+            Note::Ambiguous(by_name.len())
+        } else {
+            Note::Miss
+        };
     }
     let chosen = profiles
         .iter()
@@ -528,7 +537,7 @@ fn run_inner(args: &Args) -> Result<u8, Fail> {
     }
     .trim();
     let (chosen, note) = resolve(&profiles, wanted, !flag.is_empty());
-    if note != Note::Miss
+    if !matches!(note, Note::Miss | Note::Ambiguous(_))
         && let Some(c) = chosen
         && !wanted.is_empty()
         && c.email.to_lowercase() != wanted.to_lowercase()
@@ -541,6 +550,9 @@ fn run_inner(args: &Args) -> Result<u8, Fail> {
     match note {
         Note::Miss => eprintln!(
             ">> no {name} profile signed in as {wanted}; falling back to the Default profile"
+        ),
+        Note::Ambiguous(n) => eprintln!(
+            ">> {n} {name} profiles are named {wanted}; falling back to the Default profile"
         ),
         Note::StoredDefault => eprintln!(">> using stored default profile {wanted}"),
         Note::None => {}
@@ -696,6 +708,21 @@ mod tests {
         );
         // A profile with no signed-in account is never matched by name.
         assert_eq!(resolve(&ps, "nobody@corp.com", true), (Some(&ps[0]), Note::Miss));
+        // Two signed-in profiles with the same name: no pick, fall back to Default.
+        let dup = [
+            named("Default", "a@x.com", "Personal"),
+            named("Profile 3", "one@corp.onmicrosoft.com", "me@corp.com"),
+            named("Profile 4", "two@corp.onmicrosoft.com", "Me@Corp.com"),
+        ];
+        assert_eq!(
+            resolve(&dup, "me@corp.com", true),
+            (Some(&dup[0]), Note::Ambiguous(2))
+        );
+        // An exact email still wins over a duplicated name.
+        assert_eq!(
+            resolve(&dup, "two@corp.onmicrosoft.com", true),
+            (Some(&dup[2]), Note::None)
+        );
     }
 
     #[test]

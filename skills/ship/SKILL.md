@@ -228,7 +228,7 @@ Open the PR under the chosen account (add `--dry-run` first if you want to confi
 profile without a window):
 
 ```bash
-bun scripts/ship-open.ts "<pr_url>" --profile <email>              # opens; prints opened_url= / profile_dir=
+bun scripts/ship-open.ts "<pr_url>" --profile <email>              # opens; prints opened_url= / profile_dir= / profile_email= / profile_name=
 bun scripts/ship-open.ts "<pr_url>" --profile <email> --dry-run    # resolve only, no window
 ```
 
@@ -360,7 +360,10 @@ detected platform. The PR description starts from `assets/pr-template.md`.
   main and main" stopped it). Use `bun ~/.claude/skills/ship/scripts/ship-pr.ts` from the repo being shipped.
 - Deleting a branch while its PR is still open abandons the PR — clean up only after merge (step 5).
 - `ship-open.ts` matches `--profile <email>` against the browser's **signed-in** account emails, so a
-  profile with no account attached is only reachable as the Default fallback, not by email. It
+  profile with no account attached is only reachable as the Default fallback, not by email. When an
+  account is signed in under another alias (UPN vs primary SMTP), a signed-in profile *named* after
+  the email also matches, but only if exactly one profile has that name; two with the same name fall
+  back to Default with a note, rather than pick an account arbitrarily. It
   auto-picks the installed browser (chrome preferred if both) and needs no deps or network — just the
   browser's local `Local State` file. If it can't find that file, the browser isn't installed where
   expected; pass `--browser` or check the path it printed.
