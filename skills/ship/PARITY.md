@@ -129,15 +129,18 @@ A negative check was also run: a stand-in binary that rewrites `scope_clean=true
 
 The agent could not do these. Each needs a person, a login or another machine.
 
-- [ ] **Live Azure read.** The agent's `az` identity gets a 302 from the Azure DevOps org. Log in with an
+- [x] **Live Azure read.** The agent's `az` identity gets a 302 from the Azure DevOps org. Log in with an
   authorized account, then rerun with `--azure-pr <id>` and confirm `tag --list <id> (live read)` is `same`
-  with exit 0 on both sides.
-- [ ] **`--live` on both repos.** Run once with `--live` against the GitHub and the Azure clone. Confirm
+  with exit 0 on both sides. Done 2026-11-13 on WSL2 with the company account: 33 same, 0 DIFF,
+  0 skipped, 0 ERROR, exit 0; Azure and GitHub live reads both `same`.
+- [x] **`--live` on both repos.** Run once with `--live` against the GitHub and the Azure clone. Confirm
   every `live …` case is `same` and no `LEFTOVER` lines are printed (or clean them up by hand).
+  Done 2026-11-13 on WSL2: 43 same, 0 DIFF, 0 skipped, 0 ERROR, exit 0; all 10 `live …` cases `same`,
+  0 leftovers, and no parity branch or open parity PR left on either remote.
 - [ ] **macOS run.** Run the harness on macOS arm64. The 50 ms rule is skipped there, but the binary must
   still beat bun on every row.
-- [ ] **Confirm the 50 ms threshold.** It was adopted as a default on 2026-11-08 and never confirmed;
-  the binary measured about 12 ms (`detect`) and 27 ms (`preflight`) on WSL2.
+- [x] **Confirm the 50 ms threshold.** It was adopted as a default on 2026-11-08 and confirmed by Barbosa
+  on 2026-11-13; the binary measured about 12 ms (`detect`) and 28 ms (`preflight`) on WSL2.
 - [ ] **Real `ship open` launches** (Epic 4 retro item 4). On WSL and on macOS, run
   `ship open <pr url> --profile <email>` without `--dry-run`. Confirm the PR opens in the browser profile
   signed in with that email.
