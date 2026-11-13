@@ -94,6 +94,10 @@ pub fn decode_segment(s: &str) -> String {
     String::from_utf8(out).unwrap_or_else(|_| s.to_string())
 }
 
+// Short form `https://dev.azure.com/<org>/_git/<repo>`: the project has the repo's name.
+// Without it ADO_DEV reads the project as "_git" (2026-11-10, infra-redes).
+static ADO_DEV_SHORT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"dev\.azure\.com/([^/]+)/_git/([^/]+)$").unwrap());
 static ADO_DEV: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(r"dev\.azure\.com[^:/\s]*[:/]+(?:v3/)?([^/]+)/([^/]+)/(?:_git/)?([^/]+)$").unwrap()
 });
@@ -121,6 +125,15 @@ fn ado_from_caps(caps: &regex::Captures<'_>) -> AdoParts {
 /// Parse an Azure DevOps remote URL (HTTPS, SSH v3, legacy visualstudio.com).
 /// `None` when the URL is not an Azure DevOps URL. project/repo are decoded.
 pub fn ado_parts(url: &str) -> Option<AdoParts> {
+    if let Some(c) = ADO_DEV_SHORT.captures(url) {
+        let repo = &c[2];
+        let repo = decode_segment(repo.strip_suffix(".git").unwrap_or(repo));
+        return Some(AdoParts {
+            org_url: format!("https://dev.azure.com/{}", &c[1]),
+            project: repo.clone(),
+            repo,
+        });
+    }
     if let Some(c) = ADO_DEV.captures(url) {
         return Some(ado_from_caps(&c));
     }
@@ -394,6 +407,17 @@ mod tests {
         assert_eq!(
             ado_parts("https://dev.azure.com/myorg/myproj/_git/myrepo"),
             parts("https://dev.azure.com/myorg", "myproj", "myrepo")
+        );
+    }
+    #[test]
+    fn ado_short_form_project_is_repo() {
+        assert_eq!(
+            ado_parts("https://dev.azure.com/myorg/_git/my%20repo.git"),
+            parts("https://dev.azure.com/myorg", "my repo", "my repo")
+        );
+        assert_eq!(
+            ado_parts("https://myorg@dev.azure.com/myorg/_git/repo"),
+            parts("https://dev.azure.com/myorg", "repo", "repo")
         );
     }
     #[test]

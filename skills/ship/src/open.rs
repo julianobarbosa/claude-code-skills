@@ -162,7 +162,17 @@ pub fn resolve<'a>(
     let mut note = Note::None;
     if !wanted.is_empty() {
         let lw = wanted.to_lowercase();
-        if let Some(p) = profiles.iter().find(|p| p.email.to_lowercase() == lw) {
+        // An account signed in under a different alias (UPN vs primary SMTP) keeps that
+        // alias as its email, so also accept a signed-in profile the user NAMED after it.
+        let hit = profiles
+            .iter()
+            .find(|p| p.email.to_lowercase() == lw)
+            .or_else(|| {
+                profiles
+                    .iter()
+                    .find(|p| !p.email.is_empty() && p.name.trim().to_lowercase() == lw)
+            });
+        if let Some(p) = hit {
             if !from_flag {
                 note = Note::StoredDefault;
             }
@@ -518,6 +528,16 @@ fn run_inner(args: &Args) -> Result<u8, Fail> {
     }
     .trim();
     let (chosen, note) = resolve(&profiles, wanted, !flag.is_empty());
+    if note != Note::Miss
+        && let Some(c) = chosen
+        && !wanted.is_empty()
+        && c.email.to_lowercase() != wanted.to_lowercase()
+    {
+        eprintln!(
+            ">> {name} profile \"{}\" matched by name (signed in as {})",
+            c.name, c.email
+        );
+    }
     match note {
         Note::Miss => eprintln!(
             ">> no {name} profile signed in as {wanted}; falling back to the Default profile"
@@ -553,6 +573,7 @@ fn run_inner(args: &Args) -> Result<u8, Fail> {
     writeln!(out, "browser={name}")?;
     writeln!(out, "profile_dir={}", chosen.dir)?;
     writeln!(out, "profile_email={}", chosen.email)?;
+    writeln!(out, "profile_name={}", chosen.name)?;
     Ok(0)
 }
 
@@ -653,6 +674,28 @@ mod tests {
         let no_default = [p("Profile 2", "b@x.com")];
         assert_eq!(resolve(&no_default, "", false).0, Some(&no_default[0]));
         assert_eq!(resolve(&[], "x", true), (None, Note::Miss));
+    }
+
+    #[test]
+    fn resolve_by_name_when_alias_differs() {
+        let named = |dir: &str, email: &str, name: &str| Profile {
+            dir: dir.into(),
+            email: email.into(),
+            name: name.into(),
+        };
+        let ps = [
+            named("Default", "a@x.com", "Personal"),
+            named("Profile 3", "upn@corp.onmicrosoft.com", " Me@Corp.com "),
+            named("Profile 4", "", "nobody@corp.com"),
+        ];
+        // Email wins over name; name is the fallback, trimmed and case-insensitive.
+        assert_eq!(resolve(&ps, "me@corp.com", true), (Some(&ps[1]), Note::None));
+        assert_eq!(
+            resolve(&ps, "me@corp.com", false),
+            (Some(&ps[1]), Note::StoredDefault)
+        );
+        // A profile with no signed-in account is never matched by name.
+        assert_eq!(resolve(&ps, "nobody@corp.com", true), (Some(&ps[0]), Note::Miss));
     }
 
     #[test]
