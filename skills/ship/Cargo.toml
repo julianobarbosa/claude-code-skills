@@ -14,6 +14,12 @@ path = "src/lib.rs"
 name = "ship"
 path = "src/main.rs"
 
+# Parity and startup-speed harness against the TS scripts (Story 5.1, PARITY.md).
+# `test = true` runs its pure-logic unit tests under plain `cargo test`.
+[[example]]
+name = "parity"
+test = true
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 regex = "1"

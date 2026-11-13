@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 11-08-2026 18:31
-last_updated: 11-11-2026 17:39
+last_updated: 11-12-2026 19:13
 project: claude-code-skills
 project_key: NOKEY
 tracking_system: file-system
@@ -56,12 +56,56 @@ development_status:
   3-7-manage-tags-on-an-existing-pr-with-ship-tag: done
   epic-3-retrospective: optional
 
-  epic-4: in-progress
+  epic-4: done
   4-1-resolve-an-email-to-a-browser-profile: done
-  4-2-launch-the-pr-in-the-chosen-profile: review
-  epic-4-retrospective: optional
+  4-2-launch-the-pr-in-the-chosen-profile: done
+  epic-4-retrospective: done
 
   epic-5: backlog
-  5-1-prove-parity-and-startup-speed-against-the-ts-scripts: backlog
+  5-1-prove-parity-and-startup-speed-against-the-ts-scripts: awaiting-operator
   5-2-switch-the-skill-to-the-binary-and-retire-the-ts-scripts: backlog
   epic-5-retrospective: optional
+action_items:
+  - id: "epic-4-retro-item-1-harden-ship-open-input-rust-only-reject"
+    epic: 4
+    action: "Harden ship open input (Rust only): reject dash-leading URLs and option
+      values, http/https-only URLs without whitespace or quotes, ps_quote doubles
+      U+2018-U+201B, skip empty PATH entries, fix stale comments, emit profile_fallback=
+      on stdout (R1-R5, R11, R12)"
+    owner: "Barbosa"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-11-12.md"
+  - id: "epic-4-retro-item-2-close-the-six-ship-open-verification-gap"
+    epic: 4
+    action: "Close the six ship open verification gaps so each surviving mutation
+      fails a test (R13-R18)"
+    owner: "Barbosa"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-11-12.md"
+  - id: "epic-4-retro-item-3-reconcile-the-contract-powershell-start"
+    epic: 4
+    action: "Reconcile the contract: powershell Start-Process / open -na launch wording
+      in epics.md and cli-contract.md, document SHIP_OPEN_* test seams, launch-failure
+      exit 2, and the profile_fallback= key (F1, F2, R6, R11)"
+    owner: "Barbosa"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-11-12.md"
+  - id: "epic-4-retro-item-4-add-real-launch-checks-on-wsl-and-macos"
+    epic: 4
+    action: "Add real-launch checks on WSL and macOS to the Story 5-1 parity checklist"
+    owner: "Barbosa"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-11-12.md"
+  - id: "epic-4-retro-item-5-process-when-a-story-records-a-contract"
+    epic: 4
+    action: "Process: when a story records a contract deviation or a new SHIP_* override,
+      the contract edit lands in the same PR"
+    owner: "Barbosa"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-11-12.md"
+  - id: "epic-4-retro-item-6-log-deferred-findings-r6-stderr-r7-r8-r9"
+    epic: 4
+    action: "Log deferred findings R6 stderr, R7, R8, R9, R10 in deferred-work.md"
+    owner: "Barbosa"
+    status: open
+    ref: "_bmad-output/implementation-artifacts/epic-4-retro-2026-11-12.md"

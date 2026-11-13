@@ -1,0 +1,14 @@
+{
+  "actions": [
+    "Log in to az with an account authorized on the Azure DevOps org, then rerun `cargo run --release --example parity -- --github <repo> --azure <azure clone> --azure-pr <id>` from skills/ship and confirm `tag --list <id> (live read)` is `same`.",
+    "Approve and run the `--live` tier once against the GitHub and the Azure clone (it opens throwaway draft PRs), and confirm every `live \u2026` case is `same` with no LEFTOVER lines.",
+    "Run the parity harness on a macOS arm64 host and confirm the binary beats bun on every timing row.",
+    "Run `ship open <pr url> --profile <email>` without --dry-run on WSL and on macOS and confirm the PR opens in the profile signed in with that email.",
+    "Confirm or change the 50 ms detect/preflight startup threshold (NFR9), adopted as an unconfirmed default on 2026-11-08."
+  ],
+  "followup_review_recommended": true,
+  "parked_at": "2026-11-12",
+  "run_id": "20261112-110255-fbee",
+  "spec_file": "_bmad-output/implementation-artifacts/spec-5-1-prove-parity-and-startup-speed-against-the-ts-scripts.md",
+  "story_key": "5-1-prove-parity-and-startup-speed-against-the-ts-scripts"
+}
