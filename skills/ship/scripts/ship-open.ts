@@ -245,7 +245,15 @@ if (!url) fail("need a <url> to open (or use --list-profiles / --set-default)", 
 const wanted = (profileEmail || cfg.defaultProfileEmail || "").trim();
 let chosen: Profile | undefined;
 if (wanted) {
-  chosen = profiles.find((p) => p.email.toLowerCase() === wanted.toLowerCase());
+  const w = wanted.toLowerCase();
+  // An account signed in under a different alias (UPN vs primary SMTP) keeps
+  // that alias in user_name, so also accept a profile the user NAMED after it.
+  chosen =
+    profiles.find((p) => p.email.toLowerCase() === w) ??
+    profiles.find((p) => p.email && p.name.trim().toLowerCase() === w);
+  if (chosen && chosen.email.toLowerCase() !== w) {
+    console.error(`>> ${browser} profile "${chosen.name}" matched by name (signed in as ${chosen.email})`);
+  }
   if (!chosen) {
     console.error(`>> no ${browser} profile signed in as ${wanted}; falling back to the Default profile`);
   } else if (!profileEmail) {
@@ -268,3 +276,4 @@ console.log(`opened_url=${url}`);
 console.log(`browser=${browser}`);
 console.log(`profile_dir=${chosen.dir}`);
 console.log(`profile_email=${chosen.email}`);
+console.log(`profile_name=${chosen.name}`);
