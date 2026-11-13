@@ -142,7 +142,7 @@ fn dry_run_hit_is_case_insensitive() {
     assert_eq!(code(&o), 0, "{}", err(&o));
     assert_eq!(
         out(&o),
-        "opened_url=https://x/pr/1\nbrowser=chrome\nprofile_dir=Profile 2\nprofile_email=b@x.com\n"
+        "opened_url=https://x/pr/1\nbrowser=chrome\nprofile_dir=Profile 2\nprofile_email=b@x.com\nprofile_name=Work\n"
     );
     assert_eq!(
         err(&o),
@@ -405,7 +405,7 @@ fn wsl_launch_runs_powershell_with_quotes() {
     );
     assert_eq!(
         out(&o),
-        "opened_url=https://example.com/?a=1&b=2'test\nbrowser=chrome\nprofile_dir=Profile 2\nprofile_email=b@x.com\n"
+        "opened_url=https://example.com/?a=1&b=2'test\nbrowser=chrome\nprofile_dir=Profile 2\nprofile_email=b@x.com\nprofile_name=Work\n"
     );
 
     let logged = std::fs::read_to_string(&log).unwrap();
@@ -445,7 +445,7 @@ fn macos_launch_runs_open_with_args() {
     );
     assert_eq!(
         out(&o),
-        "opened_url=https://example.com/pr/123\nbrowser=edge\nprofile_dir=Default\nprofile_email=me@edge.com\n"
+        "opened_url=https://example.com/pr/123\nbrowser=edge\nprofile_dir=Default\nprofile_email=me@edge.com\nprofile_name=Personal\n"
     );
 
     let logged = std::fs::read_to_string(&log).unwrap();
@@ -487,7 +487,7 @@ fn linux_launch_spawns_candidate_from_path() {
     );
     assert_eq!(
         out(&o),
-        "opened_url=https://example.com/pr/456\nbrowser=chrome\nprofile_dir=Profile 2\nprofile_email=b@x.com\n"
+        "opened_url=https://example.com/pr/456\nbrowser=chrome\nprofile_dir=Profile 2\nprofile_email=b@x.com\nprofile_name=Work\n"
     );
 
     let logged = std::fs::read_to_string(&log).unwrap();
