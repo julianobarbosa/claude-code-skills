@@ -81,7 +81,14 @@ function decodeSegment(s: string): string {
  *  *.visualstudio.com. Returns null if the URL is not an Azure DevOps URL.
  *  project/repo are decoded display names — re-encode them when building URLs. */
 export function adoParts(url: string = remoteUrl()): AdoParts | null {
-  let m = url.match(/dev\.azure\.com[^:/\s]*[:/]+(?:v3\/)?([^/]+)\/([^/]+)\/(?:_git\/)?([^/]+)$/);
+  // Short form `https://dev.azure.com/<org>/_git/<repo>`: the project has the repo's name.
+  // Without this branch the generic pattern reads the project as "_git" (2026-11-10, infra-redes).
+  let m = url.match(/dev\.azure\.com\/([^/]+)\/_git\/([^/]+)$/);
+  if (m) {
+    const repo = decodeSegment(m[2].replace(/\.git$/, ""));
+    return { orgUrl: `https://dev.azure.com/${m[1]}`, project: repo, repo };
+  }
+  m = url.match(/dev\.azure\.com[^:/\s]*[:/]+(?:v3\/)?([^/]+)\/([^/]+)\/(?:_git\/)?([^/]+)$/);
   if (m) return { orgUrl: `https://dev.azure.com/${m[1]}`, project: decodeSegment(m[2]), repo: decodeSegment(m[3].replace(/\.git$/, "")) };
   m = url.match(/([^/@.]+)\.visualstudio\.com\/([^/]+)\/(?:_git\/)?([^/]+)$/);
   if (m) return { orgUrl: `https://dev.azure.com/${m[1]}`, project: decodeSegment(m[2]), repo: decodeSegment(m[3].replace(/\.git$/, "")) };
