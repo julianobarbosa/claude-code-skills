@@ -1,8 +1,9 @@
 ---
+ticket: 1
 title: 'Prove parity and startup speed against the TS scripts'
 type: 'feature'
 created: '2026-11-12'
-status: 'awaiting-operator'
+status: 'in-review'
 baseline_revision: 'ccadd3810438da2f5cf5c7fc40ac20804863199c'
 review_loop_iteration: 0
 followup_review_recommended: true

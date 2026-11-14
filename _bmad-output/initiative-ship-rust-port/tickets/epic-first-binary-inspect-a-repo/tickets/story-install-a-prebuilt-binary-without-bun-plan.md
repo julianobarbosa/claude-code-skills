@@ -1,11 +1,12 @@
 ---
+ticket: 3
 title: 'Story 1.3: Install a prebuilt binary without bun'
 type: 'feature'
 created: '2026-11-08'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: 'd92f14d35593f5b2f9d80bb1465d1eab99f45e9f'
+baseline_revision: 'd92f14d35593f5b2f9d80bb1465d1eab99f45e9f'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-1-context.md'
   - '{project-root}/_bmad-output/specs/spec-ship-rust-port/SPEC.md'

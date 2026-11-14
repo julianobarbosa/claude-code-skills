@@ -1,0 +1,23 @@
+[[entry]]
+id = 1
+type = "story"
+title = "Prove parity and startup speed against the TS scripts"
+description = "A repeatable check runs every subcommand through the TS script and the binary side by side, so cutover rests on evidence."
+verify = "The run reports no difference in key=value lines or exit codes on one Azure and one GitHub clone, and records a median startup per subcommand with the binary faster for each and detect and preflight under 50 ms on Linux/WSL2."
+covers = ["R2"]
+after = []
+hitl = true
+risk = "high"
+v6_key = "5-1-prove-parity-and-startup-speed-against-the-ts-scripts"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Switch the skill to the binary and retire the TS scripts"
+description = "SKILL.md calls ship <subcommand> and nothing else, and the TypeScript scripts and their toolchain files are removed. No v6 build record exists for this story; its original acceptance criteria are kept here. Given story 5.1 passing, when SKILL.md, its references and assets/ are updated, then every bun scripts/ship-*.ts invocation becomes ship <subcommand> with the same flags, the bun-install setup note is replaced by the install step from story 1.3, scripts/*.ts, package.json, tsconfig.json and node_modules are removed from skills/ship/, and a full ship run succeeds on a host with no bun against the Azure and the GitHub repo."
+verify = "On a host with no bun, a full ship run (preflight, push, PR with work item, tags, reviewers) succeeds on both the Azure and the GitHub repo, and no bun invocation remains in SKILL.md."
+covers = ["R1"]
+after = [1]
+hitl = true
+risk = "high"
+v6_key = "5-2-switch-the-skill-to-the-binary-and-retire-the-ts-scripts"

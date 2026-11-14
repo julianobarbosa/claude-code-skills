@@ -1,0 +1,36 @@
+# Epics of initiative-ship-rust-port, in build order.
+
+[[epic]]
+id = 1
+slug = "epic-first-binary-inspect-a-repo"
+title = "First binary: inspect a repo"
+description = "The operator installs a prebuilt ship binary with no bun and runs ship detect and ship preflight, getting the same output as the TS scripts."
+covers = ["R1", "R2", "R13"]
+
+[[epic]]
+id = 2
+slug = "epic-push-and-checkpoint"
+title = "Push and checkpoint"
+description = "The operator pushes branches and cuts snapshot tags from the binary, with Azure Bearer auth and the stored-credential fallback."
+covers = ["R3", "R12"]
+
+[[epic]]
+id = 3
+slug = "epic-open-and-manage-prs"
+title = "Open and manage PRs"
+description = "The operator opens PRs on GitHub and Azure Repos from the binary with work items, related links, transitions, tags and reviewers, and edits PR tags afterwards."
+covers = ["R4", "R5", "R6", "R7", "R8", "R9", "R10"]
+
+[[epic]]
+id = 4
+slug = "epic-open-a-pr-in-the-right-browser-profile"
+title = "Open a PR in the right browser profile"
+description = "The operator opens any PR URL in the browser profile signed in with a chosen email, from WSL or macOS."
+covers = ["R11"]
+
+[[epic]]
+id = 5
+slug = "epic-cut-over-ship-with-no-bun"
+title = "Cut over: ship with no bun"
+description = "SKILL.md drives the binary, the TS scripts are retired, and parity plus startup speed are proven on one Azure and one GitHub repo."
+covers = ["R13", "R22"]

@@ -1,11 +1,12 @@
 ---
+ticket: 5
 title: 'Story 3.5: Transition work items on open and on completion'
 type: 'feature'
 created: '2026-11-09'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: '167bf4358de7352b5de054e8f2bf2b643102f859'
+baseline_revision: '167bf4358de7352b5de054e8f2bf2b643102f859'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-3-context.md'
   - '{project-root}/skills/ship/HTTP-CLIENT.md'

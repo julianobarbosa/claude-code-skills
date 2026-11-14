@@ -1,0 +1,35 @@
+[[entry]]
+id = 1
+type = "story"
+title = "Detect the delivery platform with ship detect"
+description = "ship detect reports the platform, remote, Azure coordinates, branch and inferred work item of the repo it runs in."
+verify = "detect prints the same keys, values and line order as ship-detect.ts in an Azure clone and a GitHub clone, and SHIP_PLATFORM overrides detection."
+covers = ["R1"]
+after = []
+hitl = false
+risk = "medium"
+v6_key = "1-1-detect-the-delivery-platform-with-ship-detect"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Audit delivery scope with ship preflight"
+description = "ship preflight reports what would be delivered and whether files outside the change are left behind."
+verify = "preflight prints branch, commits_ahead_of_upstream, staged, unstaged, untracked and scope_clean matching ship-preflight.ts, and exits 0 in every case including no upstream."
+covers = ["R2"]
+after = []
+hitl = false
+risk = "low"
+v6_key = "1-2-audit-delivery-scope-with-ship-preflight"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Install a prebuilt binary without bun"
+description = "A prebuilt ship binary installs and runs on a new machine with no bun and no node_modules."
+verify = "On a host with no bun, the documented install step gives a working ship detect and ship preflight, and ship --version prints the release version."
+covers = ["R3"]
+after = []
+hitl = true
+risk = "medium"
+v6_key = "1-3-install-a-prebuilt-binary-without-bun"

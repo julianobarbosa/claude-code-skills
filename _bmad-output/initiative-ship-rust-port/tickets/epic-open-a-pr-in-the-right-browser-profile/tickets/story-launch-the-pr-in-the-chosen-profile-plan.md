@@ -1,11 +1,12 @@
 ---
+ticket: 2
 title: 'Story 4.2: Launch the PR in the chosen profile'
 type: 'feature'
 created: '2026-11-11'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: '7031ea0'
+baseline_revision: '7031ea0'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-4-context.md'
 ---

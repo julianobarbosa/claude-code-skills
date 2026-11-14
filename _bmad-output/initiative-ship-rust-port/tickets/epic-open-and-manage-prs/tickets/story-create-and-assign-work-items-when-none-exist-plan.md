@@ -1,11 +1,12 @@
 ---
+ticket: 3
 title: 'Story 3.3: Create and assign work items when none exist'
 type: 'feature'
 created: '2026-11-08'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: 'a194d881d96297d41ca40fe74856b80859c02b3e'
+baseline_revision: 'a194d881d96297d41ca40fe74856b80859c02b3e'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-3-context.md'
   - '{project-root}/skills/ship/HTTP-CLIENT.md'

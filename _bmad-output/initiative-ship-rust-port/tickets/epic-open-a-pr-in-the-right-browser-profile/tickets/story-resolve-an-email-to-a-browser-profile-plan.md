@@ -1,11 +1,12 @@
 ---
+ticket: 1
 title: 'Story 4.1: Resolve an email to a browser profile'
 type: 'feature'
 created: '2026-11-09'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: '9ed209af063a0288d2c86cc632af8b967368a6d6'
+baseline_revision: '9ed209af063a0288d2c86cc632af8b967368a6d6'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-4-context.md'
 ---
