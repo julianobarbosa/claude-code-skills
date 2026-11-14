@@ -1,0 +1,23 @@
+[[entry]]
+id = 1
+type = "story"
+title = "Push the current branch with ship push"
+description = "ship push pushes the branch and sets its upstream on either platform, so a stale stored credential never blocks delivery."
+verify = "On Azure with az logged in it prints push_ok=oauth-bearer; with az logged out it falls back and prints push_ok=normal; a rejected push exits non-zero without force and no token appears anywhere."
+covers = ["R1"]
+after = []
+hitl = false
+risk = "high"
+v6_key = "2-1-push-the-current-branch-with-ship-push"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Save a checkpoint with ship snapshot"
+description = "ship snapshot tags HEAD with a self-describing annotated tag as a return point before risky work."
+verify = "An annotated v<YYYY.MM.DD-HHMM> tag is created with each -m as its own paragraph, an existing tag is refused with exit 3 without moving it, and --push prints pushed=true."
+covers = ["R2"]
+after = []
+hitl = false
+risk = "low"
+v6_key = "2-2-save-a-checkpoint-with-ship-snapshot"

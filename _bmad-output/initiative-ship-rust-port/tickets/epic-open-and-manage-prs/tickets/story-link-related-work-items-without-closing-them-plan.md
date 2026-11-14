@@ -1,11 +1,12 @@
 ---
+ticket: 6
 title: 'Story 3.6: Link related work items without closing them'
 type: 'feature'
 created: '2026-11-09'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: '36417e7686b749ee7b24c4a424c6a49cd4f9ce1f'
+baseline_revision: '36417e7686b749ee7b24c4a424c6a49cd4f9ce1f'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-3-context.md'
   - '{project-root}/skills/ship/HTTP-CLIENT.md'

@@ -1,11 +1,12 @@
 ---
+ticket: 1
 title: 'Story 1.1: Detect the delivery platform with ship detect'
 type: 'feature'
 created: '2026-11-08'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: 'e0633e18b98942870ba5dc7c6c86891b6c4c9557'
+baseline_revision: 'e0633e18b98942870ba5dc7c6c86891b6c4c9557'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-1-context.md'
   - '{project-root}/_bmad-output/specs/spec-ship-rust-port/cli-contract.md'

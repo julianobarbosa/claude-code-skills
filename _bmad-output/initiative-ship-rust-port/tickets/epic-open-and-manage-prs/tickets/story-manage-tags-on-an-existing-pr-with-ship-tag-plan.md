@@ -1,11 +1,12 @@
 ---
+ticket: 7
 title: 'Story 3.7: Manage tags on an existing PR with ship tag'
 type: 'feature'
 created: '2026-11-09'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: 'c63ddb969f446f44c3f656ff4a55109bc7ebdc86'
+baseline_revision: 'c63ddb969f446f44c3f656ff4a55109bc7ebdc86'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-3-context.md'
   - '{project-root}/skills/ship/HTTP-CLIENT.md'

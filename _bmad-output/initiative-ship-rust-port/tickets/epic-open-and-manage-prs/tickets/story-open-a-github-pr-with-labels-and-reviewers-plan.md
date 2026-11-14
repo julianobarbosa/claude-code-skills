@@ -1,11 +1,12 @@
 ---
+ticket: 1
 title: 'Story 3.1: Open a GitHub PR with labels and reviewers'
 type: 'feature'
 created: '2026-11-08'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: 'f100f67b8c42254887b914ed0c1613a08ad0ab10'
+baseline_revision: 'f100f67b8c42254887b914ed0c1613a08ad0ab10'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-3-context.md'
   - '{project-root}/_bmad-output/specs/spec-ship-rust-port/cli-contract.md'

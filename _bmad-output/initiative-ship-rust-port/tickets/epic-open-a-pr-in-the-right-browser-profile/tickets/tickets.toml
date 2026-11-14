@@ -1,0 +1,23 @@
+[[entry]]
+id = 1
+type = "story"
+title = "Resolve an email to a browser profile"
+description = "ship open lists the signed-in browser profiles and resolves an email to one, so the operator can see which account a PR will open under."
+verify = "--list-profiles prints browser= and one profile=<dir> line per account from Local State matching ship-open.ts, --dry-run resolves profile_dir without launching, and --set-default writes ~/.config/ship/open.json."
+covers = ["R1"]
+after = []
+hitl = false
+risk = "medium"
+v6_key = "4-1-resolve-an-email-to-a-browser-profile"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Launch the PR in the chosen profile"
+description = "ship open <url> --profile <email> opens the PR in that account's window on WSL or macOS."
+verify = "It launches through cmd.exe start on WSL and open -a on macOS printing opened_url and profile_dir, with launch arguments as an array so a URL with & opens intact."
+covers = ["R1"]
+after = [1]
+hitl = false
+risk = "medium"
+v6_key = "4-2-launch-the-pr-in-the-chosen-profile"

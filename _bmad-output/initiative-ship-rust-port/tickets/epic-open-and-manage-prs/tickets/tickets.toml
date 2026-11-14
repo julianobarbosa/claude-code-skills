@@ -1,0 +1,83 @@
+[[entry]]
+id = 1
+type = "story"
+title = "Open a GitHub PR with labels and reviewers"
+description = "ship pr opens a GitHub PR and attaches labels and requested reviewers in follow-up calls."
+verify = "The PR is created, labels and reviewers attach, and it prints platform, pr_url, pr_number plus one tag_added/reviewer_added line each; the title is sent literally so & stays &."
+covers = ["R4", "R5", "R6"]
+after = []
+hitl = false
+risk = "high"
+v6_key = "3-1-open-a-github-pr-with-labels-and-reviewers"
+
+[[entry]]
+id = 2
+type = "story"
+title = "Open an Azure PR linked to an existing work item"
+description = "ship pr opens an Azure PR linked to a work item that was verified to exist before use."
+verify = "The id is checked with a work-item read first, the PR is created in one call carrying the link, tags and draft state, and a branch number that is not a real item is reported and not linked."
+covers = ["R1", "R4"]
+after = []
+hitl = false
+risk = "high"
+v6_key = "3-2-open-an-azure-pr-linked-to-an-existing-work-item"
+
+[[entry]]
+id = 3
+type = "story"
+title = "Create and assign work items when none exist"
+description = "ship pr creates one work item per task when no real item is linked, so the operator is never asked for an id."
+verify = "One item is created from the PR title or one per --task, each assigned and linked, printed as work_item_created=<id> and work_items=<ids> with the ids the API returned."
+covers = ["R1"]
+after = [2]
+hitl = false
+risk = "medium"
+v6_key = "3-3-create-and-assign-work-items-when-none-exist"
+
+[[entry]]
+id = 4
+type = "story"
+title = "Add optional and required reviewers on Azure"
+description = "Reviewers are named by UPN on Azure PRs and recorded on the PR."
+verify = "Each UPN resolves to an identity and is added in the create call printing reviewer_added=<name> required=<bool>; an unresolvable name prints reviewer_skipped=<name> and the PR still opens."
+covers = ["R5"]
+after = [2]
+hitl = false
+risk = "medium"
+v6_key = "3-4-add-optional-and-required-reviewers-on-azure"
+
+[[entry]]
+id = 5
+type = "story"
+title = "Transition work items on open and on completion"
+description = "Linked work items move state when the PR opens and when it completes, so the Board stays truthful without manual clicks."
+verify = "Each item moves on --transition after the PR opens, and complete_transitions_work_items is printed from the post-create update response rather than from the flag."
+covers = ["R3"]
+after = [2]
+hitl = false
+risk = "medium"
+v6_key = "3-5-transition-work-items-on-open-and-on-completion"
+
+[[entry]]
+id = 6
+type = "story"
+title = "Link related work items without closing them"
+description = "--related ties a long-lived item to the PR's own work item, so completing the PR never closes an epic or backlog item."
+verify = "Each id is verified, linked Related to the own item and never to the PR, printed as related_linked=<own>-><id>, with a warning when the body or a commit mentions a related id."
+covers = ["R2"]
+after = [2]
+hitl = false
+risk = "medium"
+v6_key = "3-6-link-related-work-items-without-closing-them"
+
+[[entry]]
+id = 7
+type = "story"
+title = "Manage tags on an existing PR with ship tag"
+description = "ship tag adds, removes and lists tags or labels on an open PR so its triage signal can change after review starts."
+verify = "Tags change on both platforms printing tag_added/tag_removed or the current list; re-adding an existing tag succeeds and a missing GitHub label is created."
+covers = ["R7"]
+after = []
+hitl = false
+risk = "low"
+v6_key = "3-7-manage-tags-on-an-existing-pr-with-ship-tag"

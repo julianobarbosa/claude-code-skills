@@ -1,11 +1,12 @@
 ---
+ticket: 4
 title: 'Story 3.4: Add optional and required reviewers on Azure'
 type: 'feature'
 created: '2026-11-09'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: 'b07c07deaf9882d2fa3d88624e66067297a83908'
+baseline_revision: 'b07c07deaf9882d2fa3d88624e66067297a83908'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-3-context.md'
   - '{project-root}/skills/ship/HTTP-CLIENT.md'

@@ -1,11 +1,12 @@
 ---
+ticket: 2
 title: 'Story 1.2: Audit delivery scope with ship preflight'
 type: 'feature'
 created: '2026-11-08'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: 'd6b91e48772bfd88df9ec5a7277e2d2e74a3f80c'
+baseline_revision: 'd6b91e48772bfd88df9ec5a7277e2d2e74a3f80c'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-1-context.md'
   - '{project-root}/_bmad-output/specs/spec-ship-rust-port/cli-contract.md'

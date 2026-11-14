@@ -1,11 +1,12 @@
 ---
+ticket: 2
 title: 'Story 2.2: Save a checkpoint with ship snapshot'
 type: 'feature'
 created: '2026-11-08'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: 'e44f9ddd9135ebf8fdc11e976df185b559e1b664'
+baseline_revision: 'e44f9ddd9135ebf8fdc11e976df185b559e1b664'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-2-context.md'
   - '{project-root}/_bmad-output/specs/spec-ship-rust-port/cli-contract.md'

@@ -1,11 +1,12 @@
 ---
+ticket: 1
 title: 'Story 2.1: Push the current branch with ship push'
 type: 'feature'
 created: '2026-11-08'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: '873e9b452957135ad890b74dfe3f15cccd1852f5'
+baseline_revision: '873e9b452957135ad890b74dfe3f15cccd1852f5'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-2-context.md'
   - '{project-root}/_bmad-output/specs/spec-ship-rust-port/cli-contract.md'

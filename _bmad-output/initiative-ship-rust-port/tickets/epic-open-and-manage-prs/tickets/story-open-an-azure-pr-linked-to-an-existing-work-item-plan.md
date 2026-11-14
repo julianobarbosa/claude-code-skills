@@ -1,11 +1,12 @@
 ---
+ticket: 2
 title: 'Story 3.2: Open an Azure PR linked to an existing work item'
 type: 'feature'
 created: '2026-11-08'
 status: 'done'
 route: 'dispatch'
 review_loop_iteration: 0
-baseline_commit: '3ad72a83822c518f53da40b711995f8ef099f6ca'
+baseline_revision: '3ad72a83822c518f53da40b711995f8ef099f6ca'
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-3-context.md'
   - '{project-root}/skills/ship/HTTP-CLIENT.md'
