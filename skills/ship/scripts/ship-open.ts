@@ -30,7 +30,11 @@
 //   --dry-run                 Resolve + print the profile without launching a browser.
 //   -h, --help                Show usage.
 //
-// Output (stdout, key=value): opened_url=  browser=  profile_dir=  profile_email=
+// --profile matches a signed-in account email first; failing that, a signed-in
+// profile whose NAME is that email (an account signed in under another alias),
+// but only when exactly one profile has that name.
+//
+// Output (stdout, key=value): opened_url=  browser=  profile_dir=  profile_email=  profile_name=
 //   --list-profiles instead prints: browser=  local_state=  and one
 //   `profile=<dir>\t<email>\t<name>` line per profile.
 
@@ -248,13 +252,21 @@ if (wanted) {
   const w = wanted.toLowerCase();
   // An account signed in under a different alias (UPN vs primary SMTP) keeps
   // that alias in user_name, so also accept a profile the user NAMED after it.
-  chosen =
-    profiles.find((p) => p.email.toLowerCase() === w) ??
-    profiles.find((p) => p.email && p.name.trim().toLowerCase() === w);
+  // Only a unique name match counts: two profiles with the same name would make
+  // the pick arbitrary, and opening under the wrong account is the one thing to avoid.
+  chosen = profiles.find((p) => p.email.toLowerCase() === w);
+  let ambiguous = 0;
+  if (!chosen) {
+    const byName = profiles.filter((p) => p.email && p.name.trim().toLowerCase() === w);
+    if (byName.length === 1) chosen = byName[0];
+    else ambiguous = byName.length;
+  }
   if (chosen && chosen.email.toLowerCase() !== w) {
     console.error(`>> ${browser} profile "${chosen.name}" matched by name (signed in as ${chosen.email})`);
   }
-  if (!chosen) {
+  if (ambiguous > 1) {
+    console.error(`>> ${ambiguous} ${browser} profiles are named ${wanted}; falling back to the Default profile`);
+  } else if (!chosen) {
     console.error(`>> no ${browser} profile signed in as ${wanted}; falling back to the Default profile`);
   } else if (!profileEmail) {
     console.error(`>> using stored default profile ${wanted}`);
