@@ -46,6 +46,46 @@ export function commitsAhead(
   return null;
 }
 
+/** How many of `source`'s commits have NO patch-equivalent on `target` (`git cherry`: a
+ *  `+` line is missing upstream, a `-` line already landed there under another hash).
+ *  0 with commitsAhead > 0 means the same change already reached the target, e.g. a
+ *  parallel session shipped it first and it merged as a rebase or a one-commit squash.
+ *  A squash of several commits has no per-commit equivalent, so it still counts as missing.
+ *  Returns null when the comparison cannot run. `run` is injectable for tests. */
+export function patchesMissing(
+  remote: string,
+  target: string,
+  source: string,
+  run: (cmd: string, args: string[]) => string = (c, a) => sh(c, a, { allowFail: true }),
+): number | null {
+  for (const head of [`${remote}/${source}`, source]) {
+    if (!run("git", ["rev-parse", "--verify", "--quiet", head])) continue;
+    const out = run("git", ["cherry", `${remote}/${target}`, head]);
+    return out ? out.split("\n").filter((l) => l.startsWith("+")).length : 0;
+  }
+  return null;
+}
+
+/** Refresh `<remote>/<target>` so every comparison against it reads the remote as it is
+ *  now, not as of the last fetch (a parallel session may have merged since). On Azure
+ *  the fetch uses the az Bearer first, like ship-push. Returns false when it failed:
+ *  the caller warns and carries on with the stale ref, never silently. */
+export function fetchTarget(remote: string, target: string): boolean {
+  const run = (pre: string[]) => {
+    try {
+      execFileSync("git", [...pre, "fetch", "--quiet", remote, target], { stdio: ["ignore", "ignore", "pipe"] });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  if (detectKind(remoteUrl(remote)) === "azure") {
+    const token = tryAdoToken();
+    if (token && run(adoBearerGitArgs(token))) return true;
+  }
+  return run([]);
+}
+
 /** Current checked-out branch name. */
 export function currentBranch(): string {
   return sh("git", ["rev-parse", "--abbrev-ref", "HEAD"]);

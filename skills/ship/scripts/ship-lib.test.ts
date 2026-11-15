@@ -15,7 +15,30 @@ import {
   detectKind,
   adoParts,
   commitsAhead,
+  patchesMissing,
 } from "./ship-lib.ts";
+
+describe("patchesMissing (already-shipped guard)", () => {
+  // Fake git: rev-parse succeeds for refs in `known`; cherry answers by head.
+  const fake = (known: string[], cherry: Record<string, string>) => (_cmd: string, args: string[]) => {
+    if (args[0] === "rev-parse") return known.includes(args[3]) ? "abc123" : "";
+    if (args[0] === "cherry") return cherry[args[2]] ?? "";
+    return "";
+  };
+
+  test("0 when every commit already landed under another hash", () => {
+    expect(patchesMissing("origin", "main", "feat/x", fake(["origin/feat/x"], { "origin/feat/x": "- a1\n- b2" }))).toBe(0);
+  });
+  test("counts only the commits the target lacks", () => {
+    expect(patchesMissing("origin", "main", "feat/x", fake(["origin/feat/x"], { "origin/feat/x": "- a1\n+ b2\n+ c3" }))).toBe(2);
+  });
+  test("falls back to the local branch before the first push", () => {
+    expect(patchesMissing("origin", "main", "feat/x", fake(["feat/x"], { "feat/x": "+ a1" }))).toBe(1);
+  });
+  test("null when neither ref exists", () => {
+    expect(patchesMissing("origin", "main", "feat/x", fake([], {}))).toBeNull();
+  });
+});
 
 describe("commitsAhead (empty-PR guard)", () => {
   // A fake `git rev-list --count` keyed by the range it is asked for.

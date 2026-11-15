@@ -243,13 +243,10 @@ rather than guessing wrong. This step is independent of the merge/cleanup below 
 review it doesn't advance or block anything.
 
 ### 5. After merge — cleanup
-Do this only once the PR is actually merged (don't delete a branch with an open PR). Mirror the
-`merge` skill's cleanup, and **ask before deleting**:
-- If the branch was developed in a **worktree**, `cd` to the main repo dir first, then
-  `git worktree remove <path>` — you can't delete a branch from inside its own worktree.
-- `git branch -d <branch>` (lowercase `-d` refuses unmerged branches — that refusal is the safety
-  net; only escalate to `-D` if the user explicitly confirms).
-- `git push origin --delete <branch>` (ignore failure if it was local-only).
+Hand off to the **`session-close`** skill. It proves the merge, then removes the worktree, the local
+branch and the remote branch, and refuses unmerged work. Ship keeps no second cleanup path, because
+two would drift. Don't prove a merge with `git branch -r --merged`: it shows nothing after a squash
+merge.
 
 ### 6. Snapshot the state (optional)
 Independent of the PR flow — reach for this any time you want a return-to point: after a clean
@@ -312,6 +309,13 @@ detected platform. The PR description starts from `assets/pr-template.md`.
   platform would open an empty PR that reads as delivered (2026-11-09, ADO PR 1931, a hook failed
   on a DNS timeout). On exit 3, read the commit's hook output, commit, and re-run; never open the
   PR by hand around it. `commitsAhead()` in `ship-lib.ts` compares `<remote>/<target>..<remote>/<source>`.
+- **Parallel sessions: `ship-pr.ts` fetches the target first, then guards twice.** If every commit is
+  already on the target as an equivalent patch (`git cherry`), it exits 3: another session shipped
+  the change. If an active PR for the same source and target exists, it prints `pr_existing=true`
+  with that PR's `pr_url` and exits 0 without creating anything, because the push already updated
+  it. On Azure that lookup runs before work-item creation, since a refused create would orphan
+  the Task ship had already made. A squash of several commits has no per-commit equivalent, so
+  the cherry guard can't see it; that case is `session-close`'s merge proof.
 - `ship-detect.ts` returning `unknown` is almost always a custom SSH host alias — set `SHIP_PLATFORM`.
   (A `dev.azure.com-<alias>` SSH host is detected as azure but its org/project/repo won't parse —
   same limitation the shell version had; pass coordinates/`--work-item` explicitly if needed.)
