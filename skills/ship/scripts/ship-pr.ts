@@ -70,10 +70,11 @@
 
 import { readFileSync } from "node:fs";
 import { Octokit } from "@octokit/rest";
+import { PullRequestStatus } from "azure-devops-node-api/interfaces/GitInterfaces";
 import {
   currentBranch, remoteUrl, detectKind, adoParts, adoCredentials, adoConnection, adoAuthHeader,
   isAuthError, parseWorkItem, parseTags, githubToken, defaultTagsFromTitle, githubOwnerRepo,
-  parseRelatedIds, mentionsWorkItem, sh, commitsAhead,
+  parseRelatedIds, mentionsWorkItem, sh, commitsAhead, patchesMissing, fetchTarget,
 } from "./ship-lib.ts";
 
 function fail(msg: string, code = 1): never {
@@ -180,11 +181,19 @@ if (workItem && relatedIds.includes(Number(workItem)))
 // target's tip; the push still "succeeds" and the platform opens an empty PR that reads as
 // delivered (2026-11-09, ADO PR 1931: a hook failed on a DNS timeout and the PR opened with 0
 // commits). Refuse before any work item, tag or reviewer is created.
+// Both checks below read `<remote>/<target>`, so refresh it first: nothing else in ship
+// fetches, and a stale target ref lets a change another session already merged pass.
+if (!fetchTarget(remote, target))
+  console.error(`>> WARNING: could not fetch '${remote}/${target}'; comparing against the last-fetched ref, which may be stale`);
 const ahead = commitsAhead(remote, target, sourceBranch);
 if (ahead === 0)
   fail(`'${sourceBranch}' has no commits that '${remote}/${target}' lacks: nothing to deliver. Did the commit fail (a pre-commit hook)? Check \`git log ${remote}/${target}..${sourceBranch}\`, commit, then re-run.`, 3);
 if (ahead === null)
   console.error(`>> WARNING: could not compare '${sourceBranch}' with '${remote}/${target}' (unknown ref); not checking for an empty PR`);
+// Commits ahead by hash, but every one already on the target by content: the same change
+// landed another way (a parallel session shipped it). Opening the PR would re-deliver it.
+if (ahead && patchesMissing(remote, target, sourceBranch) === 0)
+  fail(`every commit on '${sourceBranch}' is already on '${remote}/${target}' as an equivalent patch (\`git cherry ${remote}/${target} ${sourceBranch}\` shows only '-'): another session likely shipped it. Nothing to deliver; close the session instead.`, 3);
 
 const url = remoteUrl(remote);
 const kind = detectKind(url);
@@ -277,6 +286,25 @@ async function runAzure(): Promise<void> {
       const where = [mentionsWorkItem(body, rid) && "the PR body", mentionsWorkItem(commits, rid) && "a commit message"].filter(Boolean);
       if (where.length) console.error(`>> WARNING: ${where.join(" and ")} mention #${rid}; Azure Repos may link it to the PR, and Complete would then close it. Reword it (e.g. "item ${rid}") before completing.`);
     }
+  }
+
+  // An active PR for this source→target already exists (a re-ship after new commits, or a
+  // parallel session opened it): the push already updated it, so report it and stop. This
+  // must run BEFORE work-item resolution, because the Task is created before the PR, and
+  // letting createPullRequest refuse with TF401179 would leave that Task orphaned.
+  const open = await authFallback(() => git.getPullRequests(repo, {
+    sourceRefName: `refs/heads/${sourceBranch}`,
+    targetRefName: `refs/heads/${target}`,
+    status: PullRequestStatus.Active,
+  }, project));
+  if (open?.length) {
+    const prId = open[0].pullRequestId;
+    console.error(`>> an active PR for '${sourceBranch}' -> '${target}' already exists; the push updated it, nothing created`);
+    console.log("platform=azure");
+    console.log("pr_existing=true");
+    console.log(`pr_id=${prId}`);
+    console.log(`pr_url=${orgUrl}/${encodeURIComponent(project)}/_git/${encodeURIComponent(repo)}/pullrequest/${prId}`);
+    return;
   }
 
   // Resolve the work item(s) to link: verify any inferred/passed id exists,
@@ -423,10 +451,26 @@ async function runGitHub(): Promise<void> {
   if (!token) fail("no GitHub token: set GH_TOKEN/GITHUB_TOKEN or run `gh auth login`");
 
   const octokit = new Octokit({ auth: token });
-  const { data } = await octokit.pulls.create({
-    owner, repo, base: target, head: sourceBranch, title,
-    body: body || undefined, draft,
-  });
+  let data: Awaited<ReturnType<typeof octokit.pulls.create>>["data"];
+  try {
+    ({ data } = await octokit.pulls.create({
+      owner, repo, base: target, head: sourceBranch, title,
+      body: body || undefined, draft,
+    }));
+  } catch (e: any) {
+    // GitHub refuses a second open PR for the same head with a 422 (nothing is created
+    // before this call on GitHub, so the server's refusal is the whole guard). Report the
+    // existing PR, which the push already updated, instead of failing.
+    if (e?.status !== 422 || !/already exists/i.test(JSON.stringify(e?.response?.data ?? e?.message ?? ""))) throw e;
+    const { data: open } = await octokit.pulls.list({ owner, repo, head: `${owner}:${sourceBranch}`, base: target, state: "open" });
+    if (!open.length) throw e;
+    console.error(`>> an open PR for '${sourceBranch}' -> '${target}' already exists; the push updated it, nothing created`);
+    console.log("platform=github");
+    console.log("pr_existing=true");
+    console.log(`pr_url=${open[0].html_url}`);
+    console.log(`pr_number=${open[0].number}`);
+    return;
+  }
   console.log("platform=github");
   console.log(`pr_url=${data.html_url}`);
   console.log(`pr_number=${data.number}`);
