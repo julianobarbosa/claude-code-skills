@@ -519,12 +519,12 @@ For troubleshooting guide, see `references/troubleshooting.md`.
 
 ## Absorbed sub-skills (post-consolidation)
 
-This skill now subsumes the former `argocd-command` and `argocd-review` skills. Their original SKILL.md content (still useful as deep reference) lives under `References/`:
+This skill now subsumes the former `argocd-command` and `argocd-review` skills. Their original SKILL.md content (still useful as deep reference) lives under `references/`:
 
 | Subject | Path |
 |---------|------|
-| Local cluster context (kubeconfig, port-forward, aliases) | `References/command-workflows/` + `References/command-tools/` |
-| Application review, diff, rollback, history, sync troubleshooting | `References/review.md` + `References/review-workflows/` + `References/review-tools/` |
+| Local cluster context (kubeconfig, port-forward, aliases) | `references/command-workflows/` + `references/command-tools/` |
+| Application review, diff, rollback, history, sync troubleshooting | `references/review.md` + `references/review-workflows/` + `references/review-tools/` |
 
 For multi-cluster ApplicationSets, Image Updater, cluster bootstrapping, and workload onboarding, see the sibling **`argocd-advanced`** skill. For canary / blue-green / promotion, see **`progressive-delivery`**.
 

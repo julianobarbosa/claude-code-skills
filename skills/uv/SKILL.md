@@ -721,9 +721,9 @@ This skill now subsumes the former `python-project` skill (project scaffolding).
 
 | Subject | Path |
 |---------|------|
-| Python project scaffolding (Flask/pytest patterns, project structure) | `References/python-project.md` |
-| Project references | `References/python-project-references/` |
-| Project scripts | `References/python-project-scripts/` |
+| Python project scaffolding (Flask/pytest patterns, project structure) | `references/python-project.md` |
+| Project references | `references/python-project-references/` |
+| Project scripts | `references/python-project-scripts/` |
 
 ---
 

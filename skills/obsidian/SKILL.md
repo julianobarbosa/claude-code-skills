@@ -518,10 +518,10 @@ This skill now subsumes the former `obsidian-master` skill (the "unified orchest
 
 | Subject | Path |
 |---------|------|
-| Original orchestration SKILL.md (multi-step vault workflows) | `References/master.md` |
-| Master skill's reference docs | `References/master-reference/` |
-| Master skill's workflows | `References/master-workflows/` |
-| Master skill's tools | `References/master-tools/` |
+| Original orchestration SKILL.md (multi-step vault workflows) | `references/master.md` |
+| Master skill's reference docs | `references/master-reference/` |
+| Master skill's workflows | `references/master-workflows/` |
+| Master skill's tools | `references/master-tools/` |
 
 The former `obsidian-second-brain` skill has been renamed to **`obsidian-claude-integration`** to reflect what it actually is: integration patterns for Claude Code + Obsidian, not a generic "second brain" concept.
 
