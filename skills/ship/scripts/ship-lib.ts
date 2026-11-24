@@ -303,6 +303,24 @@ export function scopeAudit(porcelain: string): ScopeAudit {
   return { ...s, ok, warning };
 }
 
+/** Paths whose change can expose or break running infrastructure: IaC, Kubernetes and
+ *  Helm manifests, GitOps (ArgoCD) objects. A match means the diff gets an adversarial
+ *  review before the PR opens (references/infra-review.md). Matching is by path only,
+ *  so it is cheap and deterministic. It over-matches on purpose (a values file in a docs
+ *  example still triggers), because a missed infra diff costs more than one review. */
+const INFRA_PATTERNS: RegExp[] = [
+  /\.(tf|tfvars|hcl|bicep)$/i,
+  /\.tf\.json$/i,
+  /(^|\/)(k8s|kubernetes|manifests|charts?|helm|argocd|gitops|kustomize)\//i,
+  /(^|\/)values[^/]*\.ya?ml$/i,
+  /(^|\/)(kustomization|Chart)\.ya?ml$/i,
+  /(^|\/)[^/]*(appproject|applicationset|secretproviderclass)[^/]*\.ya?ml$/i,
+];
+
+export function infraFiles(paths: string[]): string[] {
+  return [...new Set(paths.filter((p) => INFRA_PATTERNS.some((re) => re.test(p))))];
+}
+
 /** Best-effort extraction of a work-item id from a branch name or commit subject.
  *  Recognizes `AB#1234`, `AB1234`, and a number delimited by / _ - (e.g.
  *  feature/1234-foo). Returns the id or "". Heuristic — confirm it exists before
