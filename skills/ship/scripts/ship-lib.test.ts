@@ -16,7 +16,26 @@ import {
   adoParts,
   commitsAhead,
   patchesMissing,
+  infraFiles,
 } from "./ship-lib.ts";
+
+describe("infraFiles (infra review trigger)", () => {
+  test("matches IaC, k8s/helm and GitOps paths", () => {
+    const hits = [
+      "envs/dev/main.tf", "envs/dev/terraform.tfvars", "backend.config.hcl", "infra/main.bicep",
+      "k8s/apps/web/deployment.yaml", "charts/api/templates/svc.yaml", "argocd/root.yaml",
+      "apps/web/values.prod.yaml", "base/kustomization.yaml", "chart/Chart.yaml",
+      "deploy/my-appproject.yaml", "deploy/secretproviderclass.yaml",
+    ];
+    expect(infraFiles(hits)).toEqual(hits);
+  });
+  test("ignores code and docs", () => {
+    expect(infraFiles(["src/app.ts", "README.md", "skills/ship/SKILL.md", ".github/workflows/ci.yaml", "docs/values.md"])).toEqual([]);
+  });
+  test("dedupes a path seen as committed and modified", () => {
+    expect(infraFiles(["a/main.tf", "a/main.tf"])).toEqual(["a/main.tf"]);
+  });
+});
 
 describe("patchesMissing (already-shipped guard)", () => {
   // Fake git: rev-parse succeeds for refs in `known`; cherry answers by head.
