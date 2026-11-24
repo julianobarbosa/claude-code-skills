@@ -53,5 +53,5 @@ python3 "$SKILL_DIR/scripts/run_studio.py" \
 ### 3. Verify and Report
 The script exits non-zero if any required step fails and outputs a final JSON summary of all Studio artifacts. Present to the user:
 1. **Notebook URL:** `https://notebooklm.google.com/notebook/<id>`
-2. **Persona Configuration Status:** Mode/response-length + `pt-BR` persona applied
+2. **Persona Configuration Status:** Mode/response-length + `pt-BR` persona (`applied` when the configuration command actually executed, or `planned` when `--dry-run` is active)
 3. **Studio Artifacts Table:** `#`, `Type`, `Title`, `Artifact ID`, and `Status` (`completed` vs `in_progress` server-side rendering).

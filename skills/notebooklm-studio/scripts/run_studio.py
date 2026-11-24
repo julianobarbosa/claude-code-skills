@@ -40,6 +40,8 @@ SUPPORTED_KEYS: tuple[str, ...] = (
     "table-report",
 )
 
+USABLE_STATUSES: frozenset[str] = frozenset({"completed", "in_progress", "pending"})
+
 
 def extract_notebook_id(raw: str) -> str:
     m = re.search(
@@ -91,17 +93,12 @@ class PacedCLI:
         self._last_call_ts = time.monotonic()
         out = proc.stdout.strip()
         err = proc.stderr.strip()
-        if out:
-            try:
-                return proc.returncode, json.loads(out)
-            except json.JSONDecodeError:
-                pass
-        if err:
-            try:
-                return proc.returncode, json.loads(err)
-            except json.JSONDecodeError:
-                pass
-        return proc.returncode, out or err
+        if not out:
+            return proc.returncode, err
+        try:
+            return proc.returncode, json.loads(out)
+        except json.JSONDecodeError:
+            return proc.returncode, out
 
 
 def fetch_artifacts(cli: PacedCLI, nb: str) -> tuple[bool, list[dict]]:
@@ -153,6 +150,18 @@ def save_manifest(state_dir: Path, nb: str, manifest: dict) -> None:
     path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
+def _select_artifact(found: dict[str, dict], key: str, candidate: dict) -> None:
+    """Record `candidate` for `key`, ensuring completed/active records take precedence over failed ones."""
+    existing = found.get(key)
+    if existing is None:
+        found[key] = candidate
+        return
+    existing_status = (existing.get("status") or "").lower()
+    candidate_status = (candidate.get("status") or "").lower()
+    if existing_status not in USABLE_STATUSES and candidate_status in USABLE_STATUSES:
+        found[key] = candidate
+
+
 def classify_existing(
     artifacts: list[dict],
     recorded_ids: dict[str, str] | None = None,
@@ -160,6 +169,8 @@ def classify_existing(
     """Map canonical studio keys to existing artifact records.
 
     Handles NotebookLM's post-generation classification quirks:
+    - Completed or active (`in_progress`/`pending`) records take precedence over `failed` records
+      regardless of input order; a failed record is retained only when no usable record exists.
     - Completed quizzes may report `type_id == 'flashcards'` (disambiguated by title or recorded ID).
     - Reports share `type_id == 'report'` (disambiguated by explicit title/type markers or recorded ID;
       unrecognized custom reports are NOT blindly mapped to `blog-post`).
@@ -174,55 +185,58 @@ def classify_existing(
         title = (art.get("title") or "").lower()
 
         if art_id and art_id in id_to_key:
-            found.setdefault(id_to_key[art_id], art)
+            _select_artifact(found, id_to_key[art_id], art)
             continue
 
         if t_id == "audio":
-            found.setdefault("audio", art)
+            _select_artifact(found, "audio", art)
         elif t_id == "video":
-            found.setdefault("video", art)
+            _select_artifact(found, "video", art)
         elif t_id == "infographic":
-            found.setdefault("infographic", art)
+            _select_artifact(found, "infographic", art)
         elif t_id == "slide_deck":
-            found.setdefault("slide-deck", art)
+            _select_artifact(found, "slide-deck", art)
         elif t_id == "mind_map":
-            found.setdefault("mind-map", art)
+            _select_artifact(found, "mind-map", art)
         elif t_id == "quiz":
-            found.setdefault("quiz", art)
+            _select_artifact(found, "quiz", art)
         elif t_id == "flashcards":
             # NotebookLM studio_status / artifact list can classify completed quizzes as flashcards
             if "quiz" in title or "questionário" in title or "teste" in title:
-                found.setdefault("quiz", art)
+                _select_artifact(found, "quiz", art)
             elif "flashcard" in title or "cartões" in title or "cartoes" in title:
-                found.setdefault("flashcards", art)
-            elif "flashcards" not in found:
-                found["flashcards"] = art
+                _select_artifact(found, "flashcards", art)
+            elif (
+                "flashcards" not in found
+                or (found["flashcards"].get("status") or "").lower() not in USABLE_STATUSES
+            ):
+                _select_artifact(found, "flashcards", art)
             else:
-                found.setdefault("quiz", art)
+                _select_artifact(found, "quiz", art)
         elif t_id == "data_table":
-            found.setdefault("table-report", art)
+            _select_artifact(found, "table-report", art)
         elif t_id == "report":
             if t_label == "briefing doc" or "briefing" in title:
-                found.setdefault("briefing-doc", art)
+                _select_artifact(found, "briefing-doc", art)
             elif (
                 t_label == "study guide"
                 or "guia de estudo" in title
                 or "study guide" in title
             ):
-                found.setdefault("study-guide", art)
+                _select_artifact(found, "study-guide", art)
             elif (
                 "comparativo técnico" in title
                 or "tabela" in title
                 or "comparison table" in title
             ):
-                found.setdefault("table-report", art)
+                _select_artifact(found, "table-report", art)
             elif (
                 t_label == "blog post"
                 or "blog" in title
                 or "na prática:" in title
                 or "artigo" in title
             ):
-                found.setdefault("blog-post", art)
+                _select_artifact(found, "blog-post", art)
     return found
 
 
@@ -590,9 +604,9 @@ def main() -> int:
 
             prev = existing_map.get(key)
             if prev and not args.force and not fingerprint_changed:
-                status = prev.get("status")
+                status = (prev.get("status") or "").lower()
                 art_id = str(prev.get("id") or "")
-                if status in ("completed", "in_progress", "pending"):
+                if status in USABLE_STATUSES:
                     print(f"  [SKIP] {key}: already {status} (id={art_id})")
                     if art_id:
                         recorded_ids[key] = art_id
@@ -648,12 +662,11 @@ def main() -> int:
 
             rc, out = cli.run(cmd_args)
             if rc != 0 and not args.dry_run:
-                # Comment 9: Bounded retry on immediate generation failure
+                # Comment 9: Bounded retry on immediate generation failure (paced by PacedCLI)
                 print(
-                    f"  [WARN] {key} generation failed (rc={rc}: {out}); retrying once after backoff...",
+                    f"  [WARN] {key} generation failed (rc={rc}: {out}); retrying once...",
                     file=sys.stderr,
                 )
-                time.sleep(max(args.delay, 2.0))
                 rc, out = cli.run(cmd_args)
 
             if rc == 0:
@@ -680,7 +693,7 @@ def main() -> int:
         retried_in_final = False
         for key in target_keys:
             art = final_map.get(key)
-            if art and art.get("status") == "failed" and art.get("id"):
+            if art and (art.get("status") or "").lower() == "failed" and art.get("id"):
                 art_id = str(art["id"])
                 print(f"  [FINAL-RETRY] {key}: retrying newly failed artifact {art_id}...")
                 rc_fr, fr_out = cli.run(["artifact", "retry", art_id, "-n", nb, "--json"])
@@ -703,7 +716,7 @@ def main() -> int:
             art = final_map.get(key)
             if art and art.get("id"):
                 recorded_ids[key] = str(art["id"])
-            if not args.dry_run and (not art or art.get("status") == "failed"):
+            if not args.dry_run and (not art or (art.get("status") or "").lower() == "failed"):
                 if key not in failures:
                     failures.append(key)
 
@@ -722,6 +735,7 @@ def main() -> int:
 
         summary_payload = {
             "notebook_id": nb,
+            "persona_status": "planned" if args.dry_run else "applied",
             "fingerprint": current_fp,
             "count": len(final_artifacts),
             "failures": failures,
