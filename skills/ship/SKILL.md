@@ -53,8 +53,7 @@ A terse `ship` / `ship it` means "do the delivery," not "explain it to me." Run 
 **minimal narration**: the preflight scope result (only if it's not clean), the `pr_url`, any
 created work-item ids, and the cleanup confirm. Don't recap session state, re-derive the plan out
 loud, or list every step before doing it — over-narrating a terse command is its own failure mode.
-The things that *do* warrant stopping are a `scope_clean=false` from preflight (step 0) and a
-blocking finding from the infra review (step 3b).
+The one thing that *does* warrant stopping is a `scope_clean=false` from preflight (step 0).
 
 ### 0. Preflight
 ```bash
@@ -94,13 +93,6 @@ bun scripts/ship-push.ts         # pushes current branch, sets upstream
 On Azure DevOps, the push authenticates with an `az account get-access-token` Bearer header first
 (`push_ok=oauth-bearer`), and falls back to the stored git credential only when `az` is not logged
 in (`push_ok=normal`). See `references/azure-devops.md` for the mechanics.
-
-### 3b. Infra review (when preflight says `review_required=true`)
-Preflight decides this from the paths in the change (IaC, Kubernetes/Helm, GitOps). When it is
-`true`, spawn a read-only reviewer from a **different model family** with the brief in
-`references/infra-review.md` and the `review_files=` list, before step 4. Blocking findings stop
-the PR. `false` skips this step, so docs-only and code-only ships stay fast. On a bare "ship", the
-review result is one line (`no blocking issues`, or the findings), not a recap.
 
 ### 4. Open the PR (+ ensure/link work item, + transition state)
 
@@ -284,7 +276,7 @@ does. The script prints `tag=`, `commit=`, `branch=`, `pushed=`.
 
 | Script | Does |
 |--------|------|
-| `bun scripts/ship-preflight.ts [remote] [target]` | Anything-to-deliver + working-tree scope audit (`scope_clean=…`) + infra review trigger (`review_required=…`, `review_files=…`); advisory, never blocks. Run first |
+| `bun scripts/ship-preflight.ts [remote]` | Anything-to-deliver + working-tree scope audit (`scope_clean=…`); advisory, never blocks. Run first |
 | `bun scripts/ship-detect.ts [remote]` | Print platform + Azure coordinates + branch + inferred work item |
 | `bun scripts/ship-push.ts [-r remote] [-b branch]` | Push + set upstream; on Azure, `az` OAuth Bearer first, stored credential as fallback |
 | `bun scripts/ship-pr.ts --title … [opts]` | Open PR on the detected platform; ensure/create + link work item(s) (assigned to the configured user); optional Board transition; auto-tag from title/branch (override `--tag`, disable `--no-tag`); optional `--reviewer`/`--required-reviewer` (default `$SHIP_ADO_DEFAULT_REVIEWER`, disable `--no-reviewer`); pre-checks "Complete linked work items after merging" (disable `--no-complete-transition`) — work item + tags + reviewers packed into one create call on Azure |

@@ -1,315 +1,290 @@
 ---
 name: notebooklm
-description: Install, authenticate, troubleshoot, and operate Gemini Notebook through the notebooklm-py CLI or typed async Python API. Use for notebook and source management, grounded chat and research, and artifact generation or download when the user mentions Gemini Notebook, notebooklm-py, the notebooklm CLI, or its Python API. Do not use for the generic Gemini API or unrelated content creation.
+description: |
+  Programmatic access to Google NotebookLM via the notebooklm-py CLI and Python API. Use this skill whenever the user wants to create notebooks, add sources (URLs, YouTube, PDFs, files), generate audio overviews/podcasts, videos, slide decks, quizzes, flashcards, infographics, reports, mind maps, or data tables from their research materials. Also use when the user mentions NotebookLM, wants to turn documents into podcasts, generate study materials, or automate any NotebookLM workflow — even if they don't explicitly say "NotebookLM". Triggers on: podcast from documents, audio overview, NotebookLM, notebook research, generate quiz from PDF, flashcards from notes, study materials, deep dive audio.
 ---
-<!-- notebooklm-py v0.8.6 -->
-# Gemini Notebook Automation
 
-Use the `notebooklm` CLI for agent workflows. Prefer `--json` and explicit IDs so every
-operation is inspectable and safe under concurrency. Use the typed async Python API only when the
-user requests application code or the CLI cannot express the workflow. The readiness, identity,
-authorization, and credential-handling rules below apply to both interfaces.
+# NotebookLM Automation
 
-## Setup and Authentication
+Unofficial Python CLI and API for Google NotebookLM (`notebooklm-py`). Provides full programmatic access including capabilities the web UI doesn't expose.
 
-Requires Python 3.10+. Install the package in the user's existing environment; do not create a
-separate environment unless requested:
+## Prerequisites
+
+- Python 3.10+
+- Google account with NotebookLM access
+- One-time browser login via Playwright
+
+## Installation
 
 ```bash
+# Install with browser login support
 pip install "notebooklm-py[browser]"
-pip install "notebooklm-py[cookies]"  # optional browser-cookie extraction
+playwright install chromium
+
+# Linux only: also run
+playwright install-deps chromium
 ```
 
-If system `pip` reports `externally-managed-environment`, do not use `--break-system-packages`.
-For CLI-only use, offer `uv tool install "notebooklm-py[browser]"` or the equivalent `pipx`
-command; for application code, use the user's active project environment.
+## Authentication
 
-For unattended or headless work, prefer durable profile-backed master-token auth over a copied
-cookie snapshot. Install `pip install "notebooklm-py[headless]"`; the one-time automatic OAuth
-capture also needs `[browser]`. On a trusted workstation run
-`notebooklm login --master-token --account <email>`, then deploy `master_token.json`, not
-`storage_state.json`, to the selected profile. `NOTEBOOKLM_HOME` selects the private base directory
-and `NOTEBOOKLM_PROFILE` selects its profile; defaults resolve to
-`~/.notebooklm/profiles/default/master_token.json`.
-
-In CI, `NOTEBOOKLM_MASTER_TOKEN_JSON` is a secret-transport convention, not an environment variable
-the package reads directly. Write its exact value to the selected profile's `master_token.json`
-with mode `0600`, unset it, then run `notebooklm auth refresh` to mint `storage_state.json`. A
-sibling master token can automatically re-mint expired file-backed cookies. Inline
-`NOTEBOOKLM_AUTH_JSON` is only a short-lived fallback; it bypasses this recovery path.
-
-Use PyPI or a release tag, not an unreleased `main` checkout. When available, consult the
-[installation guide](https://github.com/teng-lin/notebooklm-py/blob/main/docs/installation.md).
-
-Before a workflow, verify real authentication rather than merely parsing the cookie file:
+First-time setup requires browser login:
 
 ```bash
-notebooklm auth check --test --json
+notebooklm login
+# Opens Chromium → sign into Google → press Enter when done
+# Session saved to ~/.notebooklm/storage_state.json
 ```
 
-Require `.status == "ok"` and `.checks.token_fetch == true`. If validation fails:
+Check auth status: `notebooklm auth check --test`
 
-- With a display, run `notebooklm login` and validate again.
-- In a headless environment, install `[cookies]` and use
-  `notebooklm login --browser-cookies <browser>`. Use
-  `notebooklm auth inspect --browser <browser>` first when account selection is unclear.
-- If previously valid cookies became stale, try `notebooklm auth refresh`; use
-  `notebooklm auth refresh --browser-cookies <browser>` after signing back into the browser.
+For headless/CI environments, copy `storage_state.json` from a local machine or set `NOTEBOOKLM_AUTH_JSON` env var.
 
-The normal `--test` preflight may heal and persist refreshed cookies. Add `--passive` when the
-check must be strictly read-only, including the failure-diagnosis workflow below.
+## Environment Variables
 
-`notebooklm status` reports selected-notebook context, not authentication.
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NOTEBOOKLM_HOME` | Config directory | `~/.notebooklm` |
+| `NOTEBOOKLM_AUTH_JSON` | Inline auth JSON (CI/CD) | — |
+| `NOTEBOOKLM_LOG_LEVEL` | `DEBUG`/`INFO`/`WARNING`/`ERROR` | `WARNING` |
+| `NOTEBOOKLM_DEBUG_RPC` | Enable RPC debug (`1`) | `false` |
 
-Treat both auth files as bearer credentials: never print, log, or commit them. A master token is a
-durable full-account credential that survives password changes; use a dedicated account, protect
-it in a secret store and as `0600` on disk, and explicitly revoke it if exposed.
+## Core Workflow
 
-## Operating Invariants
+The typical workflow is: **create notebook → add sources → generate content → download**.
 
-1. Use `--json` for discovery and mutations, then retain the returned full UUIDs. Important
-   envelopes are `.notebook.id` from `create`, `.source.id` from `source add`, and `.task_id` from
-   asynchronous generators. `generate mind-map` instead returns `mind_map`, `note_id`, and `kind`;
-   both kinds return a finished result with no task ID or separate `artifact wait` step.
-2. Pass `-n/--notebook <id>` on every notebook-scoped command in automation or concurrent work.
-   Do not rely on `notebooklm use`. For every concurrent run, also set a unique
-   `NOTEBOOKLM_PROFILE=agent-<id>` so context and profile writes are isolated. A new profile has no
-   credentials: put a `master_token.json` copy in that profile and mint its storage before use.
-   Never share one writable `storage_state.json` across agents.
-3. After adding sources, retain every `.source.id`, then run `source wait` for each before chat or
-   generation. The add envelope has no status. Require wait exit 0 and `status == "ready"`; let the
-   waiter handle media-specific transient `error` rows.
-4. After an asynchronous generator returns a task/artifact ID, pass it positionally to
-   `artifact wait` with `-n <notebook_id>`. Download that exact artifact with
-   `-a <artifact_id> -n <notebook_id>`; never select the latest visible artifact. Mind-map generation
-   returns its completed result directly and does not need `artifact wait`.
-5. For overlapping research runs, always pass `--run-id <research_run_id>`.
-6. Use a host's background facility only when it actually exists. Keep wait and dependent download
-   commands in one sequential job, and download only after the wait exits 0. Otherwise run in the
-   foreground or return exact ID-pinned commands to the user.
-
-## Authorization Boundaries
-
-Safe inspection and explicitly requested creation, source addition, chat, and prompt suggestion can
-run directly. Diagnose failures with read-only commands before attempting recovery.
-
-Obtain confirmation immediately before an action when it was not already clearly authorized:
-
-- destructive commands such as notebook/source/note/artifact/label/profile deletion, sharing
-  removal, logout, clear, research cancellation, and `ask --new`;
-- `language set`, because the default mode changes the account-global output language (prefer a
-  generation command's `--language` override);
-- generation or long foreground waits, which can take minutes and be rate-limited;
-- downloads, which write files;
-- `research wait --import-all`, which imports sources;
-- `ask --save-as-note` and `history --save`, which create notes.
-
-User intent, not the presence of a CLI prompt, is the authorization boundary. After authorization,
-pass `--yes`/`-y` where supported. Most destructive JSON commands refuse to prompt without it, but
-some, including `ask --new --json` and `share remove --json`, execute without prompting. Never
-treat prompt absence as consent.
-
-`research cancel` is fire-and-forget. After an authorized cancellation, verify the exact run with
-`notebooklm research status -n <notebook_id> --run-id <research_run_id> --json`.
-
-## Command Discovery
-
-Use the installed CLI's help as the version-matched source of truth instead of guessing flags:
+### 1. Notebook Management
 
 ```bash
-notebooklm --help
-notebooklm source --help
-notebooklm research --help
-notebooklm generate --help
-notebooklm artifact --help
-notebooklm download --help
+notebooklm create "My Research"       # Create notebook
+notebooklm list                        # List all notebooks
+notebooklm use <id>                    # Set active notebook (supports partial ID)
+notebooklm summary                     # AI summary of current notebook
+notebooklm rename "New Title"          # Rename
+notebooklm delete <id>                 # Delete
 ```
 
-Also inspect `notebooklm --version` and drill down to the exact command, such as
-`notebooklm generate audio --help`, whenever its help differs from this skill.
+### 2. Adding Sources
 
-Common operations:
-
-| Goal | Command |
-|---|---|
-| Check compute usage | `notebooklm usage --json`; `notebooklm usage --categories` for category availability and estimated costs |
-| List or create notebooks | `notebooklm list --json`; `notebooklm create "Title" --json` |
-| Add and wait for a source | `notebooklm source add <input> -n <nb> --json`; `notebooklm source wait <src> -n <nb>` |
-| URL recovery | `notebooklm source add <url> --fallback-fetch` |
-| Chat | `notebooklm ask "question" -n <nb> --json` |
-| Research | `notebooklm source add-research "query" -n <nb> --mode fast --json` (`deep` is also supported) |
-| List or wait for artifacts | `notebooklm artifact list -n <nb> --json`; `notebooklm artifact wait <id> -n <nb>` |
-| Generate | `notebooklm generate <type> ... -n <nb> --json` |
-| Download | `notebooklm download <type> <path> -n <nb> -a <artifact>` |
-
-For the full surface, consult the installed command help or, when available, the
-[CLI reference](https://github.com/teng-lin/notebooklm-py/blob/main/docs/cli-reference.md).
-For application code, use the baseline below and, when available, the
-[Python API guide](https://github.com/teng-lin/notebooklm-py/blob/main/docs/python-api.md).
-
-## Canonical Source-to-Artifact Workflow
-
-Keep `{notebook_id}`, every `{source_id}`, and `{artifact_id}` from JSON output:
-
-An explicit request for this completed workflow authorizes its normal prerequisite waits, requested
-generation, and requested output file. Confirm only work not already authorized by that request.
-
-1. `notebooklm create "Research: topic" --json`
-2. `notebooklm source add <input> -n {notebook_id} --json` for each input.
-3. Once the foreground wait is authorized, run
-   `notebooklm source wait {source_id} -n {notebook_id} --timeout 600` for every captured source.
-4. Once generation is authorized, generate the requested type. For audio:
-   `notebooklm generate audio "instructions" -n {notebook_id} -s {source_id} --json`.
-   Repeat `-s` for each selected source and capture `.task_id` as `{artifact_id}`.
-5. Once the foreground wait is authorized, run
-   `notebooklm artifact wait {artifact_id} -n {notebook_id} --timeout 1200`.
-6. Once the output write is authorized, run
-   `notebooklm download audio ./podcast.m4a -a {artifact_id} -n {notebook_id}`.
-
-For analysis without generation, replace steps 4-6 with an ID-pinned chat command only after every
-source is ready:
+Sources are auto-detected by type:
 
 ```bash
-notebooklm ask "Summarize the key arguments" -n {notebook_id} --json
+notebooklm source add "https://example.com/article"          # URL
+notebooklm source add "https://youtube.com/watch?v=..."       # YouTube
+notebooklm source add ./document.pdf                           # File (PDF, MD, DOCX, TXT, audio, video, images)
+notebooklm source add-drive <drive-file-id> "Title"           # Google Drive
+notebooklm source add-research "climate policy" --mode deep --import-all  # Research agent
 ```
 
-## Deep Research
-
-Deep research can take 15-30+ minutes. Start it non-blocking and retain
-`.poll_task_id // .task_id` as `{research_run_id}`:
+Other source commands:
 
 ```bash
-notebooklm source add-research "query" -n {notebook_id} --mode deep --no-wait --json
+notebooklm source list                # List sources
+notebooklm source fulltext <id>       # Get source full text
+notebooklm source guide <id>          # AI-generated source guide
+notebooklm source rename <id> "New"   # Rename
+notebooklm source refresh <id>        # Re-fetch URL source
+notebooklm source delete <id>         # Delete
 ```
 
-Import only after explicit authorization, pinning both IDs:
+### 3. Chat / Q&A
 
 ```bash
-notebooklm research wait -n {notebook_id} --run-id {research_run_id} \
-  --import-all --timeout 1800 --json
+notebooklm ask "What are the key findings?" -s <source_id>
+notebooklm ask "Compare sources" --json --save-as-note --note-title "Comparison"
+notebooklm history                     # View chat history
+notebooklm history --save              # Save history as note
 ```
 
-With `--import-all`, `--timeout` is a per-phase budget for polling and import retry, so this example
-can consume roughly 3600 seconds of host wall time.
+### 4. Content Generation
 
-Retain newly created source IDs from `.imported_sources[].id` and wait for readiness before later
-chat or generation.
+All generate commands support: `-s/--source` (repeatable, limit to specific sources), `--json`, `--language`, `--retry N`.
 
-## Python API Baseline
+Most are async — use `--wait` to block until complete.
 
-When the full API guide is unavailable, use the installed typed API and its docstrings; do not guess
-method names. Keep the same IDs and readiness gates as the CLI workflow:
+#### Audio Overviews (Podcasts)
+
+```bash
+notebooklm generate audio "Focus on practical applications" \
+  --format deep-dive \    # deep-dive | brief | critique | debate
+  --length long \         # short | default | long
+  --wait
+```
+
+#### Video Overviews
+
+```bash
+notebooklm generate video "Explain the architecture" \
+  --format explainer \    # explainer | brief
+  --style whiteboard \    # auto | classic | whiteboard | kawaii | anime | watercolor | retro-print | heritage | paper-craft
+  --wait
+```
+
+#### Slide Decks
+
+```bash
+notebooklm generate slide-deck "Executive summary" \
+  --format detailed \     # detailed | presenter
+  --length default \      # default | short
+  --wait
+
+# Revise a specific slide
+notebooklm generate revise-slide "Add more data points" \
+  -a <artifact_id> --slide 2 --wait    # slide is zero-based
+```
+
+#### Study Materials
+
+```bash
+# Quizzes
+notebooklm generate quiz --difficulty hard --quantity more --wait
+
+# Flashcards
+notebooklm generate flashcards --difficulty medium --wait
+```
+
+#### Visual & Data
+
+```bash
+# Infographic
+notebooklm generate infographic \
+  --orientation landscape \   # landscape | portrait | square
+  --detail detailed \         # concise | standard | detailed
+  --wait
+
+# Mind map (synchronous, no --wait needed)
+notebooklm generate mind-map
+
+# Data table
+notebooklm generate data-table "Compare metrics across studies" --wait
+```
+
+#### Reports
+
+```bash
+notebooklm generate report "Security analysis" \
+  --format briefing-doc \     # briefing-doc | study-guide | blog-post | custom
+  --append "Include threat modeling" \
+  --wait
+```
+
+### 5. Downloading Content
+
+All download commands support: `-a/--artifact`, `--all`, `--latest`, `--earliest`, `--name`, `--force`, `--no-clobber`, `--dry-run`, `--json`.
+
+```bash
+notebooklm download audio ./podcast.mp3
+notebooklm download video ./overview.mp4
+notebooklm download slide-deck ./slides.pptx --format pptx   # or pdf (default)
+notebooklm download infographic ./info.png
+notebooklm download report ./report.md
+notebooklm download mind-map ./map.json
+notebooklm download data-table ./data.csv
+notebooklm download quiz --format json ./quiz.json       # json | markdown | html
+notebooklm download flashcards --format markdown ./cards.md
+```
+
+### 6. Sharing
+
+```bash
+notebooklm share status
+notebooklm share public --enable           # Create public link
+notebooklm share view-level full           # full | chat
+notebooklm share add user@email.com --permission editor -m "Check this out"
+notebooklm share remove user@email.com
+```
+
+### 7. Language
+
+```bash
+notebooklm language list                   # 80+ languages
+notebooklm language get
+notebooklm language set ja                 # Set to Japanese
+```
+
+## Python API
+
+Fully async API for programmatic workflows:
 
 ```python
 import asyncio
-
 from notebooklm import NotebookLMClient
 
+async def main():
+    async with await NotebookLMClient.from_storage() as client:
+        # Create notebook and add sources
+        nb = await client.notebooks.create("Research")
+        await client.sources.add_url(nb.id, "https://example.com")
 
-async def main(url: str) -> None:
-    async with NotebookLMClient.from_storage() as client:
-        notebook = await client.notebooks.create("Research: topic")
-        source = await client.sources.add_url(notebook.id, url)
-        await client.sources.wait_until_ready(notebook.id, source.id, timeout=600)
-
-        answer = await client.chat.ask(
-            notebook.id, "Summarize the key arguments", source_ids=[source.id]
-        )
-        print(answer.answer)
-
-        task = await client.artifacts.generate_audio(
-            notebook.id,
-            source_ids=[source.id],
-            instructions="Focus on the key arguments",
-        )
-        final = await client.artifacts.wait_for_completion(notebook.id, task.task_id, timeout=1200)
-        if not final.is_complete:
-            raise RuntimeError(f"Generation ended with {final.status}: {final.error}")
-        await client.artifacts.download_audio(
-            notebook.id, "./podcast.m4a", artifact_id=task.task_id
+        # Generate audio overview
+        artifact = await client.artifacts.generate_audio(
+            nb.id, description="Deep dive on findings",
+            format=AudioFormat.DEEP_DIVE, length=AudioLength.LONG
         )
 
+        # Wait and download
+        await client.artifacts.wait(nb.id, artifact.id)
+        await client.artifacts.download_audio(nb.id, artifact.id, "output.mp3")
 
-asyncio.run(main("https://example.com"))
+        # Chat with sources
+        result = await client.chat.ask(nb.id, "Summarize key points")
+        print(result.answer)
+
+asyncio.run(main())
 ```
 
-`NotebookLMClient.from_storage()` is an async context manager and is not awaited. A client is
-re-entrant on one event loop but is not thread-safe; create one client per loop. Public namespaces
-include `notebooks`, `sources`, `chat`, `research`, `artifacts`, `mind_maps`, `notes`, `settings`,
-`sharing`, `labels`, and `collections`. Apply the authorization boundaries above before running
-state-changing, long-running, or file-writing calls.
+**API modules:** `client.notebooks`, `client.sources`, `client.artifacts`, `client.chat`, `client.research`, `client.notes`, `client.settings`, `client.sharing`
 
-## Generation Notes
+## Common Recipes
 
-Available generators include `audio`, `video`, `slide-deck`, `infographic`, `report`, `mind-map`,
-`data-table`, `quiz`, and `flashcards`. Inspect `notebooklm generate <type> --help` because formats,
-styles, source selection, language, and retry support vary by type.
-
-Keep these non-obvious distinctions:
-
-- Mind map (`--kind interactive`, default) is an asynchronous studio artifact internally, but the
-  CLI polls it to completion and returns `{mind_map, note_id, kind}`; do not run `artifact wait`.
-- Mind map (`--kind note-backed`) is server-synchronous. Both kinds accept `--instructions`;
-  interactive applies it reliably, while the server may ignore it for note-backed maps.
-- `generate video --format cinematic` ignores `--style`, requires Google AI Ultra, and can take
-  roughly 30-40 minutes.
-- Slide-deck has no orientation flag. Request portrait output in the description (for example,
-  `9:16 portrait`); slide revision cannot change the deck's orientation.
-- For a custom report, pass the prompt as the positional description with `--format custom`;
-  `--append` applies only to built-in report formats.
-
-For prompts too long or awkward for shell quoting, use `--prompt-file PATH` on `ask`,
-`source add-research`, and supported generators. It contains prompt text; upload source documents
-with `source add` instead.
-
-## Output and Citations
-
-Use JSON structurally rather than parsing human output. Common lifecycle values are:
-
-- sources: `unknown`/`preparing`/`processing` -> `ready` or `error`; proceed only on `ready`;
-- artifacts: `pending`/`in_progress` -> `completed`, `failed`, or `removed`; `not_found` may be a
-  brief listing lag. Proceed or download only on `completed`.
-
-Chat JSON includes `answer`, `conversation_id`, and `references[].source_id`. A reference's
-`start_char`/`end_char` are UTF-16 offsets into the structured source document, not flat
-`SourceFulltext.content`. In Python, use
-`from notebooklm import resolve_chat_reference_passage`, then call
-`await resolve_chat_reference_passage(client, notebook_id, reference)`; it uses the exact document
-range and falls back to `find_citation_context()` when necessary.
-
-## Failure Handling
-
-On failure, run safe read-only diagnosis first:
+### Research-to-Podcast Pipeline
 
 ```bash
-notebooklm auth check --test --passive --json
-notebooklm list --json
-notebooklm source list -n {notebook_id} --json
-notebooklm artifact list -n {notebook_id} --json
-notebooklm research status -n {notebook_id} --run-id {research_run_id} --json
+notebooklm create "Climate Research"
+notebooklm use <id>
+notebooklm source add "https://en.wikipedia.org/wiki/Climate_change"
+notebooklm source add-research "climate change solutions 2025" --mode deep --import-all
+notebooklm generate audio "Focus on actionable solutions" --format debate --length long --wait
+notebooklm download audio ./climate-debate.mp3
 ```
 
-Inspect only the commands relevant to the failed workflow. Do not mutate state during diagnosis.
+### Document Analysis to Study Materials
 
-- Exit 0 means success. Expected command failures use exit 1. A `source wait` timeout uses exit 2;
-  `artifact wait` and `research wait` timeouts use exit 1.
-- Branch on exit code first. Ordinary handled JSON failures use `{error, code, message}`, while wait
-  commands return domain envelopes such as `{"status": "timeout", "error": "..."}`.
-- On auth failure, revalidate `checks.token_fetch`; log in only if it is not `true`.
-- On a wait timeout, report it and inspect the exact source, artifact, or research run.
-- Generation is rate-limited by Google. Preserve the task ID, inspect status, and retry only when the
-  user authorizes it; do not loop indefinitely. For an existing failed Studio artifact, inspect
-  `notebooklm artifact retry <artifact_id> -n {notebook_id} --help` before retrying in place.
-- On a protocol error, record the installed version, exact command, relevant IDs, and redacted
-  error. Check the project's issue tracker when network access exists; do not invent a workaround
-  when it does not.
+```bash
+notebooklm create "Exam Prep"
+notebooklm use <id>
+notebooklm source add ./textbook.pdf
+notebooklm generate quiz --difficulty hard --quantity more --wait
+notebooklm generate flashcards --wait
+notebooklm download quiz --format markdown ./quiz.md
+notebooklm download flashcards --format json ./cards.json
+```
 
-Keep progress updates brief and include the relevant returned ID. Never expose credential contents.
+### Batch Import + Full Report
 
-## Skill Installation
+```bash
+notebooklm create "Literature Review"
+notebooklm use <id>
+for f in ./papers/*.pdf; do notebooklm source add "$f"; done
+notebooklm generate report "Systematic review" --format briefing-doc --wait
+notebooklm download report ./review.md
+```
 
-If this file is already inside an agent skill directory, the skill itself is installed. Otherwise:
+## Troubleshooting
 
-- `notebooklm skill install` installs or updates supported local skill targets.
-- `notebooklm skill package` builds an uploadable archive for sandboxed agent environments.
-- `notebooklm skill status --json` reports installed versions and `content_mismatch`.
+| Issue | Fix |
+|-------|-----|
+| Auth expired | Run `notebooklm login` again |
+| `playwright` not found | `pip install "notebooklm-py[browser]"` then `playwright install chromium` |
+| Generation stuck | Use `notebooklm source wait <id>` for pending sources, check `--retry` flag |
+| Partial ID not matching | Use more characters of the notebook ID |
+| Debug API calls | Set `NOTEBOOKLM_LOG_LEVEL=DEBUG` or `NOTEBOOKLM_DEBUG_RPC=1` |
+
+---
+
+## Gotchas
+
+- **Source upload >200MB silently fails after the request returns 200** — downstream shows "processing" forever. Pre-check file size before upload.
+- **Concurrent audio/video generation per project is rate-limited** — second concurrent gen fails with a generic "try again later". Serialize generation jobs.
+- **gcloud auth vs notebooklm-account differ** — a user logged into gcloud may not have notebooklm access; pass `--account` explicitly when they diverge.
+- **Source ordering at upload affects citation precedence in generated content** — re-uploading to fix order changes the output style.
+- **Studio types have different timeout windows** — audio ~5min, video ~15min, slides ~3min. CLI default of 60s drops mid-generation for the longer types.
