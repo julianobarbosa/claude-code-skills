@@ -31,10 +31,13 @@ notebooklm source guide <first_source_id> -n "$NB"
 If any source is not `ready`, run `notebooklm source wait <source_id> -n "$NB" --timeout 600` first.
 
 ### 2. Run the Studio Orchestrator Script
-Execute [scripts/run_studio.py](./scripts/run_studio.py) using `python3` and a path relative to this skill directory (or `~/.agents/skills/notebooklm-studio/scripts/run_studio.py`). By default it enforces `pt-BR` (per project `CLAUDE.md` / `persona_config.json`), serializes concurrent runs per notebook via a file lock, tracks an input fingerprint (`sources` + `focus` + `lang`) so stale artifacts are regenerated when sources or focus change, waits for `audio` before dispatching `video` to avoid media rate limits, retries failed artifacts, and paces every CLI call by `--delay` (default `1.5s`) to prevent `storage_state.json` CAS lock collisions:
+Execute [scripts/run_studio.py](./scripts/run_studio.py) with `python3` and a path relative to this skill directory. By default it enforces `pt-BR` (per project `CLAUDE.md` / `persona_config.json`), serializes concurrent runs per notebook via a file lock, fingerprints source metadata, focus, language, persona, response length, and each artifact's generation recipe, waits for `audio` before dispatching `video`, retries failed artifacts, and paces every CLI call by `--delay` (default `1.5s`):
+
+Fingerprints detect changes visible in `source list` metadata, `--focus`, `--lang`, persona, response length, and the per-artifact generation options. Artifacts already present before this runner records per-artifact inputs have unknown provenance; run once with `--force` to establish it. The CLI does not expose a source-content version, so after editing, appending to, or refreshing content under an existing source ID, run with `--force` again (combine with `--only` to limit regeneration). A partial `--only` run preserves the fingerprints of artifacts it did not regenerate.
 
 ```bash
-SKILL_DIR="${SKILL_DIR:-$HOME/.agents/skills/notebooklm-studio}"
+# Run from this repository's root; set SKILL_DIR to the installed skill directory elsewhere.
+SKILL_DIR="${SKILL_DIR:-skills/notebooklm-studio}"
 python3 "$SKILL_DIR/scripts/run_studio.py" \
   --notebook "$NB" \
   --focus "<TOPIC_FOCUS_IN_PT_BR>"
@@ -46,8 +49,8 @@ python3 "$SKILL_DIR/scripts/run_studio.py" \
 - `--only <comma-list>`: Generate only specific keys (`audio,video,infographic,slide-deck,briefing-doc,study-guide,blog-post,table-report,flashcards,quiz,mind-map`). Unknown keys fail fast with exit code `2`.
 - `--try-native-table`: Attempt `notebooklm generate data-table` before falling back to the custom tabular report (`table-report`) on unsupported-operation (`UNCONFIRMED_WRITE` / `invalid argument`).
 - `--no-wait-audio`: Dispatch `video` after `--delay` without waiting for `audio` completion (not recommended when both `audio` and `video` are generated in the same run).
-- `--ignore-fingerprint`: Reuse existing `completed`/`in_progress` artifacts even if sources or `--focus` changed since the last run.
-- `--force`: Regenerate even if an artifact of that subtype already exists with a matching fingerprint.
+- `--ignore-fingerprint`: Reuse existing artifacts even if source, focus, language, persona, response-length, or generation-recipe inputs changed.
+- `--force`: Regenerate requested artifacts even if they already exist; use after source-content changes the metadata fingerprint cannot detect.
 - `--dry-run`: Print the planned `configure` and `generate` commands without executing.
 
 ### 3. Verify and Report

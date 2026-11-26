@@ -12,9 +12,9 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Iterator
 
 DEFAULT_PERSONA = (
     "Atue como analista técnico sênior. Responda SEMPRE em português brasileiro (pt-BR). "
@@ -89,7 +89,7 @@ class PacedCLI:
             elapsed = time.monotonic() - self._last_call_ts
             if elapsed < self.delay:
                 time.sleep(self.delay - elapsed)
-        proc = subprocess.run(cmd, capture_output=True, text=True)
+        proc = subprocess.run(cmd, capture_output=True, text=True, check=False)
         self._last_call_ts = time.monotonic()
         out = proc.stdout.strip()
         err = proc.stderr.strip()
@@ -104,17 +104,40 @@ class PacedCLI:
 def fetch_artifacts(cli: PacedCLI, nb: str) -> tuple[bool, list[dict]]:
     """Fetch and validate the artifact list; return (ok, artifacts)."""
     rc, out = cli.run(["artifact", "list", "-n", nb, "--json"])
-    if rc != 0 or not isinstance(out, dict) or not isinstance(out.get("artifacts"), list):
+    artifacts = out.get("artifacts") if isinstance(out, dict) else None
+    if (
+        rc != 0
+        or not isinstance(out, dict)
+        or not isinstance(artifacts, list)
+        or any(
+            not isinstance(art, dict)
+            or not isinstance(art.get("id"), str)
+            or not art["id"]
+            or not isinstance(art.get("status"), str)
+            or not isinstance(art.get("type_id"), str)
+            or not art["type_id"]
+            or not isinstance(art.get("title"), str)
+            or (art.get("type") is not None and not isinstance(art.get("type"), str))
+            for art in artifacts
+        )
+    ):
         print(
             f"ERROR: 'notebooklm artifact list' failed (rc={rc}): {out}",
             file=sys.stderr,
         )
         return False, []
-    return True, out["artifacts"]
+    return True, artifacts
 
 
-def fetch_sources_fingerprint(cli: PacedCLI, nb: str, focus: str, lang: str) -> tuple[bool, str]:
-    """Compute a deterministic SHA-256 fingerprint over (source_ids, focus, lang)."""
+def fetch_sources_fingerprint(
+    cli: PacedCLI,
+    nb: str,
+    focus: str,
+    lang: str,
+    persona: str,
+    response_length: str,
+) -> tuple[bool, str]:
+    """Fingerprint source metadata and all configured output-affecting inputs."""
     rc, out = cli.run(["source", "list", "-n", nb, "--json"])
     if rc != 0 or not isinstance(out, dict) or not isinstance(out.get("sources"), list):
         print(
@@ -122,15 +145,101 @@ def fetch_sources_fingerprint(cli: PacedCLI, nb: str, focus: str, lang: str) -> 
             file=sys.stderr,
         )
         return False, ""
-    source_ids = sorted(
-        str(s.get("id", "")) for s in out["sources"] if isinstance(s, dict) and s.get("id")
+    sources = out["sources"]
+    if any(not isinstance(source, dict) or not source.get("id") for source in sources):
+        print(
+            f"ERROR: 'notebooklm source list' returned an unexpected source row: {out}",
+            file=sys.stderr,
+        )
+        return False, ""
+    source_fields = (
+        "id",
+        "title",
+        "type",
+        "url",
+        "status",
+        "status_id",
+        "created_at",
+        "drive_document_id",
+        "drive_status",
+        "is_drive_degraded",
+    )
+    source_state = sorted(
+        ({field: source.get(field) for field in source_fields} for source in sources),
+        key=lambda source: str(source["id"]),
     )
     payload = json.dumps(
-        {"sources": source_ids, "focus": focus, "lang": lang},
+        {
+            "sources": source_state,
+            "focus": focus,
+            "lang": lang,
+            "persona": persona,
+            "response_length": response_length,
+        },
         sort_keys=True,
         ensure_ascii=False,
     )
     return True, hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def artifact_input_fingerprint(
+    base_fingerprint: str,
+    key: str,
+    command: list[str],
+    native_table_command: list[str] | None = None,
+) -> str:
+    """Include each artifact's actual generation recipe in its input fingerprint."""
+    payload = json.dumps(
+        {
+            "base": base_fingerprint,
+            "key": key,
+            "command": command,
+            "native_table_command": native_table_command,
+        },
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def wait_for_audio_completion(
+    cli: PacedCLI,
+    notebook_id: str,
+    audio_id: str | None,
+    timeout: int,
+    next_action: str,
+) -> bool:
+    """Block a subsequent media generation until in-flight audio is terminal."""
+    if not audio_id:
+        print(
+            f"  [ERR] Cannot verify audio completion before {next_action}: "
+            "no audio artifact ID is available.",
+            file=sys.stderr,
+        )
+        return False
+    print(
+        f"  [WAIT] Waiting for audio ({audio_id}) before {next_action} "
+        "to avoid concurrent media rate limits..."
+    )
+    rc, out = cli.run(
+        [
+            "artifact",
+            "wait",
+            audio_id,
+            "-n",
+            notebook_id,
+            "--timeout",
+            str(timeout),
+            "--json",
+        ]
+    )
+    if rc != 0:
+        print(
+            f"  [ERR] audio wait returned rc={rc} ({out}); {next_action} was not dispatched.",
+            file=sys.stderr,
+        )
+        return False
+    return True
 
 
 def load_manifest(state_dir: Path, nb: str) -> dict:
@@ -204,11 +313,13 @@ def classify_existing(
             # NotebookLM studio_status / artifact list can classify completed quizzes as flashcards
             if "quiz" in title or "questionário" in title or "teste" in title:
                 _select_artifact(found, "quiz", art)
-            elif "flashcard" in title or "cartões" in title or "cartoes" in title:
-                _select_artifact(found, "flashcards", art)
             elif (
-                "flashcards" not in found
-                or (found["flashcards"].get("status") or "").lower() not in USABLE_STATUSES
+                "flashcard" in title
+                or "cartões" in title
+                or "cartoes" in title
+                or "flashcards" not in found
+                or (found["flashcards"].get("status") or "").lower()
+                not in USABLE_STATUSES
             ):
                 _select_artifact(found, "flashcards", art)
             else:
@@ -237,7 +348,26 @@ def classify_existing(
                 or "artigo" in title
             ):
                 _select_artifact(found, "blog-post", art)
+    for key, art_id in (recorded_ids or {}).items():
+        preferred = next(
+            (art for art in artifacts if str(art.get("id") or "") == str(art_id)),
+            None,
+        )
+        if preferred and str(preferred.get("status") or "").lower() in USABLE_STATUSES:
+            found[key] = preferred
     return found
+
+
+def find_generated_artifacts(
+    artifacts: list[dict], generated_ids: dict[str, str]
+) -> dict[str, dict]:
+    """Resolve this run's generated task IDs to their listed artifact rows."""
+    artifacts_by_id = {str(art.get("id") or ""): art for art in artifacts}
+    return {
+        key: artifacts_by_id[art_id]
+        for key, art_id in generated_ids.items()
+        if art_id in artifacts_by_id
+    }
 
 
 def is_unsupported_data_table_error(out: dict | str) -> bool:
@@ -436,6 +566,19 @@ def build_specs(nb: str, focus: str, lang: str) -> list[tuple[str, list[str]]]:
     ]
 
 
+def build_native_table_spec(nb: str, focus: str, lang: str) -> list[str]:
+    return [
+        "generate",
+        "data-table",
+        "-n",
+        nb,
+        "--language",
+        lang,
+        f"Tabela comparativa sobre {focus}",
+        "--json",
+    ]
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("-n", "--notebook", required=True, help="Notebook URL or UUID")
@@ -476,12 +619,12 @@ def main() -> int:
     parser.add_argument(
         "--ignore-fingerprint",
         action="store_true",
-        help="Reuse existing artifacts even if notebook sources or --focus changed",
+        help="Reuse existing artifacts even if recorded inputs changed",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Regenerate even if artifact already exists",
+        help="Regenerate requested artifacts even if they already exist",
     )
     parser.add_argument(
         "--dry-run",
@@ -539,23 +682,50 @@ def main() -> int:
             )
             return 1
 
-        # Comment 11: Compute fingerprint of (sources, focus, lang) and compare with manifest
-        ok_fp, current_fp = fetch_sources_fingerprint(cli, nb, focus, lang)
+        # Comment 11: Compute source/persona/focus inputs and compare per artifact.
+        ok_fp, current_fp = fetch_sources_fingerprint(
+            cli, nb, focus, lang, persona, resp_len
+        )
         if not ok_fp:
             return 1
+        native_table_command = (
+            build_native_table_spec(nb, focus, lang) if args.try_native_table else None
+        )
+        current_artifact_fingerprints = {
+            key: artifact_input_fingerprint(
+                current_fp,
+                key,
+                cmd_args,
+                native_table_command if key == "table-report" else None,
+            )
+            for key, cmd_args in specs
+        }
 
         manifest = load_manifest(state_dir, nb)
         recorded_fp = manifest.get("fingerprint")
+        if not isinstance(recorded_fp, str):
+            recorded_fp = ""
         recorded_ids: dict[str, str] = (
             manifest.get("artifacts", {}) if isinstance(manifest.get("artifacts"), dict) else {}
+        )
+        raw_artifact_fingerprints = manifest.get("artifact_fingerprints", {})
+        recorded_fingerprints: dict[str, str] = (
+            {
+                key: value
+                for key, value in raw_artifact_fingerprints.items()
+                if isinstance(key, str) and isinstance(value, str)
+            }
+            if isinstance(raw_artifact_fingerprints, dict)
+            else {}
         )
         fingerprint_changed = bool(
             recorded_fp and recorded_fp != current_fp and not args.ignore_fingerprint
         )
         if fingerprint_changed:
             print(
-                f"==> Notebook sources or focus changed (fingerprint {recorded_fp} -> {current_fp}); "
-                "regenerating requested artifacts..."
+                f"==> Notebook inputs or persona settings changed "
+                f"(fingerprint {recorded_fp} -> {current_fp}); "
+                "checking each requested artifact's recorded inputs..."
             )
 
         # Comment 1: Check artifact list return code and response shape
@@ -567,43 +737,35 @@ def main() -> int:
 
         print(f"==> [3/4] Dispatching Studio artifacts (pacing={args.delay}s)...")
         dispatched_audio_id: str | None = None
+        audio_wait_required = False
         wants_video = "video" in target_keys
+        existing_audio = existing_map.get("audio")
+        if existing_audio and str(existing_audio.get("status") or "").lower() in (
+            "in_progress",
+            "pending",
+        ):
+            dispatched_audio_id = str(existing_audio.get("id") or "") or None
+            audio_wait_required = True
+        fingerprint_candidates: dict[str, str] = {}
+        generated_keys: set[str] = set()
+        generated_ids_by_key: dict[str, str] = {}
 
         for key, cmd_args in specs:
             if only_set and key not in only_set:
                 continue
 
-            # Comment 7: Wait for audio overview before starting video to avoid media rate limits
-            if (
-                key == "video"
-                and dispatched_audio_id
-                and not args.no_wait_audio
-                and not args.dry_run
-            ):
-                print(
-                    f"  [WAIT] Waiting for audio ({dispatched_audio_id}) before dispatching video "
-                    "to avoid concurrent media rate limits..."
-                )
-                rc_wait, wait_out = cli.run(
-                    [
-                        "artifact",
-                        "wait",
-                        dispatched_audio_id,
-                        "-n",
-                        nb,
-                        "--timeout",
-                        str(args.audio_wait_timeout),
-                        "--json",
-                    ]
-                )
-                if rc_wait != 0:
-                    print(
-                        f"  [WARN] audio wait returned rc={rc_wait} ({wait_out}); proceeding carefully...",
-                        file=sys.stderr,
-                    )
-
             prev = existing_map.get(key)
-            if prev and not args.force and not fingerprint_changed:
+            current_artifact_fp = current_artifact_fingerprints[key]
+            prev_fingerprint = recorded_fingerprints.get(key)
+            artifact_stale = bool(
+                prev
+                and prev_fingerprint
+                and prev_fingerprint != current_artifact_fp
+                and not args.ignore_fingerprint
+            )
+            if artifact_stale:
+                print(f"  [STALE] {key}: recorded inputs differ; regenerating...")
+            if prev and not args.force and not artifact_stale:
                 status = (prev.get("status") or "").lower()
                 art_id = str(prev.get("id") or "")
                 if status in USABLE_STATUSES:
@@ -611,16 +773,38 @@ def main() -> int:
                     if art_id:
                         recorded_ids[key] = art_id
                     if key == "audio" and status in ("in_progress", "pending") and wants_video:
-                        dispatched_audio_id = art_id
+                        dispatched_audio_id = art_id or None
+                        audio_wait_required = True
                     continue
                 if status == "failed" and art_id:
+                    if (
+                        key == "video"
+                        and audio_wait_required
+                        and not args.no_wait_audio
+                    ):
+                        if not wait_for_audio_completion(
+                            cli,
+                            nb,
+                            dispatched_audio_id,
+                            args.audio_wait_timeout,
+                            "retrying video",
+                        ):
+                            failures.append("audio-wait-before-video")
+                            continue
+                        audio_wait_required = False
                     # Comment 8: Check retry result and fall back to fresh generation if retry fails
                     print(f"  [RETRY] {key}: retrying failed artifact {art_id}")
                     rc_retry, retry_out = cli.run(["artifact", "retry", art_id, "-n", nb, "--json"])
                     if rc_retry == 0:
                         recorded_ids[key] = art_id
+                        if (
+                            prev_fingerprint == current_artifact_fp
+                            and not args.ignore_fingerprint
+                        ):
+                            fingerprint_candidates[key] = art_id
                         if key == "audio" and wants_video:
                             dispatched_audio_id = art_id
+                            audio_wait_required = True
                         continue
                     print(
                         f"  [WARN] retry failed for {key} (rc={rc_retry}: {retry_out}); "
@@ -628,23 +812,44 @@ def main() -> int:
                         file=sys.stderr,
                     )
 
+            if key == "audio" and audio_wait_required:
+                if not wait_for_audio_completion(
+                    cli,
+                    nb,
+                    dispatched_audio_id,
+                    args.audio_wait_timeout,
+                    "starting replacement audio",
+                ):
+                    failures.append("audio-wait-before-audio")
+                    continue
+                audio_wait_required = False
+                dispatched_audio_id = None
+
+            if (
+                key == "video"
+                and audio_wait_required
+                and not args.no_wait_audio
+            ):
+                if not wait_for_audio_completion(
+                    cli,
+                    nb,
+                    dispatched_audio_id,
+                    args.audio_wait_timeout,
+                    "dispatching video",
+                ):
+                    failures.append("audio-wait-before-video")
+                    continue
+                audio_wait_required = False
+
             if key == "table-report" and args.try_native_table:
                 # Comment 10: Only fall back to custom report on the unsupported-operation error
-                rc_dt, dt_out = cli.run(
-                    [
-                        "generate",
-                        "data-table",
-                        "-n",
-                        nb,
-                        "--language",
-                        lang,
-                        f"Tabela comparativa sobre {focus}",
-                        "--json",
-                    ]
-                )
+                assert native_table_command is not None
+                rc_dt, dt_out = cli.run(native_table_command)
                 if rc_dt == 0:
+                    generated_keys.add(key)
                     created_id = extract_created_id(dt_out)
                     if created_id:
+                        generated_ids_by_key[key] = created_id
                         recorded_ids[key] = created_id
                     print("  [OK] table-report (native data-table)")
                     continue
@@ -660,21 +865,50 @@ def main() -> int:
                     "generating custom tabular report..."
                 )
 
-            rc, out = cli.run(cmd_args)
+            if key == "audio" and wants_video:
+                # Do not let a previous audio ID mask an accepted generation whose ID is missing.
+                dispatched_audio_id = None
+                audio_wait_required = True
+            wait_inline = (
+                key == "audio"
+                and wants_video
+                and not args.no_wait_audio
+            )
+            dispatch_args = cmd_args
+            if wait_inline:
+                # The CLI's --wait blocks on the generation task ID; artifact wait accepts artifact IDs.
+                dispatch_args = [
+                    *cmd_args,
+                    "--wait",
+                    "--timeout",
+                    str(args.audio_wait_timeout),
+                ]
+            rc, out = cli.run(dispatch_args)
             if rc != 0 and not args.dry_run:
-                # Comment 9: Bounded retry on immediate generation failure (paced by PacedCLI)
-                print(
-                    f"  [WARN] {key} generation failed (rc={rc}: {out}); retrying once...",
-                    file=sys.stderr,
-                )
-                rc, out = cli.run(cmd_args)
+                if wait_inline:
+                    # A timed-out --wait may leave a live server task; don't start duplicate audio.
+                    print(
+                        f"  [WARN] {key} generation/wait failed (rc={rc}: {out}); "
+                        "not dispatching a second audio task; checking final status...",
+                        file=sys.stderr,
+                    )
+                else:
+                    # Comment 9: Bounded retry on immediate generation failure (paced by PacedCLI)
+                    print(
+                        f"  [WARN] {key} generation failed (rc={rc}: {out}); retrying once...",
+                        file=sys.stderr,
+                    )
+                    rc, out = cli.run(dispatch_args)
 
             if rc == 0:
                 created_id = extract_created_id(out)
+                generated_keys.add(key)
                 if created_id:
+                    generated_ids_by_key[key] = created_id
                     recorded_ids[key] = created_id
-                    if key == "audio" and wants_video:
-                        dispatched_audio_id = created_id
+                if key == "audio" and wants_video:
+                    dispatched_audio_id = created_id or None
+                    audio_wait_required = not wait_inline
                 print(f"  [OK] {key}: {out if isinstance(out, dict) else str(out)[:120]}")
             else:
                 print(
@@ -690,9 +924,10 @@ def main() -> int:
             return 1
 
         final_map = classify_existing(final_artifacts, recorded_ids=recorded_ids)
+        generated_artifacts = find_generated_artifacts(final_artifacts, generated_ids_by_key)
         retried_in_final = False
         for key in target_keys:
-            art = final_map.get(key)
+            art = generated_artifacts.get(key) if key in generated_keys else final_map.get(key)
             if art and (art.get("status") or "").lower() == "failed" and art.get("id"):
                 art_id = str(art["id"])
                 print(f"  [FINAL-RETRY] {key}: retrying newly failed artifact {art_id}...")
@@ -705,20 +940,35 @@ def main() -> int:
                     )
                     if key not in failures:
                         failures.append(key)
+                elif (
+                    not args.ignore_fingerprint
+                    and art_id
+                    and recorded_fingerprints.get(key) == current_artifact_fingerprints[key]
+                ):
+                    fingerprint_candidates[key] = art_id
 
         if retried_in_final:
             ok_final, final_artifacts = fetch_artifacts(cli, nb)
             if not ok_final:
                 return 1
             final_map = classify_existing(final_artifacts, recorded_ids=recorded_ids)
+            generated_artifacts = find_generated_artifacts(final_artifacts, generated_ids_by_key)
 
         for key in target_keys:
-            art = final_map.get(key)
-            if art and art.get("id"):
-                recorded_ids[key] = str(art["id"])
-            if not args.dry_run and (not art or (art.get("status") or "").lower() == "failed"):
-                if key not in failures:
-                    failures.append(key)
+            art = generated_artifacts.get(key) if key in generated_keys else final_map.get(key)
+            status = str(art.get("status") or "").lower() if art else ""
+            art_id = str(art.get("id") or "") if art else ""
+            if art and art_id and status in USABLE_STATUSES:
+                recorded_ids[key] = art_id
+                if key in generated_keys or fingerprint_candidates.get(key) == art_id:
+                    recorded_fingerprints[key] = current_artifact_fingerprints[key]
+                    failures = [failure for failure in failures if failure != key]
+            if (
+                not args.dry_run
+                and (not art or status not in USABLE_STATUSES)
+                and key not in failures
+            ):
+                failures.append(key)
 
         if not args.dry_run:
             save_manifest(
@@ -730,6 +980,7 @@ def main() -> int:
                     "focus": focus,
                     "lang": lang,
                     "artifacts": recorded_ids,
+                    "artifact_fingerprints": recorded_fingerprints,
                 },
             )
 
@@ -746,7 +997,7 @@ def main() -> int:
         # Comment 3: Return non-zero if any required command or artifact failed
         if failures:
             print(
-                f"ERROR: Studio run completed with failed/missing artifact(s): {', '.join(failures)}",
+                f"ERROR: Studio run completed with failed/unverified step(s): {', '.join(failures)}",
                 file=sys.stderr,
             )
             return 1
